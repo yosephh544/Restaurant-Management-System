@@ -1,0 +1,43 @@
+using RestaurantManagement.Infrustructure.Enums.Identity;
+using RestaurantManagement.Infrustructure.Models.Orders;
+using RestaurantManagement.Infrustructure.Models.Billing;
+
+namespace RestaurantManagement.Infrustructure.Models.Identity;
+
+/// <summary>
+/// Represents a restaurant staff member. Anchors authentication,
+/// role-based access control, and accountability across orders,
+/// cancellations, and tips.
+/// </summary>
+public class User
+{
+    public Guid Id { get; set; }
+
+    /// <summary>Displayed on kitchen tickets, cashier bills, and manager reports.</summary>
+    public string FullName { get; set; } = default!;
+
+    /// <summary>Primary login identifier. Unique across the system.</summary>
+    public string Phone { get; set; } = default!;
+
+    /// <summary>Governs API and UI access.</summary>
+    public UserRole Role { get; set; }
+
+    /// <summary>Bcrypt/Argon2 hashed 4–6 digit PIN for rapid shift switching on mobile/KDS.</summary>
+    public string? PinHash { get; set; }
+
+    /// <summary>Bcrypt/Argon2 hashed strong password for Cashier, Manager, and Owner roles.</summary>
+    public string? PasswordHash { get; set; }
+
+    /// <summary>Soft-disables terminated staff while preserving historical records.</summary>
+    public bool IsActive { get; set; } = true;
+
+    public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+    public DateTime? UpdatedAt { get; set; }
+
+    // Navigation properties
+    public ICollection<Order> Orders { get; set; } = new List<Order>();
+    public ICollection<OrderCancellation> CancellationsExecuted { get; set; } = new List<OrderCancellation>();
+    public ICollection<OrderCancellation> CancellationsResolved { get; set; } = new List<OrderCancellation>();
+    public ICollection<Payment> PaymentsInitiated { get; set; } = new List<Payment>();
+    public ICollection<WaiterTip> WaiterTips { get; set; } = new List<WaiterTip>();
+}
