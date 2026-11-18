@@ -1,30 +1,40 @@
-using Microsoft.EntityFrameworkCore;
-using RestaurantManagement.Infrustructure.Data;
+using RestaurantManagement.Api.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-builder.Services.AddDbContext<RestaurantDbContext>(options =>
-    options.UseSqlServer(
-        builder.Configuration.GetConnectionString("DefaultConnection"),
-        sqlOptions => sqlOptions.MigrationsAssembly("RestaurantManagement.Api")
-    )
-);
+// ── Application Services ──────────────────────────────────────────────────────
+builder.Services.AddDatabase(builder.Configuration);
+builder.Services.AddCorsPolicy(builder.Configuration);
+builder.Services.AddJwtAuthentication(builder.Configuration);
+builder.Services.AddApplicationServices();
 
 builder.Services.AddControllers();
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerWithJwt();
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// ── Middleware pipeline ───────────────────────────────────────────────────────
+// Must be first to catch unhandled exceptions across all subsequent middleware
+app.UseGlobalExceptionHandler();
+
 if (app.Environment.IsDevelopment())
 {
-    app.MapOpenApi();
+    app.UseSwagger();
+    app.UseSwaggerUI(c =>
+    {
+        c.SwaggerEndpoint("/swagger/v1/swagger.json", "RMS API v1.0");
+        c.RoutePrefix = "swagger";
+    });
 }
 
 app.UseHttpsRedirection();
 
+app.UseCors("RmsPolicy");
+
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

@@ -16,6 +16,7 @@ public class RestaurantDbContext : DbContext
 
     // ── Identity ────────────────────────────────────────────────────────────
     public DbSet<User> Users { get; set; }
+    public DbSet<RefreshToken> RefreshTokens { get; set; }
 
     // ── Menu Catalog ─────────────────────────────────────────────────────────
     public DbSet<MenuCategory> MenuCategories { get; set; }
@@ -36,6 +37,7 @@ public class RestaurantDbContext : DbContext
 
         // ── Schema table naming (snake_case to match documentation) ───────────
         modelBuilder.Entity<User>().ToTable("users");
+        modelBuilder.Entity<RefreshToken>().ToTable("refresh_tokens");
         modelBuilder.Entity<MenuCategory>().ToTable("menu_categories");
         modelBuilder.Entity<MenuItem>().ToTable("menu_items");
         modelBuilder.Entity<Order>().ToTable("orders");
@@ -65,6 +67,28 @@ public class RestaurantDbContext : DbContext
             entity.Property(u => u.PasswordHash).HasMaxLength(255);
             entity.Property(u => u.IsActive).HasDefaultValue(true);
             entity.Property(u => u.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+        });
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // REFRESH TOKEN
+        // ═══════════════════════════════════════════════════════════════════════
+        modelBuilder.Entity<RefreshToken>(entity =>
+        {
+            entity.HasKey(t => t.Id);
+            entity.Property(t => t.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+            entity.Property(t => t.TokenHash).IsRequired().HasMaxLength(255);
+            entity.HasIndex(t => t.TokenHash).IsUnique();
+
+            entity.Property(t => t.DeviceToken).HasMaxLength(255);
+            entity.Property(t => t.RevokedReason).HasMaxLength(255);
+            entity.Property(t => t.IsRevoked).HasDefaultValue(false);
+            entity.Property(t => t.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasOne(t => t.User)
+                  .WithMany(u => u.RefreshTokens)
+                  .HasForeignKey(t => t.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ═══════════════════════════════════════════════════════════════════════

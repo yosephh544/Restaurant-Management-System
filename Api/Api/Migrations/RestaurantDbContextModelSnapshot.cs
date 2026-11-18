@@ -134,6 +134,55 @@ namespace RestaurantManagement.Api.Migrations
                     b.ToTable("waiter_tips", (string)null);
                 });
 
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.RefreshToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("DeviceToken")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsRevoked")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
+                    b.Property<DateTime?>("RevokedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RevokedReason")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("refresh_tokens", (string)null);
+                });
+
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -495,6 +544,17 @@ namespace RestaurantManagement.Api.Migrations
                     b.Navigation("Waiter");
                 });
 
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.RefreshToken", b =>
+                {
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.User", "User")
+                        .WithMany("RefreshTokens")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Menu.MenuItem", b =>
                 {
                     b.HasOne("RestaurantManagement.Infrustructure.Models.Menu.MenuCategory", "Category")
@@ -597,6 +657,8 @@ namespace RestaurantManagement.Api.Migrations
                     b.Navigation("Orders");
 
                     b.Navigation("PaymentsInitiated");
+
+                    b.Navigation("RefreshTokens");
 
                     b.Navigation("WaiterTips");
                 });

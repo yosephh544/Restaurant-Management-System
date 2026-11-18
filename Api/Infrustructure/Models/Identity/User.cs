@@ -40,4 +40,5 @@ public class User
     public ICollection<OrderCancellation> CancellationsResolved { get; set; } = new List<OrderCancellation>();
     public ICollection<Payment> PaymentsInitiated { get; set; } = new List<Payment>();
     public ICollection<WaiterTip> WaiterTips { get; set; } = new List<WaiterTip>();
+    public ICollection<RefreshToken> RefreshTokens { get; set; } = new List<RefreshToken>();
 }

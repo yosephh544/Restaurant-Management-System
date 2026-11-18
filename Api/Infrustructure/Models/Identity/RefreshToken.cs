@@ -28,6 +28,10 @@ public class RefreshToken
     /// <summary>When true the token has been explicitly revoked (logout, password change, etc.).</summary>
     public bool IsRevoked { get; set; } = false;
 
+    public string? RevokedReason { get; set; }
+
+    public DateTime? RevokedAt { get; set; }
+
     /// <summary>FCM / APNs device token for push notifications. Nullable — not all sessions register a device.</summary>
     public string? DeviceToken { get; set; }
 
