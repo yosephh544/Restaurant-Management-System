@@ -8,8 +8,6 @@ using RestaurantManagement.Infrustructure.Common.Constants;
 namespace RestaurantManagement.Api.Controllers.Billing;
 
 [ApiController]
-[Route("reports")]
-[Route("api/reports")]
 [Route("api/v1/reports")]
 [Authorize(Roles = Roles.ManagerOrAbove)]
 public class ReportsController : ApiControllerBase
@@ -36,7 +34,6 @@ public class ReportsController : ApiControllerBase
     /// Ranks waiters by total orders served, revenue generated, and itemized tip totals for payroll tip disbursement.
     /// </summary>
     [HttpGet("waiterperformance")]
-    [HttpGet("waiter-performance")]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<WaiterPerformanceResponse>), 200)]
     public async Task<IActionResult> GetWaiterPerformance([FromQuery] ReportDateRangeRequest request, CancellationToken ct)
     {
@@ -59,7 +56,6 @@ public class ReportsController : ApiControllerBase
     /// Measures average prep duration (PENDING → READY) and waiter pickup speed (READY → SERVED).
     /// </summary>
     [HttpGet("kitchenturnaround")]
-    [HttpGet("kitchen-turnaround")]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<KitchenTurnaroundResponse>), 200)]
     public async Task<IActionResult> GetKitchenTurnaround([FromQuery] ReportDateRangeRequest request, CancellationToken ct)
     {

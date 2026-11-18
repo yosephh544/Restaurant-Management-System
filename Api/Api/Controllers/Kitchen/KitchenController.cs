@@ -10,8 +10,6 @@ using RestaurantManagement.Infrustructure.Common.Requests;
 namespace RestaurantManagement.Api.Controllers.Kitchen;
 
 [ApiController]
-[Route("kitchen")]
-[Route("api/kitchen")]
 [Route("api/v1/kitchen")]
 [Authorize(Roles = $"{Roles.Kitchen},{Roles.ManagerOrAbove}")]
 public class KitchenController : ApiControllerBase

@@ -8,8 +8,6 @@ using RestaurantManagement.Infrustructure.Common.Constants;
 namespace RestaurantManagement.Api.Controllers.Orders;
 
 [ApiController]
-[Route("orders")]
-[Route("api/orders")]
 [Route("api/v1/orders")]
 [Authorize]
 public class OrdersController : ApiControllerBase

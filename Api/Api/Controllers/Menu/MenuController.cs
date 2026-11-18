@@ -8,8 +8,6 @@ using RestaurantManagement.Infrustructure.Common.Constants;
 namespace RestaurantManagement.Api.Controllers.Menu;
 
 [ApiController]
-[Route("menu")]
-[Route("api/menu")]
 [Route("api/v1/menu")]
 public class MenuController : ApiControllerBase
 {

@@ -6,7 +6,7 @@ namespace RestaurantManagement.Infrustructure.Common.Constants;
 /// </summary>
 public static class ApiRoutes
 {
-    private const string BasePrefix = "api";
+    private const string BasePrefix = "api/v1";
 
     public static class Auth
     {

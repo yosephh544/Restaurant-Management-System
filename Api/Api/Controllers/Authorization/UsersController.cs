@@ -8,8 +8,6 @@ using RestaurantManagement.Infrustructure.Common.Constants;
 namespace RestaurantManagement.Api.Controllers.Authorization;
 
 [ApiController]
-[Route("users")]
-[Route("api/users")]
 [Route("api/v1/users")]
 [Authorize(Roles = Roles.ManagerOrAbove)]
 public class UsersController : ApiControllerBase

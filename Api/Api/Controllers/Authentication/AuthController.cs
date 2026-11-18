@@ -7,8 +7,6 @@ using RestaurantManagement.Implementation.Interfaces.Authentication;
 namespace RestaurantManagement.Api.Controllers.Authentication;
 
 [ApiController]
-[Route("auth")]
-[Route("api/auth")]
 [Route("api/v1/auth")]
 public class AuthController : ApiControllerBase
 {
