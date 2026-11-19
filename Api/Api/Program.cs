@@ -7,6 +7,7 @@ builder.Services.AddDatabase(builder.Configuration);
 builder.Services.AddCorsPolicy(builder.Configuration);
 builder.Services.AddJwtAuthentication(builder.Configuration);
 builder.Services.AddApplicationServices();
+builder.Services.AddAuthorizationPolicies();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
@@ -15,6 +16,8 @@ builder.Services.AddSwaggerWithJwt();
 // ─────────────────────────────────────────────────────────────────────────────
 
 var app = builder.Build();
+
+await DatabaseSeeder.SeedOwnerAsync(app.Services);
 
 // ── Middleware pipeline ───────────────────────────────────────────────────────
 // Must be first to catch unhandled exceptions across all subsequent middleware

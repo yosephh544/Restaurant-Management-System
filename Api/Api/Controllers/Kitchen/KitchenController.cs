@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RestaurantManagement.Api.Authorization;
 using RestaurantManagement.Api.Controllers.Common;
 using RestaurantManagement.Implementation.Dtos.Kitchen;
 using RestaurantManagement.Implementation.Dtos.Orders;
@@ -11,7 +12,7 @@ namespace RestaurantManagement.Api.Controllers.Kitchen;
 
 [ApiController]
 [Route("api/v1/kitchen")]
-[Authorize(Roles = $"{Roles.Kitchen},{Roles.ManagerOrAbove}")]
+[Authorize]
 public class KitchenController : ApiControllerBase
 {
     private readonly IKitchenService _kitchenService;
@@ -25,36 +26,27 @@ public class KitchenController : ApiControllerBase
     /// Returns prioritized active orders (PENDING, PREPARING) sorted by creation time alongside payment status badges.
     /// </summary>
     [HttpGet("queue")]
+    [Permission(Permissions.KitchenView)]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.PagedResponse<KitchenQueueItemResponse>), 200)]
     public async Task<IActionResult> GetQueue([FromQuery] PagedRequest request, CancellationToken ct)
-    {
-        var result = await _kitchenService.GetQueueAsync(request, ct);
-        return PagedOkResponse(result);
-    }
+        => PagedOkResponse(await _kitchenService.GetQueueAsync(request, ct));
 
     /// <summary>
     /// Transitions order status from PENDING → PREPARING → READY; pushes pickup alert to the waiter mobile app.
     /// </summary>
     [HttpPatch("orders/{orderId:guid}/status")]
+    [Permission(Permissions.KitchenUpdate)]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<OrderResponse>), 200)]
-    public async Task<IActionResult> UpdateOrderStatus(
-        [FromRoute] Guid orderId,
-        [FromBody] UpdateKitchenOrderStatusRequest request,
-        CancellationToken ct)
-    {
-        var response = await _kitchenService.UpdateOrderStatusAsync(orderId, request, ct);
-        return OkResponse(response, $"Order status transitioned to {request.Status}.");
-    }
+    public async Task<IActionResult> UpdateOrderStatus([FromRoute] Guid orderId, [FromBody] UpdateKitchenOrderStatusRequest request, CancellationToken ct)
+        => OkResponse(await _kitchenService.UpdateOrderStatusAsync(orderId, request, ct), $"Order status transitioned to {request.Status}.");
 
     /// <summary>
     /// Cancels an order (or line item) with a mandatory reason_code and note; alerts waiter & manager and triggers automatic payment retraction.
     /// </summary>
     [HttpPost("orders/{orderId:guid}/cancel")]
+    [Permission(Permissions.KitchenCancel)]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<object>), 200)]
-    public async Task<IActionResult> CancelOrder(
-        [FromRoute] Guid orderId,
-        [FromBody] CancelOrderRequest request,
-        CancellationToken ct)
+    public async Task<IActionResult> CancelOrder([FromRoute] Guid orderId, [FromBody] CancelOrderRequest request, CancellationToken ct)
     {
         await _kitchenService.CancelOrderAsync(orderId, request, ct);
         var msg = request.OrderItemId.HasValue

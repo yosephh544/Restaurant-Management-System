@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using RestaurantManagement.Api.Authorization;
 using RestaurantManagement.Api.Controllers.Common;
 using RestaurantManagement.Implementation.Dtos.Authorization;
 using RestaurantManagement.Implementation.Interfaces.Authorization;
@@ -9,7 +10,6 @@ namespace RestaurantManagement.Api.Controllers.Authorization;
 
 [ApiController]
 [Route("api/v1/users")]
-[Authorize(Roles = Roles.ManagerOrAbove)]
 public class UsersController : ApiControllerBase
 {
     private readonly IUserService _userService;
@@ -24,6 +24,7 @@ public class UsersController : ApiControllerBase
     /// </summary>
     [HttpPost]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<UserResponse>), 201)]
+    [Permission(Permissions.UsersCreate)]
     public async Task<IActionResult> CreateUser([FromBody] CreateUserRequest request, CancellationToken ct)
     {
         var user = await _userService.CreateUserAsync(request, ct);
@@ -35,6 +36,7 @@ public class UsersController : ApiControllerBase
     /// </summary>
     [HttpGet]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.PagedResponse<UserResponse>), 200)]
+    [Permission(Permissions.UsersView)]
     public async Task<IActionResult> GetUsers([FromQuery] UserListRequest request, CancellationToken ct)
     {
         var result = await _userService.GetUsersAsync(request, ct);
@@ -46,6 +48,7 @@ public class UsersController : ApiControllerBase
     /// </summary>
     [HttpGet("{userId:guid}")]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<UserResponse>), 200)]
+    [Permission(Permissions.UsersView)]
     public async Task<IActionResult> GetUserById([FromRoute] Guid userId, CancellationToken ct)
     {
         var user = await _userService.GetUserByIdAsync(userId, ct);
@@ -57,6 +60,7 @@ public class UsersController : ApiControllerBase
     /// </summary>
     [HttpPatch("{userId:guid}")]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<UserResponse>), 200)]
+    [Permission(Permissions.UsersUpdate)]
     public async Task<IActionResult> UpdateUser([FromRoute] Guid userId, [FromBody] UpdateUserRequest request, CancellationToken ct)
     {
         var user = await _userService.UpdateUserAsync(userId, request, ct);
@@ -68,6 +72,7 @@ public class UsersController : ApiControllerBase
     /// </summary>
     [HttpPatch("{userId:guid}/status")]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<UserResponse>), 200)]
+    [Permission(Permissions.UsersManageStatus)]
     public async Task<IActionResult> UpdateUserStatus([FromRoute] Guid userId, [FromBody] UpdateUserStatusRequest request, CancellationToken ct)
     {
         var user = await _userService.UpdateUserStatusAsync(userId, request, ct);

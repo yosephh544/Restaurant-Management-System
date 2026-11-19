@@ -31,6 +31,11 @@ public class RestaurantDbContext : DbContext
     public DbSet<Payment> Payments { get; set; }
     public DbSet<WaiterTip> WaiterTips { get; set; }
 
+    // ── Roles & Permissions ───────────────────────────────────────────────────
+    public DbSet<Role> Roles { get; set; }
+    public DbSet<Permission> Permissions { get; set; }
+    public DbSet<RolePermission> RolePermissions { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -45,6 +50,9 @@ public class RestaurantDbContext : DbContext
         modelBuilder.Entity<OrderCancellation>().ToTable("order_cancellations");
         modelBuilder.Entity<Payment>().ToTable("payments");
         modelBuilder.Entity<WaiterTip>().ToTable("waiter_tips");
+        modelBuilder.Entity<Role>().ToTable("roles");
+        modelBuilder.Entity<Permission>().ToTable("permissions");
+        modelBuilder.Entity<RolePermission>().ToTable("role_permissions");
 
         // ═══════════════════════════════════════════════════════════════════════
         // USER
@@ -67,6 +75,12 @@ public class RestaurantDbContext : DbContext
             entity.Property(u => u.PasswordHash).HasMaxLength(255);
             entity.Property(u => u.IsActive).HasDefaultValue(true);
             entity.Property(u => u.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+
+            entity.Property(u => u.RoleId).IsRequired(false);
+            entity.HasOne(u => u.RoleEntity)
+                  .WithMany(r => r.Users)
+                  .HasForeignKey(u => u.RoleId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -318,6 +332,52 @@ public class RestaurantDbContext : DbContext
                   .WithMany()
                   .HasForeignKey(t => t.OrderId)
                   .OnDelete(DeleteBehavior.NoAction);
+        });
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // ROLE
+        // ═══════════════════════════════════════════════════════════════════════
+        modelBuilder.Entity<Role>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+            entity.Property(r => r.Name).IsRequired().HasMaxLength(100);
+            entity.HasIndex(r => r.Name).IsUnique();
+
+            entity.Property(r => r.Description).HasMaxLength(500);
+        });
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // PERMISSION
+        // ═══════════════════════════════════════════════════════════════════════
+        modelBuilder.Entity<Permission>(entity =>
+        {
+            entity.HasKey(p => p.Id);
+            entity.Property(p => p.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+            entity.Property(p => p.Name).IsRequired().HasMaxLength(150);
+            entity.HasIndex(p => p.Name).IsUnique();
+
+            entity.Property(p => p.Description).HasMaxLength(500);
+        });
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // ROLE PERMISSION
+        // ═══════════════════════════════════════════════════════════════════════
+        modelBuilder.Entity<RolePermission>(entity =>
+        {
+            entity.HasKey(rp => new { rp.RoleId, rp.PermissionId });
+
+            entity.HasOne(rp => rp.Role)
+                  .WithMany(r => r.RolePermissions)
+                  .HasForeignKey(rp => rp.RoleId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(rp => rp.Permission)
+                  .WithMany(p => p.RolePermissions)
+                  .HasForeignKey(rp => rp.PermissionId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
     }
 }

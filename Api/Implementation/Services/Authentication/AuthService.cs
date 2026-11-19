@@ -28,6 +28,9 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct = default)
     {
         var user = await _dbContext.Users
+            .Include(u => u.RoleEntity)
+                .ThenInclude(r => r!.RolePermissions)
+                .ThenInclude(rp => rp.Permission)
             .FirstOrDefaultAsync(u => u.Phone == request.Phone, ct)
             ?? throw new UnauthorizedException(ErrorMessages.InvalidCredentials);
 
@@ -43,6 +46,9 @@ public class AuthService : IAuthService
     public async Task<AuthResponse> PinLoginAsync(PinLoginRequest request, CancellationToken ct = default)
     {
         var user = await _dbContext.Users
+            .Include(u => u.RoleEntity)
+                .ThenInclude(r => r!.RolePermissions)
+                .ThenInclude(rp => rp.Permission)
             .FirstOrDefaultAsync(u => u.Phone == request.Phone, ct)
             ?? throw new UnauthorizedException(ErrorMessages.InvalidPin);
 
@@ -61,6 +67,9 @@ public class AuthService : IAuthService
 
         var existingToken = await _dbContext.RefreshTokens
             .Include(t => t.User)
+                .ThenInclude(u => u.RoleEntity)
+                    .ThenInclude(r => r!.RolePermissions)
+                    .ThenInclude(rp => rp.Permission)
             .FirstOrDefaultAsync(t => t.TokenHash == tokenHash, ct)
             ?? throw new UnauthorizedException(ErrorMessages.InvalidToken);
 
@@ -103,7 +112,11 @@ public class AuthService : IAuthService
         var userId = _currentUserService.UserId
             ?? throw new UnauthorizedException();
 
-        var user = await _dbContext.Users.FindAsync(new object[] { userId }, ct)
+        var user = await _dbContext.Users
+            .Include(u => u.RoleEntity)
+                .ThenInclude(r => r!.RolePermissions)
+                .ThenInclude(rp => rp.Permission)
+            .FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException(ErrorMessages.UserNotFound);
 
         return new StaffProfileDto
@@ -111,7 +124,7 @@ public class AuthService : IAuthService
             Id = user.Id,
             FullName = user.FullName,
             Phone = user.Phone,
-            Role = user.Role.ToString(),
+            Role = user.RoleEntity?.Name ?? user.Role.ToString(),
             IsActive = user.IsActive,
             CreatedAt = user.CreatedAt
         };
@@ -146,7 +159,7 @@ public class AuthService : IAuthService
                 Id = user.Id,
                 FullName = user.FullName,
                 Phone = user.Phone,
-                Role = user.Role.ToString(),
+                Role = user.RoleEntity?.Name ?? user.Role.ToString(),
                 IsActive = user.IsActive,
                 CreatedAt = user.CreatedAt
             }

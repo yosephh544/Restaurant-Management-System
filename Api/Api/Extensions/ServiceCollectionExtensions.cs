@@ -20,6 +20,9 @@ using RestaurantManagement.Implementation.Services.Menu;
 using RestaurantManagement.Implementation.Services.Orders;
 using RestaurantManagement.Implementation.Services.Payment;
 using RestaurantManagement.Infrustructure.Data;
+using Microsoft.AspNetCore.Authorization;
+using RestaurantManagement.Api.Authorization;
+using RestaurantManagement.Infrustructure.Common.Constants;
 
 namespace RestaurantManagement.Api.Extensions;
 
@@ -148,6 +151,26 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IKitchenService, KitchenService>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IReportService, ReportService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddAuthorizationPolicies(this IServiceCollection services)
+    {
+        services.AddAuthorization(options =>
+        {
+            foreach (var field in typeof(Permissions).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static))
+            {
+                if (field.GetValue(null) is string permission)
+                {
+                    var policyName = $"permission:{permission}";
+                    options.AddPolicy(policyName, policy =>
+                        policy.RequireAuthenticatedUser().AddRequirements(new PermissionRequirement(permission)));
+                }
+            }
+        });
+
+        services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 
         return services;
     }

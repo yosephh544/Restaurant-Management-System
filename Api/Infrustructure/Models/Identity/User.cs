@@ -1,6 +1,6 @@
-using RestaurantManagement.Infrustructure.Enums.Identity;
 using RestaurantManagement.Infrustructure.Models.Orders;
 using RestaurantManagement.Infrustructure.Models.Billing;
+using RestaurantManagement.Infrustructure.Enums.Identity;
 
 namespace RestaurantManagement.Infrustructure.Models.Identity;
 
@@ -19,7 +19,11 @@ public class User
     /// <summary>Primary login identifier. Unique across the system.</summary>
     public string Phone { get; set; } = default!;
 
-    /// <summary>Governs API and UI access.</summary>
+    /// <summary>Dynamic role assignment stored in the roles table.</summary>
+    public Guid? RoleId { get; set; }
+    public Role? RoleEntity { get; set; }
+
+    /// <summary>Legacy enum mirror retained during migration compatibility.</summary>
     public UserRole Role { get; set; }
 
     /// <summary>Bcrypt/Argon2 hashed 4–6 digit PIN for rapid shift switching on mobile/KDS.</summary>

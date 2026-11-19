@@ -24,15 +24,23 @@ public class JwtTokenService : IJwtTokenService
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
+        var roleName = user.RoleEntity?.Name ?? user.Role.ToString();
+        var permissionNames = user.RoleEntity?.RolePermissions
+            .Select(rp => rp.Permission.Name)
+            .Distinct()
+            .ToList() ?? new List<string>();
+
         var claims = new List<Claim>
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.FullName),
             new(ClaimTypes.MobilePhone, user.Phone),
-            new(ClaimTypes.Role, user.Role.ToString()),
+            new(ClaimTypes.Role, roleName),
             new("userId", user.Id.ToString()),
-            new("role", user.Role.ToString())
+            new("role", roleName)
         };
+
+        claims.AddRange(permissionNames.Select(permission => new Claim("permission", permission)));
 
         var expiryMinutes = int.TryParse(_configuration["Jwt:ExpiryMinutes"], out var exp) ? exp : 60;
 
