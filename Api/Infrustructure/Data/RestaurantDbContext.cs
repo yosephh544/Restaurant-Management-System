@@ -36,6 +36,13 @@ public class RestaurantDbContext : DbContext
     public DbSet<Permission> Permissions { get; set; }
     public DbSet<RolePermission> RolePermissions { get; set; }
 
+    // ── Dining & Billing ─────────────────────────────────────────────────────
+    public DbSet<RestaurantTable> RestaurantTables { get; set; }
+    public DbSet<DiningSession> DiningSessions { get; set; }
+    public DbSet<Bill> Bills { get; set; }
+    public DbSet<BillItem> BillItems { get; set; }
+    public DbSet<BillAudit> BillAudits { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -53,6 +60,62 @@ public class RestaurantDbContext : DbContext
         modelBuilder.Entity<Role>().ToTable("roles");
         modelBuilder.Entity<Permission>().ToTable("permissions");
         modelBuilder.Entity<RolePermission>().ToTable("role_permissions");
+        modelBuilder.Entity<RestaurantTable>().ToTable("restaurant_tables");
+        modelBuilder.Entity<DiningSession>().ToTable("dining_sessions");
+        modelBuilder.Entity<Bill>().ToTable("bills");
+        modelBuilder.Entity<BillItem>().ToTable("bill_items");
+        modelBuilder.Entity<BillAudit>().ToTable("bill_audits");
+
+        modelBuilder.Entity<RestaurantTable>(entity =>
+        {
+            entity.HasKey(t => t.Id);
+            entity.Property(t => t.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+            entity.Property(t => t.Number).IsRequired().HasMaxLength(20);
+            entity.HasIndex(t => t.Number).IsUnique();
+            entity.Property(t => t.Name).HasMaxLength(100);
+            entity.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);
+        });
+
+        modelBuilder.Entity<DiningSession>(entity =>
+        {
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+            entity.Property(s => s.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(s => s.OpenedAt).HasDefaultValueSql("GETUTCDATE()");
+            entity.HasOne(s => s.Table).WithMany(t => t.Sessions).HasForeignKey(s => s.TableId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(s => s.Waiter).WithMany().HasForeignKey(s => s.WaiterId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<Bill>(entity =>
+        {
+            entity.HasKey(b => b.Id);
+            entity.Property(b => b.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+            entity.Property(b => b.BillNumber).IsRequired().HasMaxLength(30);
+            entity.HasIndex(b => b.BillNumber).IsUnique();
+            entity.Property(b => b.Status).HasConversion<string>().HasMaxLength(20);
+            entity.Property(b => b.Subtotal).HasPrecision(10, 2);
+            entity.Property(b => b.TaxTotal).HasPrecision(10, 2);
+            entity.Property(b => b.DiscountAmount).HasPrecision(10, 2);
+            entity.Property(b => b.TipAmount).HasPrecision(10, 2);
+            entity.Property(b => b.GrandTotal).HasPrecision(10, 2);
+            entity.HasOne(b => b.DiningSession).WithMany(s => s.Bills).HasForeignKey(b => b.DiningSessionId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(b => b.RequestedBy).WithMany().HasForeignKey(b => b.RequestedById).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<BillItem>(entity =>
+        {
+            entity.HasKey(i => i.Id);
+            entity.Property(i => i.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+            entity.Property(i => i.Description).IsRequired().HasMaxLength(200);
+            entity.Property(i => i.UnitPrice).HasPrecision(10, 2);
+            entity.Property(i => i.TaxRate).HasPrecision(5, 2);
+            entity.Property(i => i.LineSubtotal).HasPrecision(10, 2);
+            entity.Property(i => i.LineTax).HasPrecision(10, 2);
+            entity.Property(i => i.LineTotal).HasPrecision(10, 2);
+            entity.HasOne(i => i.Bill).WithMany(b => b.Items).HasForeignKey(i => i.BillId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasOne(i => i.Order).WithMany().HasForeignKey(i => i.OrderId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(i => i.OrderItem).WithMany().HasForeignKey(i => i.OrderItemId).OnDelete(DeleteBehavior.NoAction);
+        });
 
         // ═══════════════════════════════════════════════════════════════════════
         // USER
@@ -182,6 +245,12 @@ public class RestaurantDbContext : DbContext
                   .HasForeignKey(o => o.ParentOrderId)
                   .IsRequired(false)
                   .OnDelete(DeleteBehavior.NoAction);
+
+            entity.HasOne(o => o.DiningSession)
+                  .WithMany(s => s.Orders)
+                  .HasForeignKey(o => o.DiningSessionId)
+                  .IsRequired(false)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -298,6 +367,12 @@ public class RestaurantDbContext : DbContext
                   .HasForeignKey(p => p.OrderId)
                   .OnDelete(DeleteBehavior.Restrict);
 
+            entity.HasOne(p => p.Bill)
+                  .WithMany(b => b.Payments)
+                  .HasForeignKey(p => p.BillId)
+                  .IsRequired(false)
+                  .OnDelete(DeleteBehavior.Restrict);
+
             entity.HasOne(p => p.InitiatedBy)
                   .WithMany(u => u.PaymentsInitiated)
                   .HasForeignKey(p => p.InitiatedById)
@@ -382,6 +457,14 @@ public class RestaurantDbContext : DbContext
                   .WithMany(p => p.RolePermissions)
                   .HasForeignKey(rp => rp.PermissionId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<BillAudit>(entity =>
+        {
+            entity.HasKey(a => a.Id);
+            entity.Property(a => a.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+            entity.Property(a => a.Action).IsRequired().HasMaxLength(100);
+            entity.Property(a => a.Details).HasMaxLength(1000);
         });
     }
 }

@@ -7,7 +7,9 @@ using RestaurantManagement.Infrustructure.Common.Exceptions;
 using RestaurantManagement.Infrustructure.Common.Extensions;
 using RestaurantManagement.Infrustructure.Common.Responses;
 using RestaurantManagement.Infrustructure.Data;
+using RestaurantManagement.Infrustructure.Enums.Billing;
 using RestaurantManagement.Infrustructure.Enums.Orders;
+using RestaurantManagement.Infrustructure.Models.Billing;
 using RestaurantManagement.Infrustructure.Models.Orders;
 
 namespace RestaurantManagement.Implementation.Services.Orders;
@@ -102,6 +104,36 @@ public class OrderService : IOrderService
         order.GrandTotal = Math.Round(subtotal + taxTotal, 2);
 
         _dbContext.Orders.Add(order);
+
+        var table = await _dbContext.RestaurantTables
+            .FirstOrDefaultAsync(t => t.Number == request.TableNumber && t.IsActive, ct)
+            ?? throw new ValidationException("TableNumber", "Unknown table number. Create the table first.");
+
+        var session = await _dbContext.DiningSessions
+            .FirstOrDefaultAsync(s => s.TableId == table.Id &&
+                s.Status == DiningSessionStatus.Active, ct);
+
+        if (session == null)
+        {
+            session = new DiningSession
+            {
+                Id = Guid.NewGuid(),
+                TableId = table.Id,
+                WaiterId = waiterId,
+                Status = DiningSessionStatus.Active,
+                OpenedAt = DateTime.UtcNow
+            };
+            _dbContext.DiningSessions.Add(session);
+            table.Status = TableStatus.Occupied;
+        }
+        else if (session.Status != DiningSessionStatus.Active)
+        {
+            throw new ConflictException("This table has a bill awaiting payment. Reopen or close the session before placing another order.");
+        }
+
+        order.DiningSessionId = session.Id;
+        order.DiningSession = session;
+
         await _dbContext.SaveChangesAsync(ct);
 
         return await GetOrderByIdAsync(orderId, ct);
@@ -235,6 +267,19 @@ public class OrderService : IOrderService
         order.TaxTotal = Math.Round(order.TaxTotal, 2);
         order.GrandTotal = Math.Round(order.Subtotal + order.TaxTotal + order.TipAmount, 2);
         order.UpdatedAt = DateTime.UtcNow;
+
+        // Check if the dining session is still active before allowing item addition
+        if (order.DiningSessionId.HasValue)
+        {
+            var sessionStatus = await _dbContext.DiningSessions
+                .AsNoTracking()
+                .Where(s => s.Id == order.DiningSessionId.Value)
+                .Select(s => s.Status)
+                .FirstOrDefaultAsync(ct);
+
+            if (sessionStatus is DiningSessionStatus.BillRequested or DiningSessionStatus.Paid or DiningSessionStatus.Closed)
+                throw new ConflictException("Items cannot be added after the table bill has been generated.");
+        }
 
         await _dbContext.SaveChangesAsync(ct);
         return await GetOrderByIdAsync(orderId, ct);

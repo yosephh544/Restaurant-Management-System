@@ -4,8 +4,10 @@ namespace RestaurantManagement.Implementation.Dtos.Payment;
 
 public class InitiatePaymentRequest
 {
-    [Required(ErrorMessage = "OrderId is required.")]
-    public Guid OrderId { get; set; }
+    public Guid? BillId { get; set; }
+
+    /// <summary>Legacy compatibility: callers may use one order ID only if a bill is unavailable.</summary>
+    public Guid? OrderId { get; set; }
 
     /// <summary>CASH (settled immediately by the waiter), QR_SCAN, PHONE_PUSH, or USSD (phone push).</summary>
     [Required(ErrorMessage = "Method is required.")]

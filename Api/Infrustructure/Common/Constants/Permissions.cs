@@ -29,4 +29,9 @@ public static class Permissions
     public const string TipsView = "tips.view";
 
     public const string ReportsView = "reports.view";
+
+    public const string TablesView = "tables.view";
+    public const string TablesManage = "tables.manage";
+    public const string BillsGenerate = "bills.generate";
+    public const string BillsReopen = "bills.reopen";
 }

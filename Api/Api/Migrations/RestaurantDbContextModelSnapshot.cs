@@ -22,6 +22,190 @@ namespace RestaurantManagement.Api.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.Bill", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("BillNumber")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("DiningSessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("DiscountAmount")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<decimal>("GrandTotal")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<DateTime?>("PaidAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("RequestedById")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("Subtotal")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<decimal>("TaxTotal")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<decimal>("TipAmount")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BillNumber")
+                        .IsUnique();
+
+                    b.HasIndex("DiningSessionId");
+
+                    b.HasIndex("RequestedById");
+
+                    b.ToTable("bills", (string)null);
+                });
+
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.BillAudit", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<Guid>("ActorId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("BillId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Details")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("bill_audits", (string)null);
+                });
+
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.BillItem", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<Guid>("BillId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<decimal>("LineSubtotal")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<decimal>("LineTax")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<decimal>("LineTotal")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("OrderItemId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Quantity")
+                        .HasColumnType("int");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<decimal>("UnitPrice")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BillId");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("OrderItemId");
+
+                    b.ToTable("bill_items", (string)null);
+                });
+
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.DiningSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime?>("BillRequestedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ClosedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("OpenedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("TableId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("WaiterId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TableId");
+
+                    b.HasIndex("WaiterId");
+
+                    b.ToTable("dining_sessions", (string)null);
+                });
+
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.Payment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -40,6 +224,9 @@ namespace RestaurantManagement.Api.Migrations
                     b.Property<decimal>("BaseAmount")
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
+
+                    b.Property<Guid?>("BillId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal?>("ChangeGiven")
                         .HasPrecision(10, 2)
@@ -96,11 +283,48 @@ namespace RestaurantManagement.Api.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("BillId");
+
                     b.HasIndex("InitiatedById");
 
                     b.HasIndex("OrderId");
 
                     b.ToTable("payments", (string)null);
+                });
+
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.RestaurantTable", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<int>("Capacity")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Name")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.ToTable("restaurant_tables", (string)null);
                 });
 
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.WaiterTip", b =>
@@ -428,6 +652,9 @@ namespace RestaurantManagement.Api.Migrations
                     b.Property<string>("CustomerNotes")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<Guid?>("DiningSessionId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<decimal>("GrandTotal")
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
@@ -483,6 +710,8 @@ namespace RestaurantManagement.Api.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DiningSessionId");
 
                     b.HasIndex("OrderNumber")
                         .IsUnique();
@@ -597,8 +826,77 @@ namespace RestaurantManagement.Api.Migrations
                     b.ToTable("order_items", (string)null);
                 });
 
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.Bill", b =>
+                {
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Billing.DiningSession", "DiningSession")
+                        .WithMany("Bills")
+                        .HasForeignKey("DiningSessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.User", "RequestedBy")
+                        .WithMany()
+                        .HasForeignKey("RequestedById")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("DiningSession");
+
+                    b.Navigation("RequestedBy");
+                });
+
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.BillItem", b =>
+                {
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Billing.Bill", "Bill")
+                        .WithMany("Items")
+                        .HasForeignKey("BillId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Orders.Order", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Orders.OrderItem", "OrderItem")
+                        .WithMany()
+                        .HasForeignKey("OrderItemId")
+                        .OnDelete(DeleteBehavior.NoAction);
+
+                    b.Navigation("Bill");
+
+                    b.Navigation("Order");
+
+                    b.Navigation("OrderItem");
+                });
+
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.DiningSession", b =>
+                {
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Billing.RestaurantTable", "Table")
+                        .WithMany("Sessions")
+                        .HasForeignKey("TableId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.User", "Waiter")
+                        .WithMany()
+                        .HasForeignKey("WaiterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Table");
+
+                    b.Navigation("Waiter");
+                });
+
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.Payment", b =>
                 {
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Billing.Bill", "Bill")
+                        .WithMany("Payments")
+                        .HasForeignKey("BillId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.User", "InitiatedBy")
                         .WithMany("PaymentsInitiated")
                         .HasForeignKey("InitiatedById")
@@ -610,6 +908,8 @@ namespace RestaurantManagement.Api.Migrations
                         .HasForeignKey("OrderId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Bill");
 
                     b.Navigation("InitiatedBy");
 
@@ -696,6 +996,11 @@ namespace RestaurantManagement.Api.Migrations
 
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Orders.Order", b =>
                 {
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Billing.DiningSession", "DiningSession")
+                        .WithMany("Orders")
+                        .HasForeignKey("DiningSessionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("RestaurantManagement.Infrustructure.Models.Orders.Order", "ParentOrder")
                         .WithMany("ReplacementOrders")
                         .HasForeignKey("ParentOrderId")
@@ -706,6 +1011,8 @@ namespace RestaurantManagement.Api.Migrations
                         .HasForeignKey("WaiterId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("DiningSession");
 
                     b.Navigation("ParentOrder");
 
@@ -771,9 +1078,28 @@ namespace RestaurantManagement.Api.Migrations
                     b.Navigation("Order");
                 });
 
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.Bill", b =>
+                {
+                    b.Navigation("Items");
+
+                    b.Navigation("Payments");
+                });
+
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.DiningSession", b =>
+                {
+                    b.Navigation("Bills");
+
+                    b.Navigation("Orders");
+                });
+
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.Payment", b =>
                 {
                     b.Navigation("WaiterTip");
+                });
+
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.RestaurantTable", b =>
+                {
+                    b.Navigation("Sessions");
                 });
 
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.Permission", b =>

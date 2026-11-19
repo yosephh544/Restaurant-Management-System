@@ -52,20 +52,23 @@ public static class DatabaseSeeder
             Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems, Permissions.OrdersReorder, Permissions.OrdersServe,
             Permissions.KitchenView, Permissions.KitchenUpdate, Permissions.KitchenCancel,
             Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract, Permissions.TipsView,
-            Permissions.ReportsView
+            Permissions.ReportsView,
+            Permissions.TablesView, Permissions.TablesManage, Permissions.BillsGenerate, Permissions.BillsReopen
         }, permissions, db, ct);
 
         await SeedRolePermissionsIfEmptyAsync(roles["Cashier"], new[]
         {
             Permissions.MenuView,
             Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems, Permissions.OrdersServe,
-            Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract
+            Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract,
+            Permissions.TablesView, Permissions.TablesManage, Permissions.BillsGenerate, Permissions.BillsReopen
         }, permissions, db, ct);
 
         await SeedRolePermissionsIfEmptyAsync(roles["Waiter"], new[]
         {
             Permissions.MenuView, Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems,
-            Permissions.OrdersReorder, Permissions.OrdersServe, Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.TipsView
+            Permissions.OrdersReorder, Permissions.OrdersServe, Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.TipsView,
+            Permissions.TablesView, Permissions.BillsGenerate
         }, permissions, db, ct);
 
         await SeedRolePermissionsIfEmptyAsync(roles["Kitchen"], new[]

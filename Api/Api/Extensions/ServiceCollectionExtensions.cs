@@ -152,6 +152,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IKitchenService, KitchenService>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IBillingService, BillingService>();
 
         return services;
     }
