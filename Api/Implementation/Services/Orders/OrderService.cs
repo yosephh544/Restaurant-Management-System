@@ -90,6 +90,7 @@ public class OrderService : IOrderService
                 MenuItemId = reqItem.MenuItemId,
                 Quantity = reqItem.Quantity,
                 UnitPrice = menuItem.UnitPrice, // Price snapshot
+                TaxRate = menuItem.TaxRate,     // Tax snapshot
                 CustomerNotes = reqItem.CustomerNotes,
                 ItemStatus = OrderItemStatus.Active,
                 CreatedAt = DateTime.UtcNow
@@ -188,7 +189,7 @@ public class OrderService : IOrderService
         EnsureWaiterOwns(order);
 
         if (order.PaymentStatus is PaymentStatus.Paid or PaymentStatus.PaymentInitiated
-            or PaymentStatus.RefundPending or PaymentStatus.Refunded)
+            or PaymentStatus.Transferred or PaymentStatus.RefundPending or PaymentStatus.Refunded)
             throw new ConflictException("Items cannot be added once payment has been initiated or settled.");
 
         if (order.OrderStatus == OrderStatus.CancelledByKitchen)
@@ -223,6 +224,7 @@ public class OrderService : IOrderService
                 MenuItemId = reqItem.MenuItemId,
                 Quantity = reqItem.Quantity,
                 UnitPrice = menuItem.UnitPrice,
+                TaxRate = menuItem.TaxRate,
                 CustomerNotes = reqItem.CustomerNotes,
                 ItemStatus = OrderItemStatus.Active,
                 CreatedAt = DateTime.UtcNow
@@ -251,6 +253,10 @@ public class OrderService : IOrderService
         if (originalOrder.OrderStatus != OrderStatus.CancelledByKitchen)
             throw new ConflictException("Only kitchen-cancelled orders can be replaced with a reorder.");
 
+        // The cancelled order has no payment (payment is only taken once food is READY/SERVED),
+        // so a reorder is simply a fresh unpaid order linked to the cancellation.
+        await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
+
         var createReq = new CreateOrderRequest
         {
             TableNumber = request.TableNumber,
@@ -261,29 +267,29 @@ public class OrderService : IOrderService
         var response = await CreateOrderAsync(createReq, ct);
 
         // Link replacement lineage
-        var newOrder = await _dbContext.Orders.FindAsync(new object[] { response.Id }, ct);
-        if (newOrder != null)
+        var newOrder = await _dbContext.Orders.FindAsync(new object[] { response.Id }, ct)
+            ?? throw new NotFoundException("Order", response.Id);
+
+        newOrder.ParentOrderId = originalOrder.Id;
+        // Keep tip attribution with the waiter who owned the cancelled order,
+        // even when a manager/cashier creates the replacement.
+        newOrder.WaiterId = originalOrder.WaiterId;
+
+        // Link the recovery so the cancellation report can measure reorder rate.
+        var cancellation = await _dbContext.OrderCancellations
+            .Where(c => c.OrderId == originalOrder.Id && c.ReplacementOrderId == null)
+            .OrderByDescending(c => c.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+        if (cancellation != null)
         {
-            newOrder.ParentOrderId = originalOrder.Id;
-            // Keep tip attribution with the waiter who owned the cancelled order,
-            // even when a manager/cashier creates the replacement.
-            newOrder.WaiterId = originalOrder.WaiterId;
-
-            // Link the recovery so the cancellation report can measure reorder rate.
-            var cancellation = await _dbContext.OrderCancellations
-                .Where(c => c.OrderId == originalOrder.Id && c.ReplacementOrderId == null)
-                .OrderByDescending(c => c.CreatedAt)
-                .FirstOrDefaultAsync(ct);
-
-            if (cancellation != null)
-            {
-                cancellation.ReplacementOrderId = newOrder.Id;
-                cancellation.ResolvedByWaiterId = _currentUserService.UserId;
-                cancellation.ResolvedAt = DateTime.UtcNow;
-            }
-
-            await _dbContext.SaveChangesAsync(ct);
+            cancellation.ReplacementOrderId = newOrder.Id;
+            cancellation.ResolvedByWaiterId = _currentUserService.UserId;
+            cancellation.ResolvedAt = DateTime.UtcNow;
         }
+
+        await _dbContext.SaveChangesAsync(ct);
+        await transaction.CommitAsync(ct);
 
         return await GetOrderByIdAsync(response.Id, ct);
     }

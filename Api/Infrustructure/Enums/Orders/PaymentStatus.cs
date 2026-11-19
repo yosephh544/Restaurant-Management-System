@@ -6,6 +6,7 @@ public enum PaymentStatus
     PaymentInitiated,
     Paid,
     Retracted,
+    Transferred,
     RefundPending,
     Refunded
 }

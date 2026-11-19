@@ -7,13 +7,19 @@ public class InitiatePaymentRequest
     [Required(ErrorMessage = "OrderId is required.")]
     public Guid OrderId { get; set; }
 
+    /// <summary>CASH (settled immediately by the waiter), QR_SCAN, PHONE_PUSH, or USSD (phone push).</summary>
     [Required(ErrorMessage = "Method is required.")]
-    [RegularExpression("^(PHONE_PUSH|QR_SCAN)$", ErrorMessage = "Method must be PHONE_PUSH or QR_SCAN.")]
+    [RegularExpression("^(CASH|QR_SCAN|PHONE_PUSH|USSD)$",
+        ErrorMessage = "Method must be CASH, QR_SCAN, PHONE_PUSH, or USSD.")]
     public string Method { get; set; } = default!;
 
     [Range(0, 100000.0, ErrorMessage = "TipAmount cannot be negative.")]
     public decimal TipAmount { get; set; } = 0;
 
-    /// <summary>Required when Method is PHONE_PUSH.</summary>
+    /// <summary>Required when Method is PHONE_PUSH or USSD.</summary>
     public string? CustomerPhone { get; set; }
+
+    /// <summary>Cash handed over by the customer. Required for CASH and must cover the total due.</summary>
+    [Range(0, 1000000.0, ErrorMessage = "AmountTendered cannot be negative.")]
+    public decimal? AmountTendered { get; set; }
 }

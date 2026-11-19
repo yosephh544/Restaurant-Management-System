@@ -41,9 +41,11 @@ public static class DatabaseSeeder
 
         var roles = await db.Roles.ToDictionaryAsync(r => r.Name, r => r, ct);
 
+        // Owner is always kept in sync with every permission. Other roles only receive
+        // their defaults when empty, so changes made through the roles API persist.
         AssignRolePermissions(roles["Owner"], permissionNames, permissions, db);
 
-        AssignRolePermissions(roles["Manager"], new[]
+        await SeedRolePermissionsIfEmptyAsync(roles["Manager"], new[]
         {
             Permissions.UsersView, Permissions.UsersCreate, Permissions.UsersUpdate, Permissions.UsersManageStatus,
             Permissions.MenuView, Permissions.CategoriesManage, Permissions.ItemsManage, Permissions.AvailabilityManage,
@@ -51,25 +53,25 @@ public static class DatabaseSeeder
             Permissions.KitchenView, Permissions.KitchenUpdate, Permissions.KitchenCancel,
             Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract, Permissions.TipsView,
             Permissions.ReportsView
-        }, permissions, db);
+        }, permissions, db, ct);
 
-        AssignRolePermissions(roles["Cashier"], new[]
+        await SeedRolePermissionsIfEmptyAsync(roles["Cashier"], new[]
         {
             Permissions.MenuView,
             Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems, Permissions.OrdersServe,
             Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract
-        }, permissions, db);
+        }, permissions, db, ct);
 
-        AssignRolePermissions(roles["Waiter"], new[]
+        await SeedRolePermissionsIfEmptyAsync(roles["Waiter"], new[]
         {
             Permissions.MenuView, Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems,
             Permissions.OrdersReorder, Permissions.OrdersServe, Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.TipsView
-        }, permissions, db);
+        }, permissions, db, ct);
 
-        AssignRolePermissions(roles["Kitchen"], new[]
+        await SeedRolePermissionsIfEmptyAsync(roles["Kitchen"], new[]
         {
             Permissions.MenuView, Permissions.AvailabilityManage, Permissions.KitchenView, Permissions.KitchenUpdate, Permissions.KitchenCancel
-        }, permissions, db);
+        }, permissions, db, ct);
 
         await db.SaveChangesAsync(ct);
 
@@ -102,6 +104,19 @@ public static class DatabaseSeeder
         }
 
         await db.SaveChangesAsync(ct);
+    }
+
+    private static async Task SeedRolePermissionsIfEmptyAsync(
+        Role role,
+        IEnumerable<string> permissionNames,
+        IReadOnlyDictionary<string, Guid> permissions,
+        RestaurantDbContext db,
+        CancellationToken ct)
+    {
+        if (await db.RolePermissions.AnyAsync(rp => rp.RoleId == role.Id, ct))
+            return;
+
+        AssignRolePermissions(role, permissionNames, permissions, db);
     }
 
     private static void AssignRolePermissions(

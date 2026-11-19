@@ -11,6 +11,8 @@ public class PaymentResponse
     public decimal TotalAmount { get; init; }
     public string Status { get; init; } = default!;
     public string? QrData { get; init; }
+    public decimal? AmountTendered { get; init; }
+    public decimal? ChangeGiven { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? SettledAt { get; init; }
 }

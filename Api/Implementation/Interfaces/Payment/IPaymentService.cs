@@ -10,5 +10,7 @@ public interface IPaymentService
     Task HandleArifpayWebhookAsync(ArifpayWebhookPayload payload, CancellationToken ct = default);
     Task<PaymentStatusResponse> GetPaymentStatusAsync(Guid paymentId, CancellationToken ct = default);
     Task<PaymentResponse> RetractPaymentAsync(Guid paymentId, CancellationToken ct = default);
+    Task<PaymentResponse> RefundPaymentAsync(Guid paymentId, CancellationToken ct = default);
+    Task<PaymentResponse> TransferPaymentAsync(Guid paymentId, TransferPaymentRequest request, CancellationToken ct = default);
     Task<PagedResponse<TipLedgerItemResponse>> GetMyTipLedgerAsync(PagedRequest request, CancellationToken ct = default);
 }

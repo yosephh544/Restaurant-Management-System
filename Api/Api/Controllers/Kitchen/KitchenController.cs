@@ -41,7 +41,7 @@ public class KitchenController : ApiControllerBase
         => OkResponse(await _kitchenService.UpdateOrderStatusAsync(orderId, request, ct), $"Order status transitioned to {request.Status}.");
 
     /// <summary>
-    /// Cancels an order (or line item) with a mandatory reason_code and note; alerts waiter & manager and triggers automatic payment retraction.
+    /// Cancels a PENDING/PREPARING order (or line item) with a mandatory reason_code and note; reverses the ticket before payment is taken.
     /// </summary>
     [HttpPost("orders/{orderId:guid}/cancel")]
     [Permission(Permissions.KitchenCancel)]

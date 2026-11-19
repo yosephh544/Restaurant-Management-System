@@ -16,7 +16,4 @@ public class ReorderRequest
     public List<CreateOrderItemDto> Items { get; set; } = new();
 
     public string? CustomerNotes { get; set; }
-
-    /// <summary>Whether to carry over retracted payment credit if previously paid.</summary>
-    public bool CarryOverPayment { get; set; } = false;
 }

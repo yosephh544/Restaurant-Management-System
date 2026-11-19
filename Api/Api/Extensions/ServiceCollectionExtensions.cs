@@ -146,6 +146,7 @@ public static class ServiceCollectionExtensions
         // Domain Services
         services.AddScoped<IAuthService, AuthService>();
         services.AddScoped<IUserService, UserService>();
+        services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IMenuService, MenuService>();
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IKitchenService, KitchenService>();

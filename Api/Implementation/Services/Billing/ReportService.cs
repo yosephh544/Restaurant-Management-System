@@ -37,25 +37,29 @@ public class ReportService : IReportService
         var orders = await ordersQuery.ToListAsync(ct);
         var payments = await paymentsQuery.ToListAsync(ct);
 
-        var grossSales = payments.Sum(p => p.TotalAmount);
-        var netRevenue = payments.Sum(p => p.BaseAmount);
-        var tipsCollected = payments.Sum(p => p.TipAmount);
-        var taxCollected = orders.Where(o => o.PaymentStatus == PaymentStatus.Paid).Sum(o => o.TaxTotal);
+        var grossSales = Math.Round(payments.Sum(p => p.TotalAmount), 2);
+        var tipsCollected = Math.Round(payments.Sum(p => p.TipAmount), 2);
+        var taxCollected = Math.Round(orders.Where(o => o.PaymentStatus == PaymentStatus.Paid).Sum(o => o.TaxTotal), 2);
+
+        // Net revenue is food sales excluding tax and tips (gross - tax - tips).
+        var netRevenue = Math.Round(grossSales - taxCollected - tipsCollected, 2);
 
         var phonePushCount = payments.Count(p => p.Method == PaymentMethod.PhonePush);
         var qrScanCount = payments.Count(p => p.Method == PaymentMethod.QrScan);
+        var cashCount = payments.Count(p => p.Method == PaymentMethod.Cash);
 
         return new SalesSummaryResponse
         {
-            GrossSales = Math.Round(grossSales, 2),
-            NetRevenue = Math.Round(netRevenue, 2),
-            TaxCollected = Math.Round(taxCollected, 2),
-            TipsCollected = Math.Round(tipsCollected, 2),
+            GrossSales = grossSales,
+            NetRevenue = netRevenue,
+            TaxCollected = taxCollected,
+            TipsCollected = tipsCollected,
             TotalOrders = orders.Count,
             CompletedOrders = orders.Count(o => o.PaymentStatus == PaymentStatus.Paid),
             CancelledOrders = orders.Count(o => o.OrderStatus == OrderStatus.CancelledByKitchen),
             PhonePushVolume = phonePushCount,
             QrScanVolume = qrScanCount,
+            CashVolume = cashCount,
             PeriodFrom = request.From,
             PeriodTo = request.To
         };
@@ -133,7 +137,9 @@ public class ReportService : IReportService
         // A partial cancellation only loses the value of the cancelled line,
         // not the whole order total.
         static decimal LostRevenueFor(OrderCancellation c) => c.OrderItemId.HasValue
-            ? (c.OrderItem is null ? 0m : c.OrderItem.UnitPrice * c.OrderItem.Quantity)
+            ? (c.OrderItem is null
+                ? 0m
+                : c.OrderItem.UnitPrice * c.OrderItem.Quantity * (1 + c.OrderItem.TaxRate / 100m))
             : (c.Order?.GrandTotal ?? 0m);
 
         var byReason = cancellations

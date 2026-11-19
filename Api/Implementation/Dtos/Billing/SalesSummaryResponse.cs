@@ -11,6 +11,7 @@ public class SalesSummaryResponse
     public int CancelledOrders { get; init; }
     public int PhonePushVolume { get; init; }
     public int QrScanVolume { get; init; }
+    public int CashVolume { get; init; }
     public DateTime? PeriodFrom { get; init; }
     public DateTime? PeriodTo { get; init; }
 }

@@ -130,10 +130,15 @@ public class KitchenService : IKitchenService
             ?? throw new NotFoundException("Order", orderId);
 
         if (order.OrderStatus == OrderStatus.Served)
-            throw new ConflictException("Served orders cannot be cancelled by kitchen.");
+            throw new ConflictException("Served orders cannot be cancelled by kitchen. Process a customer return instead.");
 
         if (order.OrderStatus == OrderStatus.CancelledByKitchen)
             throw new ConflictException("Order is already cancelled.");
+
+        // READY orders are already plated and may have been paid; only PENDING/PREPARING
+        // tickets can be reversed by the kitchen.
+        if (order.OrderStatus == OrderStatus.Ready)
+            throw new ConflictException(ErrorMessages.OrderCannotBeCancelled);
 
         // Parse reason code
         var reasonCodeStr = request.ReasonCode.Replace("_", "");
@@ -146,8 +151,21 @@ public class KitchenService : IKitchenService
             var item = order.OrderItems.FirstOrDefault(i => i.Id == request.OrderItemId.Value)
                 ?? throw new NotFoundException("OrderItem", request.OrderItemId.Value);
 
+            if (item.ItemStatus == OrderItemStatus.Cancelled)
+                throw new ConflictException("Order item is already cancelled.");
+
+            // Reverse the cancelled line (and its snapshotted tax) from the bill.
+            var lineSubtotal = item.UnitPrice * item.Quantity;
+            var lineTax = lineSubtotal * (item.TaxRate / 100m);
+
             item.ItemStatus = OrderItemStatus.Cancelled;
             item.UpdatedAt = DateTime.UtcNow;
+
+            order.Subtotal = Math.Max(0m, Math.Round(order.Subtotal - lineSubtotal, 2));
+            order.TaxTotal = Math.Max(0m, Math.Round(order.TaxTotal - lineTax, 2));
+            order.GrandTotal = Math.Max(0m, Math.Round(order.Subtotal + order.TaxTotal + order.TipAmount, 2));
+            order.UpdatedAt = DateTime.UtcNow;
+
 
             var cancellation = new OrderCancellation
             {
@@ -206,14 +224,10 @@ public class KitchenService : IKitchenService
             payment.UpdatedAt = DateTime.UtcNow;
         }
 
+        // Defensive cleanup for legacy/edge cases: no payment should exist at cancellation time.
         if (order.PaymentStatus == PaymentStatus.PaymentInitiated)
         {
             order.PaymentStatus = PaymentStatus.Retracted;
-        }
-        else if (order.PaymentStatus == PaymentStatus.Paid)
-        {
-            // Money cannot simply disappear: a cancelled paid bill must go through a refund.
-            order.PaymentStatus = PaymentStatus.RefundPending;
         }
     }
 }

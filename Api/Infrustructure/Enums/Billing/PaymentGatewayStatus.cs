@@ -6,5 +6,6 @@ public enum PaymentGatewayStatus
     Paid,
     Failed,
     Retracted,
+    Transferred,
     Refunded
 }

@@ -40,6 +40,18 @@ public class Payment
     /// <summary>Customer phone number used for PHONE_PUSH channel.</summary>
     public string? CustomerPhone { get; set; }
 
+    /// <summary>Cash tendered by the customer (CASH payments only).</summary>
+    public decimal? AmountTendered { get; set; }
+
+    /// <summary>Change returned to the customer (CASH payments only).</summary>
+    public decimal? ChangeGiven { get; set; }
+
+    /// <summary>Order this settlement was moved to, set when Status is Transferred.</summary>
+    public Guid? TransferredToOrderId { get; set; }
+
+    /// <summary>Original settlement this payment was moved from, for audit tracing.</summary>
+    public Guid? TransferredFromPaymentId { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? SettledAt { get; set; }
     public DateTime? UpdatedAt { get; set; }

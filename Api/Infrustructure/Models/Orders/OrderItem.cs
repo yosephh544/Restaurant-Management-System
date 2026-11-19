@@ -20,6 +20,9 @@ public class OrderItem
     /// <summary>Locked unit price at the moment of order placement; independent of future menu changes.</summary>
     public decimal UnitPrice { get; set; }
 
+    /// <summary>Tax percentage snapshotted at order time, used to reverse tax on partial cancellations.</summary>
+    public decimal TaxRate { get; set; }
+
     /// <summary>Free-text special instructions entered by waiter; highlighted in bold on Kitchen KDS.</summary>
     public string? CustomerNotes { get; set; }
 

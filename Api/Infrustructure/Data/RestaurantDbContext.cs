@@ -193,6 +193,7 @@ public class RestaurantDbContext : DbContext
 
             entity.Property(oi => oi.Quantity).IsRequired();
             entity.Property(oi => oi.UnitPrice).HasPrecision(10, 2);
+            entity.Property(oi => oi.TaxRate).HasPrecision(5, 2);
 
             entity.Property(oi => oi.ItemStatus)
                   .IsRequired()
@@ -287,6 +288,8 @@ public class RestaurantDbContext : DbContext
             entity.Property(p => p.BaseAmount).HasPrecision(10, 2);
             entity.Property(p => p.TipAmount).HasPrecision(10, 2);
             entity.Property(p => p.TotalAmount).HasPrecision(10, 2);
+            entity.Property(p => p.AmountTendered).HasPrecision(10, 2);
+            entity.Property(p => p.ChangeGiven).HasPrecision(10, 2);
             entity.Property(p => p.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
 
             entity.HasOne(p => p.Order)

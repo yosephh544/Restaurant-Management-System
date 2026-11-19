@@ -29,11 +29,19 @@ namespace RestaurantManagement.Api.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
+                    b.Property<decimal?>("AmountTendered")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
                     b.Property<string>("ArifpaySessionId")
                         .HasMaxLength(120)
                         .HasColumnType("nvarchar(120)");
 
                     b.Property<decimal>("BaseAmount")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<decimal?>("ChangeGiven")
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
 
@@ -72,6 +80,12 @@ namespace RestaurantManagement.Api.Migrations
                     b.Property<decimal>("TotalAmount")
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
+
+                    b.Property<Guid?>("TransferredFromPaymentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("TransferredToOrderId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("TxRef")
                         .HasMaxLength(120)
@@ -558,6 +572,10 @@ namespace RestaurantManagement.Api.Migrations
 
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
 
                     b.Property<decimal>("UnitPrice")
                         .HasPrecision(10, 2)

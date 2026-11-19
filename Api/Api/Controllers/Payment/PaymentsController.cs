@@ -22,13 +22,21 @@ public class PaymentsController : ApiControllerBase
     }
 
     /// <summary>
-    /// Locks bill + waiter tip, creates an ArifPay checkout session, and triggers either customer Phone Push or returns QR Code payload.
+    /// Takes payment for a READY or SERVED bill by CASH (settled immediately, returns change due),
+    /// QR_SCAN, PHONE_PUSH, or USSD, and returns the QR payload when applicable.
     /// </summary>
+    [HttpPost("initiate")]
     [HttpPost("arifpay/initiate")]
     [Permission(Permissions.PaymentsInitiate)]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<PaymentResponse>), 200)]
-    public async Task<IActionResult> InitiateArifpayPayment([FromBody] InitiatePaymentRequest request, CancellationToken ct)
-        => OkResponse(await _paymentService.InitiatePaymentAsync(request, ct), "ArifPay payment session initiated.");
+    public async Task<IActionResult> InitiatePayment([FromBody] InitiatePaymentRequest request, CancellationToken ct)
+    {
+        var payment = await _paymentService.InitiatePaymentAsync(request, ct);
+        var message = payment.Method == "CASH"
+            ? $"Cash payment accepted. Change due: {payment.ChangeGiven:0.00} ETB."
+            : "Payment session initiated.";
+        return OkResponse(payment, message);
+    }
 
     /// <summary>
     /// Receives signed asynchronous payment confirmation from ArifPay, marks order PAID, and credits the waiter's tip ledger.
@@ -52,13 +60,35 @@ public class PaymentsController : ApiControllerBase
         => OkResponse(await _paymentService.GetPaymentStatusAsync(paymentId, ct));
 
     /// <summary>
-    /// Voids a pending ArifPay session (RETRACTED) or initiates refund/credit transfer if order was cancelled after payment.
+    /// Voids a pending ArifPay session (RETRACTED). Settled payments must go through the refund endpoint.
     /// </summary>
     [HttpPost("{paymentId:guid}/retract")]
     [Permission(Permissions.PaymentsRetract)]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<PaymentResponse>), 200)]
     public async Task<IActionResult> RetractPayment([FromRoute] Guid paymentId, CancellationToken ct)
         => OkResponse(await _paymentService.RetractPaymentAsync(paymentId, ct), "Payment session retracted successfully.");
+
+    /// <summary>
+    /// Refunds a settled payment when the customer returns served food; reverses an unpaid-out tip.
+    /// </summary>
+    [HttpPost("{paymentId:guid}/refund")]
+    [Permission(Permissions.PaymentsRetract)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<PaymentResponse>), 200)]
+    public async Task<IActionResult> RefundPayment([FromRoute] Guid paymentId, CancellationToken ct)
+        => OkResponse(await _paymentService.RefundPaymentAsync(paymentId, ct), "Payment refunded successfully.");
+
+    /// <summary>
+    /// Moves a settled payment from a served order to another READY/SERVED order; the original payment
+    /// is marked TRANSFERRED and the destination receives a new settled record.
+    /// </summary>
+    [HttpPost("{paymentId:guid}/transfer")]
+    [Permission(Permissions.PaymentsRetract)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<PaymentResponse>), 200)]
+    public async Task<IActionResult> TransferPayment(
+        [FromRoute] Guid paymentId,
+        [FromBody] TransferPaymentRequest request,
+        CancellationToken ct)
+        => OkResponse(await _paymentService.TransferPaymentAsync(paymentId, request, ct), "Payment transferred successfully.");
 
     /// <summary>
     /// Allows waiters to view their verified tips earned per shift and settlement status on their mobile app.
