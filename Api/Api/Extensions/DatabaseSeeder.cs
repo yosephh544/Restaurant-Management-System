@@ -76,13 +76,14 @@ public static class DatabaseSeeder
         await db.SaveChangesAsync(ct);
 
         var ownerRole = roles["Owner"];
-        var owner = await db.Users.FirstOrDefaultAsync(u => u.Phone == "0920496730", ct);
+        var owner = await db.Users.FirstOrDefaultAsync(u => u.Username == "joseph" || u.Phone == "0920496730", ct);
         if (owner is null)
         {
             db.Users.Add(new User
             {
                 Id = OwnerUserId,
                 FullName = "Joseph",
+                Username = "joseph",
                 Phone = "0920496730",
                 Role = UserRole.Owner,
                 RoleId = ownerRole.Id,
@@ -95,6 +96,7 @@ public static class DatabaseSeeder
         else
         {
             owner.FullName = "Joseph";
+            owner.Username = "joseph";
             owner.Role = UserRole.Owner;
             owner.RoleId = ownerRole.Id;
             owner.RoleEntity = ownerRole;

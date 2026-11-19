@@ -18,7 +18,7 @@ public class AuthController : ApiControllerBase
     }
 
     /// <summary>
-    /// Authenticates Manager, Owner, or Cashier via phone and password; issues JWT access and refresh tokens.
+    /// Authenticates any staff member via username and password; issues JWT access and refresh tokens.
     /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
@@ -30,7 +30,7 @@ public class AuthController : ApiControllerBase
     }
 
     /// <summary>
-    /// Fast 4-to-6 digit PIN authentication for waiters on mobile devices and kitchen KDS terminals.
+    /// Fast 4-to-6 digit PIN authentication by username for waiters on mobile devices and kitchen KDS terminals.
     /// </summary>
     [HttpPost("pin-login")]
     [AllowAnonymous]

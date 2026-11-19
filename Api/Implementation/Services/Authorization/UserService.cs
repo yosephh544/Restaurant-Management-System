@@ -33,8 +33,10 @@ public class UserService : IUserService
 
     public async Task<UserResponse> CreateUserAsync(CreateUserRequest request, CancellationToken ct = default)
     {
-        if (await _dbContext.Users.AnyAsync(u => u.Phone == request.Phone, ct))
-            throw new ConflictException("User", "Phone", request.Phone);
+        var username = request.Username.Trim().ToLowerInvariant();
+
+        if (await _dbContext.Users.AnyAsync(u => u.Username == username, ct))
+            throw new ConflictException("User", "Username", username);
 
         var roleName = request.Role.Trim();
 
@@ -47,8 +49,9 @@ public class UserService : IUserService
         var user = new User
         {
             Id = Guid.NewGuid(),
-            FullName = request.FullName,
-            Phone = request.Phone,
+            FullName = request.FullName.Trim(),
+            Username = username,
+            Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
             Role = ParseLegacyRole(roleName),
             RoleId = role.Id,
             RoleEntity = role,
@@ -73,7 +76,10 @@ public class UserService : IUserService
         if (!string.IsNullOrWhiteSpace(request.Search))
         {
             var search = request.Search.Trim().ToLower();
-            query = query.Where(u => u.FullName.ToLower().Contains(search) || u.Phone.Contains(search));
+            query = query.Where(u =>
+                u.FullName.ToLower().Contains(search) ||
+                u.Username.Contains(search) ||
+                (u.Phone != null && u.Phone.Contains(search)));
         }
 
         query = request.SortDesc ? query.OrderByDescending(u => u.CreatedAt) : query.OrderBy(u => u.CreatedAt);
@@ -96,12 +102,21 @@ public class UserService : IUserService
         if (IsOwnerAccount(user) && !IsOwner)
             throw new ForbiddenException("Only an Owner can modify an Owner account.");
 
-        if (!string.IsNullOrWhiteSpace(request.FullName)) user.FullName = request.FullName;
-        if (!string.IsNullOrWhiteSpace(request.Phone) && request.Phone != user.Phone)
+        if (!string.IsNullOrWhiteSpace(request.FullName)) user.FullName = request.FullName.Trim();
+        if (!string.IsNullOrWhiteSpace(request.Username))
         {
-            if (await _dbContext.Users.AnyAsync(u => u.Phone == request.Phone && u.Id != userId, ct))
-                throw new ConflictException("User", "Phone", request.Phone);
-            user.Phone = request.Phone;
+            var username = request.Username.Trim().ToLowerInvariant();
+            if (username != user.Username)
+            {
+                if (await _dbContext.Users.AnyAsync(u => u.Username == username && u.Id != userId, ct))
+                    throw new ConflictException("User", "Username", username);
+                user.Username = username;
+            }
+        }
+        if (request.Phone is not null)
+        {
+            var phone = request.Phone.Trim();
+            user.Phone = string.IsNullOrEmpty(phone) ? null : phone;
         }
         if (!string.IsNullOrWhiteSpace(request.Role))
         {
@@ -155,6 +170,7 @@ public class UserService : IUserService
     {
         Id = user.Id,
         FullName = user.FullName,
+        Username = user.Username,
         Phone = user.Phone,
         Role = user.RoleEntity?.Name ?? user.Role.ToString(),
         IsActive = user.IsActive,

@@ -31,11 +31,13 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct = default)
     {
+        var username = request.Username.Trim().ToLowerInvariant();
+
         var user = await _dbContext.Users
             .Include(u => u.RoleEntity)
                 .ThenInclude(r => r!.RolePermissions)
                 .ThenInclude(rp => rp.Permission)
-            .FirstOrDefaultAsync(u => u.Phone == request.Phone, ct)
+            .FirstOrDefaultAsync(u => u.Username == username, ct)
             ?? throw new UnauthorizedException(ErrorMessages.InvalidCredentials);
 
         if (!user.IsActive)
@@ -49,11 +51,13 @@ public class AuthService : IAuthService
 
     public async Task<AuthResponse> PinLoginAsync(PinLoginRequest request, CancellationToken ct = default)
     {
+        var username = request.Username.Trim().ToLowerInvariant();
+
         var user = await _dbContext.Users
             .Include(u => u.RoleEntity)
                 .ThenInclude(r => r!.RolePermissions)
                 .ThenInclude(rp => rp.Permission)
-            .FirstOrDefaultAsync(u => u.Phone == request.Phone, ct)
+            .FirstOrDefaultAsync(u => u.Username == username, ct)
             ?? throw new UnauthorizedException(ErrorMessages.InvalidPin);
 
         if (!user.IsActive)
@@ -130,6 +134,7 @@ public class AuthService : IAuthService
         {
             Id = user.Id,
             FullName = user.FullName,
+            Username = user.Username,
             Phone = user.Phone,
             Role = user.RoleEntity?.Name ?? user.Role.ToString(),
             IsActive = user.IsActive,

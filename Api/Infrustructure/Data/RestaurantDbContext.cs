@@ -63,8 +63,9 @@ public class RestaurantDbContext : DbContext
             entity.Property(u => u.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
             entity.Property(u => u.FullName).IsRequired().HasMaxLength(120);
-            entity.Property(u => u.Phone).IsRequired().HasMaxLength(20);
-            entity.HasIndex(u => u.Phone).IsUnique();
+            entity.Property(u => u.Username).IsRequired().HasMaxLength(30);
+            entity.HasIndex(u => u.Username).IsUnique();
+            entity.Property(u => u.Phone).HasMaxLength(20);
 
             entity.Property(u => u.Role)
                   .IsRequired()
