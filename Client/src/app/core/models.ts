@@ -266,7 +266,7 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  restaurant: 'RestoPro',
+  restaurant: 'Majete Corner',
   branch: '',
   phone: '',
   address: '',

@@ -85,7 +85,7 @@ public static class DatabaseSeeder
             db.RestaurantSettings.Add(new RestaurantSettings
             {
                 Id = Guid.NewGuid(),
-                RestaurantName = "Restaurant Management",
+                RestaurantName = "Majete Corner",
                 BranchName = "Main Branch",
                 TaxRate = 15m,
                 ServiceCharge = 0m,

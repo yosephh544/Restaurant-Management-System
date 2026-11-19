@@ -108,7 +108,7 @@ public static class ServiceCollectionExtensions
         {
             c.SwaggerDoc("v1", new OpenApiInfo
             {
-                Title = "Restaurant Management System (RMS) API",
+                Title = "Majete Corner Restaurant Management API",
                 Version = "v1.0",
                 Description = "RMS v1.0 API — Authentication, Staff Management, Digital Menu, Orders, Kitchen KDS, ArifPay Payments, and Management Reports."
             });

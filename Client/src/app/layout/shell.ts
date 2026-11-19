@@ -31,7 +31,7 @@ interface NavGroup {
           <span class="brand-mark"><app-icon name="logo" /></span>
           <span class="brand-text">
             <strong>{{ settings().restaurant }}</strong>
-            <span>Restaurant Management</span>
+            <span>Restaurant Management System</span>
           </span>
         </a>
 

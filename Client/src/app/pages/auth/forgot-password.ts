@@ -12,7 +12,7 @@ import { Icon } from '../../shared/icon';
         <div class="sidebar-brand">
           <span class="brand-mark"><app-icon name="logo" /></span>
           <span class="brand-text">
-            <strong>RestoPro</strong>
+            <strong>Majete Corner</strong>
             <span>Restaurant Management System</span>
           </span>
         </div>
@@ -20,14 +20,14 @@ import { Icon } from '../../shared/icon';
           <h1>Back to service<br /><em>in a minute.</em></h1>
           <p>Ask your manager to approve a reset for your staff account. No email or phone number needed.</p>
         </div>
-        <div class="auth-foot">© 2026 RestoPro · Smart Operations. Exceptional Dining.</div>
+        <div class="auth-foot">© 2026 Majete Corner · Smart Operations. Exceptional Dining.</div>
       </section>
 
       <section class="auth-panel">
         <div class="auth-card">
           <div class="brand-mini">
             <span class="brand-mark"><app-icon name="logo" /></span>
-            <strong>RestoPro</strong>
+            <strong>Majete Corner</strong>
           </div>
 
           @if (!sent()) {

@@ -13,7 +13,7 @@ import { Icon } from '../../shared/icon';
         <div class="sidebar-brand">
           <span class="brand-mark"><app-icon name="logo" /></span>
           <span class="brand-text">
-            <strong>RestoPro</strong>
+            <strong>Majete Corner</strong>
             <span>Restaurant Management System</span>
           </span>
         </div>
@@ -21,14 +21,14 @@ import { Icon } from '../../shared/icon';
           <h1>Set a new<br /><em>password.</em></h1>
           <p>Use at least 8 characters. Share the new password only with the person who owns the account.</p>
         </div>
-        <div class="auth-foot">© 2026 RestoPro · Smart Operations. Exceptional Dining.</div>
+        <div class="auth-foot">© 2026 Majete Corner · Smart Operations. Exceptional Dining.</div>
       </section>
 
       <section class="auth-panel">
         <div class="auth-card">
           <div class="brand-mini">
             <span class="brand-mark"><app-icon name="logo" /></span>
-            <strong>RestoPro</strong>
+            <strong>Majete Corner</strong>
           </div>
 
           @if (!done()) {

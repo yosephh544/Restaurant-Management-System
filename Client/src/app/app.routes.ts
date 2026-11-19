@@ -7,7 +7,7 @@ export const routes: Routes = [
   {
     path: 'login',
     canActivate: [guestGuard],
-    title: 'Sign in · RestoPro',
+    title: 'Sign in · Majete Corner',
     loadComponent: () => import('./pages/auth/login').then((m) => m.LoginPage),
   },
   {
@@ -18,7 +18,7 @@ export const routes: Routes = [
       {
         path: '',
         pathMatch: 'full',
-        title: 'RestoPro',
+        title: 'Majete Corner',
         component: Home,
       },
       {
@@ -28,22 +28,22 @@ export const routes: Routes = [
         children: [
           {
             path: 'new',
-            title: 'New order · RestoPro',
+            title: 'New order · Majete Corner',
             loadComponent: () => import('./pages/waiter/new-order').then((m) => m.NewOrderPage),
           },
           {
             path: 'orders',
-            title: 'My orders · RestoPro',
+            title: 'My orders · Majete Corner',
             loadComponent: () => import('./pages/waiter/orders').then((m) => m.WaiterOrdersPage),
           },
           {
             path: 'orders/:id',
-            title: 'Order · RestoPro',
+            title: 'Order · Majete Corner',
             loadComponent: () => import('./pages/waiter/order-detail').then((m) => m.OrderDetailPage),
           },
           {
             path: 'issues',
-            title: 'Kitchen issues · RestoPro',
+            title: 'Kitchen issues · Majete Corner',
             loadComponent: () => import('./pages/waiter/issues').then((m) => m.WaiterIssuesPage),
           },
           { path: '', pathMatch: 'full', redirectTo: 'new' },
@@ -56,12 +56,12 @@ export const routes: Routes = [
         children: [
           {
             path: '',
-            title: 'Kitchen board · RestoPro',
+            title: 'Kitchen board · Majete Corner',
             loadComponent: () => import('./pages/kitchen/board').then((m) => m.KitchenBoardPage),
           },
           {
             path: ':id',
-            title: 'Ticket · RestoPro',
+            title: 'Ticket · Majete Corner',
             loadComponent: () => import('./pages/kitchen/ticket').then((m) => m.KitchenTicketPage),
           },
         ],
@@ -73,22 +73,22 @@ export const routes: Routes = [
         children: [
           {
             path: 'bills',
-            title: 'Open bills · RestoPro',
+            title: 'Open bills · Majete Corner',
             loadComponent: () => import('./pages/cashier/bills').then((m) => m.CashierBillsPage),
           },
           {
             path: 'bills/:id',
-            title: 'Bill · RestoPro',
+            title: 'Bill · Majete Corner',
             loadComponent: () => import('./pages/cashier/bill-detail').then((m) => m.BillDetailPage),
           },
           {
             path: 'bills/:id/receipt',
-            title: 'Receipt · RestoPro',
+            title: 'Receipt · Majete Corner',
             loadComponent: () => import('./pages/cashier/receipt').then((m) => m.ReceiptPage),
           },
           {
             path: 'payments',
-            title: 'Payments · RestoPro',
+            title: 'Payments · Majete Corner',
             loadComponent: () => import('./pages/cashier/payments').then((m) => m.CashierPaymentsPage),
           },
           { path: '', pathMatch: 'full', redirectTo: 'bills' },
@@ -101,32 +101,32 @@ export const routes: Routes = [
         children: [
           {
             path: '',
-            title: 'Dashboard · RestoPro',
+            title: 'Dashboard · Majete Corner',
             loadComponent: () => import('./pages/manager/dashboard').then((m) => m.ManagerDashboardPage),
           },
           {
             path: 'reports',
-            title: 'Reports · RestoPro',
+            title: 'Reports · Majete Corner',
             loadComponent: () => import('./pages/manager/reports').then((m) => m.ReportsPage),
           },
           {
             path: 'staff',
-            title: 'Staff · RestoPro',
+            title: 'Staff · Majete Corner',
             loadComponent: () => import('./pages/manager/staff').then((m) => m.StaffPage),
           },
           {
             path: 'issues',
-            title: 'Kitchen issues · RestoPro',
+            title: 'Kitchen issues · Majete Corner',
             loadComponent: () => import('./pages/manager/issues').then((m) => m.ManagerIssuesPage),
           },
           {
             path: 'audit',
-            title: 'Audit log · RestoPro',
+            title: 'Audit log · Majete Corner',
             loadComponent: () => import('./pages/manager/audit').then((m) => m.AuditLogPage),
           },
           {
             path: 'menu',
-            title: 'Menu · RestoPro',
+            title: 'Menu · Majete Corner',
             loadComponent: () => import('./pages/manager/menu').then((m) => m.MenuPage),
           },
         ],
@@ -138,12 +138,12 @@ export const routes: Routes = [
         children: [
           {
             path: 'users',
-            title: 'Users & roles · RestoPro',
+            title: 'Users & roles · Majete Corner',
             loadComponent: () => import('./pages/admin/users').then((m) => m.UsersPage),
           },
           {
             path: 'settings',
-            title: 'Settings · RestoPro',
+            title: 'Settings · Majete Corner',
             loadComponent: () => import('./pages/admin/settings').then((m) => m.SettingsPage),
           },
           { path: '', pathMatch: 'full', redirectTo: 'users' },

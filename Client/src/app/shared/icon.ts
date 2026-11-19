@@ -41,7 +41,7 @@ export type IconName =
   | 'alert-circle';
 
 const PATHS: Record<IconName, string> = {
-  logo: '<path d="M7 2v7a2.5 2.5 0 0 0 5 0V2"/><path d="M9.5 11v11"/><path d="M17.5 2c-1.8 2-2.2 5-2.2 7 0 1.8 1 3 2.2 3s2.2-1.2 2.2-3c0-2-.4-5-2.2-7Z"/><path d="M17.5 12v10"/>',
+  logo: '',
   receipt:
     '<path d="M6 2h12v20l-3-2-3 2-3-2-3 2V2z"/><path d="M9 7h6M9 11h6M9 15h4"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
@@ -92,7 +92,13 @@ const PATHS: Record<IconName, string> = {
 
 @Component({
   selector: 'app-icon',
-  template: `<span class="ico" [innerHTML]="markup()"></span>`,
+  template: `
+    @if (name() === 'logo') {
+      <img class="brand-img" src="majete-logo-small.png" alt="" aria-hidden="true" />
+    } @else {
+      <span class="ico" [innerHTML]="markup()"></span>
+    }
+  `,
   styles: [
     `
       :host {
@@ -105,6 +111,13 @@ const PATHS: Record<IconName, string> = {
         display: inline-flex;
         width: 100%;
         height: 100%;
+      }
+      .brand-img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        border-radius: inherit;
+        display: block;
       }
       :host ::ng-deep svg {
         width: 100%;

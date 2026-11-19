@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Settings, Table } from '../../core/models';
 import { Store } from '../../core/store';
@@ -209,6 +209,23 @@ export class SettingsPage {
   protected tableNumber = '';
   protected tableName = '';
   protected tableCapacity: number | null = 4;
+
+  private synced = false;
+
+  constructor() {
+    // The shell loads settings asynchronously; copy them once they arrive
+    // instead of leaving the form on defaults.
+    effect(() => {
+      if (this.synced || !this.store.loaded()) return;
+      this.synced = true;
+      this.syncForm();
+    });
+  }
+
+  private syncForm(): void {
+    this.form = { ...this.store.settings(), tipPresets: [...this.store.settings().tipPresets] };
+    this.tipText = this.store.settings().tipPresets.join(', ');
+  }
 
   protected async save(): Promise<void> {
     const presets = this.tipText
