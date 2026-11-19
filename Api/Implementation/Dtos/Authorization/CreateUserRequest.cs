@@ -8,9 +8,15 @@ public class CreateUserRequest
     [MaxLength(120, ErrorMessage = "Full name cannot exceed 120 characters.")]
     public string FullName { get; set; } = default!;
 
-    [Required(ErrorMessage = "Phone number is required.")]
+    [Required(ErrorMessage = "Username is required.")]
+    [MaxLength(30, ErrorMessage = "Username cannot exceed 30 characters.")]
+    [MinLength(3, ErrorMessage = "Username must be at least 3 characters.")]
+    [RegularExpression(@"^[a-zA-Z0-9._-]+$", ErrorMessage = "Username can only contain letters, numbers, dots, dashes and underscores.")]
+    public string Username { get; set; } = default!;
+
+    /// <summary>Optional contact number; not used for authentication.</summary>
     [MaxLength(20, ErrorMessage = "Phone number cannot exceed 20 characters.")]
-    public string Phone { get; set; } = default!;
+    public string? Phone { get; set; }
 
     [Required(ErrorMessage = "Role is required.")]
     public string Role { get; set; } = default!;

@@ -5,16 +5,22 @@ using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi.Models;
 using RestaurantManagement.Implementation.Interfaces.Authentication;
 using RestaurantManagement.Implementation.Interfaces.Authorization;
+using RestaurantManagement.Implementation.Interfaces.Audit;
 using RestaurantManagement.Implementation.Interfaces.Billing;
 using RestaurantManagement.Implementation.Interfaces.Common;
+using RestaurantManagement.Implementation.Interfaces.Issues;
+using RestaurantManagement.Implementation.Interfaces.Configuration;
 using RestaurantManagement.Implementation.Interfaces.Kitchen;
 using RestaurantManagement.Implementation.Interfaces.Menu;
 using RestaurantManagement.Implementation.Interfaces.Orders;
 using RestaurantManagement.Implementation.Interfaces.Payment;
+using RestaurantManagement.Implementation.Services.Audit;
 using RestaurantManagement.Implementation.Services.Authentication;
 using RestaurantManagement.Implementation.Services.Authorization;
 using RestaurantManagement.Implementation.Services.Billing;
+using RestaurantManagement.Implementation.Services.Issues;
 using RestaurantManagement.Implementation.Services.Common;
+using RestaurantManagement.Implementation.Services.Configuration;
 using RestaurantManagement.Implementation.Services.Kitchen;
 using RestaurantManagement.Implementation.Services.Menu;
 using RestaurantManagement.Implementation.Services.Orders;
@@ -102,7 +108,7 @@ public static class ServiceCollectionExtensions
         {
             c.SwaggerDoc("v1", new OpenApiInfo
             {
-                Title = "Restaurant Management System (RMS) API",
+                Title = "Majete Corner Restaurant Management API",
                 Version = "v1.0",
                 Description = "RMS v1.0 API — Authentication, Staff Management, Digital Menu, Orders, Kitchen KDS, ArifPay Payments, and Management Reports."
             });
@@ -152,6 +158,10 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IKitchenService, KitchenService>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IReportService, ReportService>();
+        services.AddScoped<IBillingService, BillingService>();
+        services.AddScoped<ISettingsService, SettingsService>();
+        services.AddScoped<IIssueService, IssueService>();
+        services.AddScoped<IAuditService, AuditService>();
 
         return services;
     }

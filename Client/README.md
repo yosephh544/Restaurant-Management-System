@@ -1,59 +1,88 @@
-# RestaurantManagementClient
+# RestoPro — Angular client
 
-This project was generated using [Angular CLI](https://github.com/angular/angular-cli) version 20.0.3.
+Restaurant management UI for the Restaurant Management System API. Angular 20, standalone
+components, signals, lazy routes, no UI framework — the RestoPro design system lives in
+`src/styles.css`.
 
-## Development server
-
-To start a local development server, run:
-
-```bash
-ng serve
-```
-
-Once the server is running, open your browser and navigate to `http://localhost:4200/`. The application will automatically reload whenever you modify any of the source files.
-
-## Code scaffolding
-
-Angular CLI includes powerful code scaffolding tools. To generate a new component, run:
+## Run
 
 ```bash
-ng generate component component-name
+cd Client
+npm install
+npm start        # http://localhost:4200
+npm run build    # production build in dist/
 ```
 
-For a complete list of available schematics (such as `components`, `directives`, or `pipes`), run:
+## Demo accounts
 
-```bash
-ng generate --help
-```
+The client ships with an in-memory demo dataset (staff, menu, orders, payments, issues, tips) so
+every screen and flow works without the API running. Pick an account on the sign-in page, or use:
 
-## Building
+| Role | Name | Username | Password | PIN |
+|---|---|---|---|---|
+| Owner | Alex Bekele | `alex` | `demo1234` | — |
+| Manager | Sara Ahmed | `sara` | `demo1234` | — |
+| Cashier | Hana Girma | `hana` | `demo1234` | — |
+| Waiter | Yoseph Tesfaye | `yoseph` | `demo1234` | `1234` |
+| Waiter | Selam Bekele | `selam` | `demo1234` | `1234` |
+| Kitchen | Dawit Alemu | `dawit` | `demo1234` | `1234` |
 
-To build the project run:
+Usernames are case-insensitive. Waiters and kitchen staff can switch the login form to **Device
+PIN** and still enter their username. Deactivated accounts cannot sign in. Owner-only screens are
+hidden from other roles and guarded at the route level. Phone numbers are optional contact details
+and are never used to sign in.
 
-```bash
-ng build
-```
+## Routes
 
-This will compile your project and store the build artifacts in the `dist/` directory. By default, the production build optimizes your application for performance and speed.
+| Role | Routes |
+|---|---|
+| Public | `/login`, `/forgot-password`, `/reset-password` |
+| Waiter | `/waiter/new`, `/waiter/orders`, `/waiter/orders/:id`, `/waiter/issues` |
+| Kitchen | `/kitchen`, `/kitchen/:id` |
+| Cashier | `/cashier/bills`, `/cashier/bills/:id`, `/cashier/bills/:id/receipt`, `/cashier/payments` |
+| Manager | `/manager`, `/manager/reports`, `/manager/staff`, `/manager/issues`, `/manager/audit`, `/manager/menu` |
+| Owner | Manager routes plus `/admin/users`, `/admin/settings` |
 
-## Running unit tests
+`/` redirects to the signed-in role's workspace. Unknown URLs fall back there.
 
-To execute unit tests with the [Karma](https://karma-runner.github.io) test runner, use the following command:
+## What each workspace does
 
-```bash
-ng test
-```
+- **Waiter** — compose an order by table and category, add line notes, send it to the kitchen, track
+  active tickets, add items, mark served, take payment (cash / QR / phone), and reorder tickets the
+  kitchen cancelled. Kitchen issues on their own tickets appear in `/waiter/issues`.
+- **Kitchen** — oldest-first ticket board with live timers, accept → mark ready, an "at the pass"
+  strip, full ticket view, and an issue dialog that removes a line or the whole ticket and notifies
+  the floor. Prices are deliberately hidden.
+- **Cashier** — open bills with outstanding totals, printable receipts, tip entry, cash tendered /
+  change, QR and phone payment requests with a pending state, refunds for served returns, and
+  transfers of a settled payment to a matching bill.
+- **Manager** — live sales/floor dashboard, sales chart, reports (sales, waiters, cancellations,
+  kitchen timing) with CSV export, staff status and tip payouts, issue management, and the audit log.
+- **Owner** — everything above plus user/role administration, menu and availability management, and
+  restaurant/billing/payment settings. Settings includes a demo-data reset.
 
-## Running end-to-end tests
+## Data layer
 
-For end-to-end (e2e) testing, run:
+`src/app/core/store.ts` is the single state container: signals for users, menu, orders, payments,
+issues, audit and settings, plus every action (create order, advance kitchen, cancel/reorder, pay,
+refund, transfer, pay tips, edit menu, manage users, resolve issues). It is seeded by
+`src/app/core/seed.ts` and mirrors the API's order/payment rules, including:
 
-```bash
-ng e2e
-```
+- payment only at READY or SERVED,
+- no payment exists before READY, so kitchen cancellation never refunds,
+- refund only for served orders,
+- transfer requires a served source, an unpaid target and an exact total match,
+- a payment is recognised once (PAID only), and tips are tracked per waiter.
 
-Angular CLI does not come with an end-to-end testing framework by default. You can choose one that suits your needs.
+To connect the real API, replace the store actions with `HttpClient` calls to
+`/api/v1/orders`, `/api/v1/kitchen`, `/api/v1/payments` and `/api/v1/reports`; the UI's request and
+response shapes were modelled on `docs/ORDER_AND_PAYMENT.md`. Auth currently validates against demo
+users instead of `POST /api/v1/auth/login`, and the QR/phone gateway is simulated (a "Customer
+confirmed" button settles it).
 
-## Additional Resources
+## Notes
 
-For more information on using the Angular CLI, including detailed command references, visit the [Angular CLI Overview and Command Reference](https://angular.dev/tools/cli) page.
+- The UI shows a 5% service charge (configurable in Settings). The current API has no service-charge
+  field, so align this before wiring the backend.
+- Receipts use the browser print dialog and hide the app shell when printing.
+- "Reset demo data" in Settings restores the seeded dataset without reloading the page.

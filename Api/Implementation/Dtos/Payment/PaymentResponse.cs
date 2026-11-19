@@ -3,6 +3,7 @@ namespace RestaurantManagement.Implementation.Dtos.Payment;
 public class PaymentResponse
 {
     public Guid Id { get; init; }
+    public Guid? BillId { get; init; }
     public Guid OrderId { get; init; }
     public string OrderNumber { get; init; } = default!;
     public string Method { get; init; } = default!;

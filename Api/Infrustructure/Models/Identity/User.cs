@@ -16,8 +16,11 @@ public class User
     /// <summary>Displayed on kitchen tickets, cashier bills, and manager reports.</summary>
     public string FullName { get; set; } = default!;
 
-    /// <summary>Primary login identifier. Unique across the system.</summary>
-    public string Phone { get; set; } = default!;
+    /// <summary>Primary login identifier. Unique, case-insensitive.</summary>
+    public string Username { get; set; } = default!;
+
+    /// <summary>Optional contact number. Never used to authenticate.</summary>
+    public string? Phone { get; set; }
 
     /// <summary>Dynamic role assignment stored in the roles table.</summary>
     public Guid? RoleId { get; set; }

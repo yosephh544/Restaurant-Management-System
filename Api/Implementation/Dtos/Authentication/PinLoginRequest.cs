@@ -4,9 +4,9 @@ namespace RestaurantManagement.Implementation.Dtos.Authentication;
 
 public class PinLoginRequest
 {
-    [Required(ErrorMessage = "Phone number is required.")]
-    [MaxLength(20)]
-    public string Phone { get; set; } = default!;
+    [Required(ErrorMessage = "Username is required.")]
+    [MaxLength(50)]
+    public string Username { get; set; } = default!;
 
     [Required(ErrorMessage = "PIN is required.")]
     [RegularExpression(@"^\d{4,6}$", ErrorMessage = "PIN must be between 4 and 6 digits.")]

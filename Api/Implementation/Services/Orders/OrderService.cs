@@ -7,7 +7,9 @@ using RestaurantManagement.Infrustructure.Common.Exceptions;
 using RestaurantManagement.Infrustructure.Common.Extensions;
 using RestaurantManagement.Infrustructure.Common.Responses;
 using RestaurantManagement.Infrustructure.Data;
+using RestaurantManagement.Infrustructure.Enums.Billing;
 using RestaurantManagement.Infrustructure.Enums.Orders;
+using RestaurantManagement.Infrustructure.Models.Billing;
 using RestaurantManagement.Infrustructure.Models.Orders;
 
 namespace RestaurantManagement.Implementation.Services.Orders;
@@ -41,9 +43,9 @@ public class OrderService : IOrderService
         if (request.Items == null || !request.Items.Any())
             throw new ValidationException(ErrorMessages.EmptyOrder);
 
-        var menuItemIds = request.Items.Select(i => i.MenuItemId).Distinct().ToList();
+        // Load the catalog and match in memory: EF Core's OPENJSON translation of list Contains
+        // is rejected by this SQL Server instance.
         var menuItems = await _dbContext.MenuItems
-            .Where(m => menuItemIds.Contains(m.Id))
             .ToDictionaryAsync(m => m.Id, ct);
 
         // Atomic check: All items must exist and be available
@@ -102,6 +104,36 @@ public class OrderService : IOrderService
         order.GrandTotal = Math.Round(subtotal + taxTotal, 2);
 
         _dbContext.Orders.Add(order);
+
+        var table = await _dbContext.RestaurantTables
+            .FirstOrDefaultAsync(t => t.Number == request.TableNumber && t.IsActive, ct)
+            ?? throw new ValidationException("TableNumber", "Unknown table number. Create the table first.");
+
+        var session = await _dbContext.DiningSessions
+            .FirstOrDefaultAsync(s => s.TableId == table.Id &&
+                s.Status == DiningSessionStatus.Active, ct);
+
+        if (session == null)
+        {
+            session = new DiningSession
+            {
+                Id = Guid.NewGuid(),
+                TableId = table.Id,
+                WaiterId = waiterId,
+                Status = DiningSessionStatus.Active,
+                OpenedAt = DateTime.UtcNow
+            };
+            _dbContext.DiningSessions.Add(session);
+            table.Status = TableStatus.Occupied;
+        }
+        else if (session.Status != DiningSessionStatus.Active)
+        {
+            throw new ConflictException("This table has a bill awaiting payment. Reopen or close the session before placing another order.");
+        }
+
+        order.DiningSessionId = session.Id;
+        order.DiningSession = session;
+
         await _dbContext.SaveChangesAsync(ct);
 
         return await GetOrderByIdAsync(orderId, ct);
@@ -198,9 +230,9 @@ public class OrderService : IOrderService
         if (order.OrderStatus == OrderStatus.Served)
             throw new ConflictException("Cannot add items to an order that has already been served.");
 
-        var menuItemIds = request.Items.Select(i => i.MenuItemId).Distinct().ToList();
+        // Load the catalog and match in memory: EF Core's OPENJSON translation of list Contains
+        // is rejected by this SQL Server instance.
         var menuItems = await _dbContext.MenuItems
-            .Where(m => menuItemIds.Contains(m.Id))
             .ToDictionaryAsync(m => m.Id, ct);
 
         foreach (var reqItem in request.Items)
@@ -235,6 +267,19 @@ public class OrderService : IOrderService
         order.TaxTotal = Math.Round(order.TaxTotal, 2);
         order.GrandTotal = Math.Round(order.Subtotal + order.TaxTotal + order.TipAmount, 2);
         order.UpdatedAt = DateTime.UtcNow;
+
+        // Check if the dining session is still active before allowing item addition
+        if (order.DiningSessionId.HasValue)
+        {
+            var sessionStatus = await _dbContext.DiningSessions
+                .AsNoTracking()
+                .Where(s => s.Id == order.DiningSessionId.Value)
+                .Select(s => s.Status)
+                .FirstOrDefaultAsync(ct);
+
+            if (sessionStatus is DiningSessionStatus.BillRequested or DiningSessionStatus.Paid or DiningSessionStatus.Closed)
+                throw new ConflictException("Items cannot be added after the table bill has been generated.");
+        }
 
         await _dbContext.SaveChangesAsync(ct);
         return await GetOrderByIdAsync(orderId, ct);
@@ -336,6 +381,8 @@ public class OrderService : IOrderService
         CustomerNotes = order.CustomerNotes,
         CreatedAt = order.CreatedAt,
         UpdatedAt = order.UpdatedAt,
+        PreparingAt = order.PreparingAt,
+        ReadyAt = order.ReadyAt,
         ServedAt = order.ServedAt,
         Items = order.OrderItems.Select(i => new OrderItemResponse
         {
@@ -344,6 +391,7 @@ public class OrderService : IOrderService
             MenuItemName = i.MenuItem?.Name ?? "Item",
             Quantity = i.Quantity,
             UnitPrice = i.UnitPrice,
+            TaxRate = i.TaxRate,
             CustomerNotes = i.CustomerNotes,
             ItemStatus = i.ItemStatus.ToString().ToUpperInvariant()
         }).ToList()

@@ -1,12 +1,11 @@
 import { Component } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
+import { Toasts } from './shared/toasts';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
-  templateUrl: './app.html',
-  styleUrl: './app.css'
+  imports: [RouterOutlet, Toasts],
+  template: `<router-outlet />
+    <app-toasts />`,
 })
-export class App {
-  protected title = 'restaurant-management-client';
-}
+export class App {}

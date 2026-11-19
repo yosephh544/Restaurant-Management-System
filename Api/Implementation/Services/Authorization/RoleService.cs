@@ -51,8 +51,9 @@ public class RoleService : IRoleService
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
+        // Load permissions and match in memory: EF Core's OPENJSON translation of list Contains
+        // is rejected by this SQL Server instance.
         var permissionIds = await _dbContext.Permissions
-            .Where(p => requestedNames.Contains(p.Name))
             .ToDictionaryAsync(p => p.Name, p => p.Id, ct);
 
         var unknown = requestedNames.Where(name => !permissionIds.ContainsKey(name)).ToList();

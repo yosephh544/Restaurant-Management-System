@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using RestaurantManagement.Infrustructure.Common.Constants;
 using RestaurantManagement.Infrustructure.Data;
 using RestaurantManagement.Infrustructure.Enums.Identity;
+using RestaurantManagement.Infrustructure.Models.Configuration;
 using RestaurantManagement.Infrustructure.Models.Identity;
 
 namespace RestaurantManagement.Api.Extensions;
@@ -41,48 +42,70 @@ public static class DatabaseSeeder
 
         var roles = await db.Roles.ToDictionaryAsync(r => r.Name, r => r, ct);
 
-        // Owner is always kept in sync with every permission. Other roles only receive
-        // their defaults when empty, so changes made through the roles API persist.
+        // Owner is always kept in sync with every permission. Other roles get any
+        // baseline grants they are missing (so existing databases pick up new
+        // capabilities); extra grants made through the roles API are preserved.
         AssignRolePermissions(roles["Owner"], permissionNames, permissions, db);
 
-        await SeedRolePermissionsIfEmptyAsync(roles["Manager"], new[]
+        await EnsureRolePermissionsAsync(roles["Manager"], new[]
         {
             Permissions.UsersView, Permissions.UsersCreate, Permissions.UsersUpdate, Permissions.UsersManageStatus,
             Permissions.MenuView, Permissions.CategoriesManage, Permissions.ItemsManage, Permissions.AvailabilityManage,
             Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems, Permissions.OrdersReorder, Permissions.OrdersServe,
             Permissions.KitchenView, Permissions.KitchenUpdate, Permissions.KitchenCancel,
             Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract, Permissions.TipsView,
-            Permissions.ReportsView
+            Permissions.ReportsView,
+            Permissions.TablesView, Permissions.TablesManage, Permissions.BillsGenerate, Permissions.BillsReopen
         }, permissions, db, ct);
 
-        await SeedRolePermissionsIfEmptyAsync(roles["Cashier"], new[]
+        await EnsureRolePermissionsAsync(roles["Cashier"], new[]
         {
             Permissions.MenuView,
             Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems, Permissions.OrdersServe,
-            Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract
+            Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract,
+            Permissions.TablesView, Permissions.TablesManage, Permissions.BillsGenerate, Permissions.BillsReopen
         }, permissions, db, ct);
 
-        await SeedRolePermissionsIfEmptyAsync(roles["Waiter"], new[]
+        await EnsureRolePermissionsAsync(roles["Waiter"], new[]
         {
             Permissions.MenuView, Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems,
-            Permissions.OrdersReorder, Permissions.OrdersServe, Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.TipsView
+            Permissions.OrdersReorder, Permissions.OrdersServe, Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.TipsView,
+            Permissions.TablesView, Permissions.BillsGenerate
         }, permissions, db, ct);
 
-        await SeedRolePermissionsIfEmptyAsync(roles["Kitchen"], new[]
+        await EnsureRolePermissionsAsync(roles["Kitchen"], new[]
         {
             Permissions.MenuView, Permissions.AvailabilityManage, Permissions.KitchenView, Permissions.KitchenUpdate, Permissions.KitchenCancel
         }, permissions, db, ct);
 
         await db.SaveChangesAsync(ct);
 
+        if (!await db.RestaurantSettings.AnyAsync(ct))
+        {
+            db.RestaurantSettings.Add(new RestaurantSettings
+            {
+                Id = Guid.NewGuid(),
+                RestaurantName = "Majete Corner",
+                BranchName = "Main Branch",
+                TaxRate = 15m,
+                ServiceCharge = 0m,
+                TipPresetsCsv = "0,10,15,20",
+                CashEnabled = true,
+                QrEnabled = true,
+                PhonePayEnabled = true
+            });
+            await db.SaveChangesAsync(ct);
+        }
+
         var ownerRole = roles["Owner"];
-        var owner = await db.Users.FirstOrDefaultAsync(u => u.Phone == "0920496730", ct);
+        var owner = await db.Users.FirstOrDefaultAsync(u => u.Username == "joseph" || u.Phone == "0920496730", ct);
         if (owner is null)
         {
             db.Users.Add(new User
             {
                 Id = OwnerUserId,
                 FullName = "Joseph",
+                Username = "joseph",
                 Phone = "0920496730",
                 Role = UserRole.Owner,
                 RoleId = ownerRole.Id,
@@ -95,6 +118,7 @@ public static class DatabaseSeeder
         else
         {
             owner.FullName = "Joseph";
+            owner.Username = "joseph";
             owner.Role = UserRole.Owner;
             owner.RoleId = ownerRole.Id;
             owner.RoleEntity = ownerRole;
@@ -106,17 +130,30 @@ public static class DatabaseSeeder
         await db.SaveChangesAsync(ct);
     }
 
-    private static async Task SeedRolePermissionsIfEmptyAsync(
+    private static async Task EnsureRolePermissionsAsync(
         Role role,
         IEnumerable<string> permissionNames,
         IReadOnlyDictionary<string, Guid> permissions,
         RestaurantDbContext db,
         CancellationToken ct)
     {
-        if (await db.RolePermissions.AnyAsync(rp => rp.RoleId == role.Id, ct))
-            return;
+        var existingIds = await db.RolePermissions
+            .Where(rp => rp.RoleId == role.Id)
+            .Select(rp => rp.PermissionId)
+            .ToHashSetAsync(ct);
 
-        AssignRolePermissions(role, permissionNames, permissions, db);
+        foreach (var permissionName in permissionNames.Distinct())
+        {
+            var permissionId = permissions[permissionName];
+            if (!existingIds.Add(permissionId))
+                continue;
+
+            db.RolePermissions.Add(new RolePermission
+            {
+                RoleId = role.Id,
+                PermissionId = permissionId
+            });
+        }
     }
 
     private static void AssignRolePermissions(

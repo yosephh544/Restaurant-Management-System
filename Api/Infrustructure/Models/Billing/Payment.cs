@@ -14,6 +14,7 @@ public class Payment
     public Guid Id { get; set; }
 
     public Guid OrderId { get; set; }
+    public Guid? BillId { get; set; }
 
     /// <summary>Waiter on mobile app or Cashier on POS terminal who started checkout.</summary>
     public Guid InitiatedById { get; set; }
@@ -60,4 +61,5 @@ public class Payment
     public Order Order { get; set; } = default!;
     public User InitiatedBy { get; set; } = default!;
     public WaiterTip? WaiterTip { get; set; }
+    public Bill? Bill { get; set; }
 }

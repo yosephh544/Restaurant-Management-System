@@ -16,8 +16,11 @@ public class Order
     /// <summary>Human-readable daily ticket code, e.g. ORD-1042, called out by kitchen and cashier.</summary>
     public string OrderNumber { get; set; } = default!;
 
-    /// <summary>Identifies dining table or takeaway counter.</summary>
+    /// <summary>Legacy free-text table identifier retained for migration compatibility.</summary>
     public string TableNumber { get; set; } = default!;
+
+    public Guid? DiningSessionId { get; set; }
+    public RestaurantManagement.Infrustructure.Models.Billing.DiningSession? DiningSession { get; set; }
 
     public Guid WaiterId { get; set; }
 

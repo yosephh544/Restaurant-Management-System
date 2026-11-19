@@ -34,11 +34,14 @@ public class JwtTokenService : IJwtTokenService
         {
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.FullName),
-            new(ClaimTypes.MobilePhone, user.Phone),
             new(ClaimTypes.Role, roleName),
             new("userId", user.Id.ToString()),
+            new("username", user.Username),
             new("role", roleName)
         };
+
+        if (!string.IsNullOrWhiteSpace(user.Phone))
+            claims.Add(new Claim(ClaimTypes.MobilePhone, user.Phone));
 
         claims.AddRange(permissionNames.Select(permission => new Claim("permission", permission)));
 

@@ -15,6 +15,7 @@ using RestaurantManagement.Infrustructure.Data;
 using RestaurantManagement.Infrustructure.Enums.Billing;
 using RestaurantManagement.Infrustructure.Enums.Orders;
 using RestaurantManagement.Infrustructure.Models.Billing;
+using RestaurantManagement.Infrustructure.Models.Orders;
 using PaymentEntity = RestaurantManagement.Infrustructure.Models.Billing.Payment;
 
 namespace RestaurantManagement.Implementation.Services.Payment;
@@ -44,38 +45,83 @@ public class PaymentService : IPaymentService
         var initiatorId = _currentUserService.UserId
             ?? throw new UnauthorizedException("User identity could not be verified from token.");
 
-        var order = await _dbContext.Orders
-            .Include(o => o.Payments)
-            .FirstOrDefaultAsync(o => o.Id == request.OrderId, ct)
-            ?? throw new NotFoundException("Order", request.OrderId);
+        Bill bill;
+        DiningSession session;
+        RestaurantTable table;
+        List<Order> billOrders;
 
-        // Waiters can only take payment for the tickets they own.
+        if (request.BillId.HasValue)
+        {
+            bill = await _dbContext.Bills
+                .Include(b => b.DiningSession).ThenInclude(s => s.Table)
+                .Include(b => b.DiningSession).ThenInclude(s => s.Orders)
+                .FirstOrDefaultAsync(b => b.Id == request.BillId.Value, ct)
+                ?? throw new NotFoundException("Bill", request.BillId.Value);
+
+            session = bill.DiningSession;
+            table = session.Table;
+            billOrders = session.Orders
+                .Where(o => o.PaymentStatus == PaymentStatus.PaymentInitiated || o.PaymentStatus == PaymentStatus.Unpaid)
+                .ToList();
+        }
+        else if (request.OrderId.HasValue)
+        {
+            var order = await _dbContext.Orders
+                .Include(o => o.DiningSession).ThenInclude(s => s!.Bills)
+                .Include(o => o.DiningSession).ThenInclude(s => s!.Table)
+                .FirstOrDefaultAsync(o => o.Id == request.OrderId.Value, ct)
+                ?? throw new NotFoundException("Order", request.OrderId.Value);
+
+            if (!order.DiningSessionId.HasValue)
+                throw new ConflictException("Generate a table bill before initiating payment.");
+
+            session = order.DiningSession!;
+            table = session.Table;
+            bill = session.Bills
+                .Where(b => b.Status == BillStatus.Requested || b.Status == BillStatus.PaymentInitiated)
+                .OrderByDescending(b => b.CreatedAt)
+                .FirstOrDefault()
+                ?? throw new ConflictException("Generate a table bill before initiating payment.");
+
+            billOrders = session.Orders
+                .Where(o => o.PaymentStatus == PaymentStatus.PaymentInitiated || o.PaymentStatus == PaymentStatus.Unpaid)
+                .ToList();
+        }
+        else
+        {
+            throw new ValidationException("BillId", "A generated BillId is required.");
+        }
+
+        if (bill.Status is BillStatus.Paid or BillStatus.Refunded or BillStatus.Voided)
+            throw new ConflictException("This bill is not available for payment.");
+
+        if (session.Status != DiningSessionStatus.BillRequested)
+            throw new ConflictException("The dining session must have a generated bill before payment.");
+
+        if (billOrders.Count == 0)
+            throw new ConflictException("The bill has no unpaid orders.");
+
+        var representativeOrder = billOrders
+            .OrderBy(o => o.CreatedAt)
+            .First();
+
         if (string.Equals(_currentUserService.Role, Roles.Waiter, StringComparison.OrdinalIgnoreCase)
-            && order.WaiterId != initiatorId)
-            throw new ForbiddenException("You can only initiate payment for your own orders.");
-
-        if (order.PaymentStatus == PaymentStatus.Paid)
-            throw new ConflictException("Order has already been paid in full.");
-
-        if (order.OrderStatus == OrderStatus.CancelledByKitchen)
-            throw new ConflictException("Cannot initiate payment for a kitchen-cancelled order.");
-
-        // Money is only collected once the food is ready to be served (or has been served).
-        // PENDING/PREPARING tickets have no payment, so a kitchen cancellation needs no refund.
-        if (order.OrderStatus is not (OrderStatus.Ready or OrderStatus.Served))
-            throw new ConflictException("Payment can only be taken once the order is READY or SERVED.");
-
-        if (order.PaymentStatus is PaymentStatus.RefundPending or PaymentStatus.Refunded)
-            throw new ConflictException("This order is awaiting or has completed a refund.");
+            && session.WaiterId != initiatorId)
+            throw new ForbiddenException("You can only initiate payment for your own table sessions.");
 
         var method = ParseMethod(request.Method);
 
         if (method == PaymentMethod.PhonePush && string.IsNullOrWhiteSpace(request.CustomerPhone))
             throw new ValidationException("CustomerPhone", "Customer phone number is required for PHONE_PUSH / USSD payment.");
 
-        var baseAmount = Math.Round(order.Subtotal + order.TaxTotal, 2);
+        var baseAmount = bill.Subtotal + bill.TaxTotal - bill.DiscountAmount;
         var tipAmount = Math.Round(request.TipAmount, 2);
+        if (tipAmount == 0)
+            tipAmount = bill.TipAmount;
         var totalAmount = Math.Round(baseAmount + tipAmount, 2);
+
+        if (Math.Abs(totalAmount - bill.GrandTotal) > 0.01m && tipAmount == bill.TipAmount)
+            throw new ConflictException("The bill total is inconsistent.");
 
         decimal? amountTendered = null;
         decimal? changeGiven = null;
@@ -92,26 +138,30 @@ public class PaymentService : IPaymentService
             changeGiven = Math.Round(amountTendered.Value - totalAmount, 2);
         }
 
-        // Retract any previously pending payments on this order
-        foreach (var p in order.Payments.Where(p => p.Status == PaymentGatewayStatus.Initiated))
+        var pendingPayments = await _dbContext.Payments
+            .Where(p => p.BillId == bill.Id && p.Status == PaymentGatewayStatus.Initiated)
+            .ToListAsync(ct);
+
+        foreach (var pending in pendingPayments)
         {
-            p.Status = PaymentGatewayStatus.Retracted;
-            p.UpdatedAt = DateTime.UtcNow;
+            pending.Status = PaymentGatewayStatus.Retracted;
+            pending.UpdatedAt = DateTime.UtcNow;
         }
 
         var isCash = method == PaymentMethod.Cash;
         var sessionId = isCash ? null : $"ARIF-SESS-{Guid.NewGuid():N}"[..24].ToUpperInvariant();
-        var txRef = isCash ? null : $"TX-{order.OrderNumber}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        var txRef = isCash ? null : $"TX-{bill.BillNumber}-{DateTime.UtcNow:yyyyMMddHHmmss}";
 
         var payment = new PaymentEntity
         {
             Id = Guid.NewGuid(),
-            OrderId = order.Id,
+            BillId = bill.Id,
+            OrderId = representativeOrder.Id,
             InitiatedById = initiatorId,
             Method = method,
             ArifpaySessionId = sessionId,
             TxRef = txRef,
-            BaseAmount = baseAmount,
+            BaseAmount = Math.Round(baseAmount, 2),
             TipAmount = tipAmount,
             TotalAmount = totalAmount,
             Status = isCash ? PaymentGatewayStatus.Paid : PaymentGatewayStatus.Initiated,
@@ -122,23 +172,39 @@ public class PaymentService : IPaymentService
             CreatedAt = DateTime.UtcNow
         };
 
-        order.TipAmount = tipAmount;
-        order.GrandTotal = totalAmount;
-        order.PaymentStatus = isCash ? PaymentStatus.Paid : PaymentStatus.PaymentInitiated;
-        order.UpdatedAt = DateTime.UtcNow;
+        bill.TipAmount = tipAmount;
+        bill.GrandTotal = totalAmount;
+        bill.Status = isCash ? BillStatus.Paid : BillStatus.PaymentInitiated;
+        if (isCash)
+            bill.PaidAt = DateTime.UtcNow;
+
+        foreach (var order in billOrders)
+        {
+            order.TipAmount = 0;
+            order.GrandTotal = order.Subtotal + order.TaxTotal;
+            order.PaymentStatus = isCash ? PaymentStatus.Paid : PaymentStatus.PaymentInitiated;
+            order.UpdatedAt = DateTime.UtcNow;
+        }
+
+        if (isCash)
+        {
+            session.Status = DiningSessionStatus.Paid;
+            session.ClosedAt = DateTime.UtcNow;
+            table.Status = TableStatus.Available;
+        }
 
         _dbContext.Payments.Add(payment);
 
-        if (isCash)
-            await EnsureWaiterTipAsync(payment, order.WaiterId, ct);
+        if (isCash && tipAmount > 0)
+            await EnsureWaiterTipAsync(payment, session.WaiterId, ct);
 
         await _dbContext.SaveChangesAsync(ct);
 
-        string? qrData = method == PaymentMethod.QrScan
+        var qrData = method == PaymentMethod.QrScan
             ? $"https://checkout.arifpay.net/pay/{sessionId}"
             : null;
 
-        return MapPaymentToResponse(payment, order.OrderNumber, qrData);
+        return MapPaymentToResponse(payment, representativeOrder.OrderNumber, qrData);
     }
 
     private static PaymentMethod ParseMethod(string method) => method.Trim().ToUpperInvariant() switch
@@ -177,6 +243,8 @@ public class PaymentService : IPaymentService
             throw new BadRequestException("Webhook payload must contain txRef or sessionId.");
 
         var payment = await _dbContext.Payments
+            .Include(p => p.Bill).ThenInclude(b => b!.DiningSession).ThenInclude(s => s.Orders)
+            .Include(p => p.Bill).ThenInclude(b => b!.DiningSession).ThenInclude(s => s.Table)
             .Include(p => p.Order)
             .FirstOrDefaultAsync(p =>
                 (!string.IsNullOrEmpty(payload.TxRef) && p.TxRef == payload.TxRef) ||
@@ -204,11 +272,33 @@ public class PaymentService : IPaymentService
             payment.SettledAt = DateTime.UtcNow;
             payment.UpdatedAt = DateTime.UtcNow;
 
-            payment.Order.PaymentStatus = PaymentStatus.Paid;
-            payment.Order.UpdatedAt = DateTime.UtcNow;
+            if (payment.BillId.HasValue)
+            {
+                var bill = payment.Bill!;
+                bill.Status = BillStatus.Paid;
+                bill.PaidAt = DateTime.UtcNow;
 
-            // Atomic tip allocation: credit the waiter's tip ledger if tip_amount > 0
-            await EnsureWaiterTipAsync(payment, payment.Order.WaiterId, ct);
+                foreach (var order in bill.DiningSession.Orders)
+                {
+                    if (order.PaymentStatus == PaymentStatus.PaymentInitiated)
+                    {
+                        order.PaymentStatus = PaymentStatus.Paid;
+                        order.UpdatedAt = DateTime.UtcNow;
+                    }
+                }
+
+                bill.DiningSession.Status = DiningSessionStatus.Paid;
+                bill.DiningSession.ClosedAt = DateTime.UtcNow;
+                bill.DiningSession.Table.Status = TableStatus.Available;
+
+                await EnsureWaiterTipAsync(payment, bill.DiningSession.WaiterId, ct);
+            }
+            else
+            {
+                payment.Order.PaymentStatus = PaymentStatus.Paid;
+                payment.Order.UpdatedAt = DateTime.UtcNow;
+                await EnsureWaiterTipAsync(payment, payment.Order.WaiterId, ct);
+            }
         }
         else if (statusUpper == "FAILED" || statusUpper == "CANCELLED")
         {
@@ -245,6 +335,7 @@ public class PaymentService : IPaymentService
     {
         var payment = await _dbContext.Payments
             .Include(p => p.Order)
+            .Include(p => p.Bill).ThenInclude(b => b!.DiningSession).ThenInclude(s => s.Orders)
             .FirstOrDefaultAsync(p => p.Id == paymentId, ct)
             ?? throw new NotFoundException("Payment", paymentId);
 
@@ -254,7 +345,22 @@ public class PaymentService : IPaymentService
         payment.Status = PaymentGatewayStatus.Retracted;
         payment.UpdatedAt = DateTime.UtcNow;
 
-        if (payment.Order.PaymentStatus == PaymentStatus.PaymentInitiated)
+        if (payment.BillId.HasValue)
+        {
+            var bill = payment.Bill!;
+            if (bill.Status == BillStatus.PaymentInitiated)
+                bill.Status = BillStatus.Requested;
+
+            foreach (var order in bill.DiningSession.Orders)
+            {
+                if (order.PaymentStatus == PaymentStatus.PaymentInitiated)
+                {
+                    order.PaymentStatus = PaymentStatus.Retracted;
+                    order.UpdatedAt = DateTime.UtcNow;
+                }
+            }
+        }
+        else if (payment.Order.PaymentStatus == PaymentStatus.PaymentInitiated)
         {
             payment.Order.PaymentStatus = PaymentStatus.Retracted;
             payment.Order.UpdatedAt = DateTime.UtcNow;
@@ -268,6 +374,7 @@ public class PaymentService : IPaymentService
     {
         var payment = await _dbContext.Payments
             .Include(p => p.Order)
+            .Include(p => p.Bill).ThenInclude(b => b!.DiningSession).ThenInclude(s => s.Orders)
             .FirstOrDefaultAsync(p => p.Id == paymentId, ct)
             ?? throw new NotFoundException("Payment", paymentId);
 
@@ -282,8 +389,40 @@ public class PaymentService : IPaymentService
         payment.Status = PaymentGatewayStatus.Refunded;
         payment.UpdatedAt = DateTime.UtcNow;
 
-        payment.Order.PaymentStatus = PaymentStatus.Refunded;
-        payment.Order.UpdatedAt = DateTime.UtcNow;
+        if (payment.BillId.HasValue)
+        {
+            var bill = payment.Bill!;
+            bill.Status = BillStatus.Refunded;
+
+            foreach (var order in bill.DiningSession.Orders)
+            {
+                order.PaymentStatus = PaymentStatus.Refunded;
+                order.UpdatedAt = DateTime.UtcNow;
+            }
+
+            bill.DiningSession.Status = DiningSessionStatus.Closed;
+            bill.DiningSession.ClosedAt = DateTime.UtcNow;
+            bill.DiningSession.Table.Status = TableStatus.Available;
+
+            var actorId = _currentUserService.UserId;
+            if (actorId.HasValue)
+            {
+                _dbContext.BillAudits.Add(new BillAudit
+                {
+                    Id = Guid.NewGuid(),
+                    BillId = bill.Id,
+                    ActorId = actorId.Value,
+                    Action = "BillRefunded",
+                    Details = $"Payment {payment.Id} refunded by {_currentUserService.Role ?? "unknown role"}",
+                    CreatedAt = DateTime.UtcNow
+                });
+            }
+        }
+        else
+        {
+            payment.Order.PaymentStatus = PaymentStatus.Refunded;
+            payment.Order.UpdatedAt = DateTime.UtcNow;
+        }
 
         // Reverse the tip if it has not been paid out yet.
         var tip = await _dbContext.WaiterTips
@@ -425,6 +564,121 @@ public class PaymentService : IPaymentService
         return PagedResponse<TipLedgerItemResponse>.Ok(dtos, paged.Pagination);
     }
 
+    public async Task<PagedResponse<PaymentListItemResponse>> GetPaymentsAsync(PaymentListRequest request, CancellationToken ct = default)
+    {
+        var query = _dbContext.Payments
+            .AsNoTracking()
+            .Include(p => p.Order)
+                .ThenInclude(o => o.Waiter)
+            .Include(p => p.InitiatedBy)
+            .Include(p => p.Bill)
+            .Include(p => p.WaiterTip)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(request.Status) &&
+            Enum.TryParse<PaymentGatewayStatus>(request.Status, true, out var status))
+            query = query.Where(p => p.Status == status);
+
+        if (!string.IsNullOrWhiteSpace(request.Method))
+        {
+            var normalized = request.Method.Trim().ToUpperInvariant();
+            if (normalized is "QR" or "QR_SCAN") query = query.Where(p => p.Method == PaymentMethod.QrScan);
+            else if (normalized is "PHONE" or "PHONE_PUSH" or "USSD") query = query.Where(p => p.Method == PaymentMethod.PhonePush);
+            else if (normalized == "CASH") query = query.Where(p => p.Method == PaymentMethod.Cash);
+        }
+
+        if (request.WaiterId.HasValue)
+            query = query.Where(p => p.Order.WaiterId == request.WaiterId.Value);
+
+        if (request.From.HasValue)
+            query = query.Where(p => p.CreatedAt >= request.From.Value);
+
+        if (request.To.HasValue)
+            query = query.Where(p => p.CreatedAt <= request.To.Value);
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim().ToLower();
+            query = query.Where(p =>
+                p.Order.OrderNumber.ToLower().Contains(search) ||
+                p.InitiatedBy.FullName.ToLower().Contains(search) ||
+                (p.Bill != null && p.Bill.BillNumber.ToLower().Contains(search)));
+        }
+
+        query = query.OrderByDescending(p => p.CreatedAt);
+        var paged = await query.ToPagedResponseAsync(request, ct);
+
+        var items = paged.Data.Select(p => new PaymentListItemResponse
+        {
+            Id = p.Id,
+            BillId = p.BillId,
+            OrderId = p.OrderId,
+            OrderNumber = p.Order.OrderNumber,
+            BillNumber = p.Bill?.BillNumber,
+            WaiterId = p.Order.WaiterId,
+            WaiterName = p.Order.Waiter?.FullName,
+            Method = ToApiMethod(p.Method),
+            BaseAmount = p.BaseAmount,
+            TipAmount = p.TipAmount,
+            TotalAmount = p.TotalAmount,
+            Status = p.Status.ToString().ToUpperInvariant(),
+            AmountTendered = p.AmountTendered,
+            ChangeGiven = p.ChangeGiven,
+            CustomerPhone = p.CustomerPhone,
+            CreatedAt = p.CreatedAt,
+            SettledAt = p.SettledAt,
+            Actor = p.InitiatedBy?.FullName ?? "System",
+            TipPaidOut = p.WaiterTip?.PayoutStatus == PayoutStatus.PaidOut
+        }).ToList();
+
+        return PagedResponse<PaymentListItemResponse>.Ok(items, paged.Pagination);
+    }
+
+    public async Task<PagedResponse<TipLedgerEntryResponse>> GetTipLedgerAsync(PagedRequest request, CancellationToken ct = default)
+    {
+        var query = _dbContext.WaiterTips
+            .AsNoTracking()
+            .Include(t => t.Waiter)
+            .Include(t => t.Order)
+            .OrderByDescending(t => t.CreatedAt);
+
+        var paged = await query.ToPagedResponseAsync(request, ct);
+
+        var items = paged.Data.Select(t => new TipLedgerEntryResponse
+        {
+            TipId = t.Id,
+            WaiterId = t.WaiterId,
+            WaiterName = t.Waiter?.FullName ?? "Waiter",
+            OrderId = t.OrderId,
+            OrderNumber = t.Order?.OrderNumber ?? string.Empty,
+            TipAmount = t.TipAmount,
+            PayoutStatus = t.PayoutStatus.ToString().ToUpperInvariant(),
+            CreatedAt = t.CreatedAt,
+            PaidOutAt = t.PaidOutAt
+        }).ToList();
+
+        return PagedResponse<TipLedgerEntryResponse>.Ok(items, paged.Pagination);
+    }
+
+    public async Task<int> PayoutTipsAsync(Guid waiterId, CancellationToken ct = default)
+    {
+        if (waiterId == Guid.Empty)
+            throw new ValidationException("WaiterId", "A waiter is required.");
+
+        var tips = await _dbContext.WaiterTips
+            .Where(t => t.WaiterId == waiterId && t.PayoutStatus == PayoutStatus.Unsettled)
+            .ToListAsync(ct);
+
+        foreach (var tip in tips)
+        {
+            tip.PayoutStatus = PayoutStatus.PaidOut;
+            tip.PaidOutAt = DateTime.UtcNow;
+        }
+
+        await _dbContext.SaveChangesAsync(ct);
+        return tips.Count;
+    }
+
     private void VerifyWebhookSignature(ArifpayWebhookPayload payload)
     {
         var secret = _configuration["Arifpay:WebhookSecret"];
@@ -461,6 +715,7 @@ public class PaymentService : IPaymentService
     private static PaymentResponse MapPaymentToResponse(PaymentEntity p, string orderNumber, string? qrData = null) => new()
     {
         Id = p.Id,
+        BillId = p.BillId,
         OrderId = p.OrderId,
         OrderNumber = orderNumber,
         Method = ToApiMethod(p.Method),
