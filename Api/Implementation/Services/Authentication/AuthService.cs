@@ -153,16 +153,7 @@ public class AuthService : IAuthService
         {
             AccessToken = accessToken,
             RefreshToken = rawRefreshToken,
-            AccessTokenExpiry = DateTime.UtcNow.AddMinutes(60),
-            Staff = new StaffProfileDto
-            {
-                Id = user.Id,
-                FullName = user.FullName,
-                Phone = user.Phone,
-                Role = user.RoleEntity?.Name ?? user.Role.ToString(),
-                IsActive = user.IsActive,
-                CreatedAt = user.CreatedAt
-            }
+            AccessTokenExpiry = DateTime.UtcNow.AddMinutes(60)
         };
     }
 }

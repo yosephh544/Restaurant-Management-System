@@ -14,7 +14,6 @@ public class GlobalExceptionHandlerMiddleware
 {
     private readonly RequestDelegate _next;
     private readonly ILogger<GlobalExceptionHandlerMiddleware> _logger;
-    private readonly IWebHostEnvironment _environment;
 
     private static readonly JsonSerializerOptions _jsonOptions = new()
     {
@@ -24,12 +23,10 @@ public class GlobalExceptionHandlerMiddleware
 
     public GlobalExceptionHandlerMiddleware(
         RequestDelegate next,
-        ILogger<GlobalExceptionHandlerMiddleware> logger,
-        IWebHostEnvironment environment)
+        ILogger<GlobalExceptionHandlerMiddleware> logger)
     {
         _next = next;
         _logger = logger;
-        _environment = environment;
     }
 
     public async Task InvokeAsync(HttpContext context)
@@ -72,12 +69,12 @@ public class GlobalExceptionHandlerMiddleware
         await context.Response.WriteAsync(JsonSerializer.Serialize(response, _jsonOptions));
     }
 
-    private (int StatusCode, ApiResponse<object?>) HandleUnexpectedException(Exception exception)
+    private static (int StatusCode, ApiResponse<object?>) HandleUnexpectedException(Exception exception)
     {
-        var message = _environment.IsDevelopment()
-            ? $"Unexpected error: {exception.Message}"
-            : "An unexpected error occurred. Please try again later.";
-
-        return (500, ApiResponse<object?>.Fail(message, "INTERNAL_SERVER_ERROR"));
+        // Never surface exception details: they can reveal schema, connection strings,
+        // file paths, or other internal state. The full exception is logged above.
+        return (500, ApiResponse<object?>.Fail(
+            "An unexpected error occurred. Please try again later.",
+            "INTERNAL_SERVER_ERROR"));
     }
 }

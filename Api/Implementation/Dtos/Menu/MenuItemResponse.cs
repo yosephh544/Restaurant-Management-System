@@ -11,7 +11,6 @@ public class MenuItemResponse
     public decimal TaxRate { get; init; }
     public bool IsAvailable { get; init; }
     public string? ImageUrl { get; init; }
-    public Guid? V2RecipeId { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
 }

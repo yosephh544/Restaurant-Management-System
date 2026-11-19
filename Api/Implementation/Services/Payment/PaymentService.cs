@@ -223,13 +223,10 @@ public class PaymentService : IPaymentService
         OrderId = p.OrderId,
         OrderNumber = orderNumber,
         Method = p.Method.ToString().ToUpperInvariant(),
-        ArifpaySessionId = p.ArifpaySessionId,
-        TxRef = p.TxRef,
         BaseAmount = p.BaseAmount,
         TipAmount = p.TipAmount,
         TotalAmount = p.TotalAmount,
         Status = p.Status.ToString().ToUpperInvariant(),
-        CustomerPhone = p.CustomerPhone,
         QrData = qrData,
         CreatedAt = p.CreatedAt,
         SettledAt = p.SettledAt

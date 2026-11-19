@@ -23,16 +23,23 @@ public class MenuService : IMenuService
             .Where(c => c.IsActive)
             .OrderBy(c => c.DisplayOrder)
             .Include(c => c.MenuItems)
-            .Select(c => new MenuCategoryResponse
+            .Select(c => new PublicMenuCategoryResponse
             {
                 Id = c.Id,
                 Name = c.Name,
                 Description = c.Description,
                 DisplayOrder = c.DisplayOrder,
-                IsActive = c.IsActive,
                 Items = c.MenuItems
                     .OrderBy(i => i.Name)
-                    .Select(i => MapMenuItemToResponse(i, c.Name))
+                    .Select(i => new PublicMenuItemResponse
+                    {
+                        Id = i.Id,
+                        Name = i.Name,
+                        Description = i.Description,
+                        UnitPrice = i.UnitPrice,
+                        IsAvailable = i.IsAvailable,
+                        ImageUrl = i.ImageUrl
+                    })
                     .ToList()
             })
             .ToListAsync(ct);
@@ -220,7 +227,6 @@ public class MenuService : IMenuService
         TaxRate = item.TaxRate,
         IsAvailable = item.IsAvailable,
         ImageUrl = item.ImageUrl,
-        V2RecipeId = item.V2RecipeId,
         CreatedAt = item.CreatedAt,
         UpdatedAt = item.UpdatedAt
     };

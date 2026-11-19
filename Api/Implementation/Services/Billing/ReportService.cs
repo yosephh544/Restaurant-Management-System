@@ -96,7 +96,6 @@ public class ReportService : IReportService
                 {
                     WaiterId = g.Key,
                     WaiterName = waiter?.FullName ?? "Unknown",
-                    Phone = waiter?.Phone ?? "",
                     TotalOrders = g.Count(),
                     TotalRevenue = Math.Round(revenue, 2),
                     TotalTips = Math.Round(waiterTips, 2),
