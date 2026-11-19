@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { ageLabel, AuditKind, money } from '../../core/models';
+import { ageLabel, dayKey, Issue, issueLabel, money } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon, IconName } from '../../shared/icon';
@@ -238,11 +238,61 @@ export class ManagerDashboardPage {
     year: 'numeric',
   });
 
-  protected readonly metrics = this.store.metrics;
+  protected readonly metrics = computed(() => {
+    const today = dayKey(new Date().toISOString());
+    const todaysOrders = this.store.orders().filter((o) => dayKey(o.createdAt) === today);
+    const paidToday = this.store.payments().filter((p) => p.status === 'PAID' && dayKey(p.createdAt) === today);
+    const refundedToday = this.store
+      .payments()
+      .filter((p) => p.status === 'REFUNDED' && dayKey(p.createdAt) === today);
+    const collected = paidToday.reduce((sum, p) => sum + p.total, 0);
+    return {
+      orders: todaysOrders.length,
+      gross: collected,
+      collected: collected - refundedToday.reduce((sum, p) => sum + p.total, 0),
+      refunds: refundedToday.reduce((sum, p) => sum + p.total, 0),
+      tips: paidToday.reduce((sum, p) => sum + p.tip, 0),
+      outstanding: this.store.openBills().reduce((sum, b) => sum + b.total, 0),
+      activeIssues: this.store.openIssues().length,
+    };
+  });
   protected readonly issues = computed(() => this.store.openIssues().slice(0, 4));
   protected readonly activity = computed(() => this.store.audit().slice(0, 5));
 
-  protected readonly series = computed(() => this.store.salesSeries(this.range()));
+  protected readonly series = computed(() => {
+    const paid = this.store.payments().filter((p) => p.status === 'PAID');
+    if (this.range() === 'today') {
+      const start = new Date();
+      start.setHours(0, 0, 0, 0);
+      const end = new Date();
+      const buckets = Array.from({ length: 8 }, (_, i) => ({
+        label: `${String(i * 3).padStart(2, '0')}:00`,
+        value: 0,
+      }));
+      for (const payment of paid) {
+        const at = new Date(payment.createdAt);
+        if (at < start || at > end) continue;
+        buckets[Math.min(7, Math.floor(at.getHours() / 3))].value += payment.total;
+      }
+      return buckets;
+    }
+    const days: { label: string; value: number; key: string }[] = [];
+    for (let i = 6; i >= 0; i--) {
+      const day = new Date();
+      day.setHours(0, 0, 0, 0);
+      day.setDate(day.getDate() - i);
+      days.push({
+        label: day.toLocaleDateString('en-US', { weekday: 'short' }),
+        value: 0,
+        key: dayKey(day.toISOString()),
+      });
+    }
+    for (const payment of paid) {
+      const day = days.find((d) => d.key === dayKey(payment.createdAt));
+      if (day) day.value += payment.total;
+    }
+    return days.map(({ label, value }) => ({ label, value }));
+  });
   protected readonly seriesTotal = computed(() => this.series().reduce((sum, point) => sum + point.value, 0));
   protected readonly paymentsCount = computed(() => {
     const days = this.range() === 'today' ? 1 : 7;
@@ -327,17 +377,11 @@ export class ManagerDashboardPage {
     bills: this.store.openBills().length,
   }));
 
-  protected reasonLabel(reason: string): string {
-    return reason === 'OUT_OF_STOCK'
-      ? 'Out of stock'
-      : reason === 'EQUIPMENT'
-        ? 'Equipment issue'
-        : reason === 'DELAY'
-          ? 'Prep delay'
-          : 'Other';
+  protected reasonLabel(reason: Issue['reason']): string {
+    return issueLabel(reason);
   }
 
-  protected kindIcon(kind: AuditKind): IconName {
+  protected kindIcon(kind: string): IconName {
     switch (kind) {
       case 'payment':
         return 'card';
@@ -356,8 +400,9 @@ export class ManagerDashboardPage {
     }
   }
 
-  protected resolve(issueId: string): void {
-    this.store.resolveIssue(issueId);
-    this.toast.show('Issue resolved');
+  protected async resolve(issueId: string): Promise<void> {
+    const result = await this.store.resolveIssue(issueId);
+    if (!result.ok) this.toast.show(result.error, 'error');
+    else this.toast.show('Issue resolved');
   }
 }

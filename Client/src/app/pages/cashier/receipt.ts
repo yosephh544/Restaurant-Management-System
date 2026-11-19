@@ -1,4 +1,4 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, OnInit } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { clock, money } from '../../core/models';
 import { Store } from '../../core/store';
@@ -17,7 +17,7 @@ import { Icon } from '../../shared/icon';
         </div>
       </div>
 
-      @if (order(); as o) {
+      @if (bill(); as b) {
         @if (payment(); as p) {
           <div class="receipt-sheet" style="max-width: 460px; margin: 0 auto">
             <div class="receipt-head">
@@ -29,8 +29,8 @@ import { Icon } from '../../shared/icon';
 
             <div class="receipt-meta">
               <span>
-                <strong>Bill #{{ o.number }}</strong><br />
-                Table {{ o.table }} · {{ o.waiterName }}
+                <strong>Bill {{ b.number }}</strong><br />
+                Table {{ b.table }}
               </span>
               <span style="text-align: right">
                 {{ clock(p.settledAt) }}<br />
@@ -39,20 +39,20 @@ import { Icon } from '../../shared/icon';
             </div>
 
             <div class="receipt-lines">
-              @for (line of o.lines; track line.id) {
-                @if (line.status !== 'CANCELLED') {
-                  <div class="receipt-line">
-                    <span>{{ line.qty }} × {{ line.name }}</span>
-                    <span class="num">{{ money(line.unitPrice * line.qty) }}</span>
-                  </div>
-                }
+              @for (item of b.items; track item.id) {
+                <div class="receipt-line">
+                  <span>{{ item.qty }} × {{ item.description }}</span>
+                  <span class="num">{{ money(item.lineTotal) }}</span>
+                </div>
               }
             </div>
 
             <div class="receipt-totals">
-              <div class="bill-total-row"><span>Subtotal</span><span class="num">{{ money(bill().subtotal) }}</span></div>
-              <div class="bill-total-row"><span>Service ({{ settings().serviceCharge }}%)</span><span class="num">{{ money(bill().service) }}</span></div>
-              <div class="bill-total-row"><span>VAT ({{ settings().taxRate }}%)</span><span class="num">{{ money(bill().tax) }}</span></div>
+              <div class="bill-total-row"><span>Subtotal</span><span class="num">{{ money(b.subtotal) }}</span></div>
+              <div class="bill-total-row"><span>Tax</span><span class="num">{{ money(b.tax) }}</span></div>
+              @if (b.discount > 0) {
+                <div class="bill-total-row"><span>Discount</span><span class="num">−{{ money(b.discount) }}</span></div>
+              }
               @if (p.tip > 0) {
                 <div class="bill-total-row"><span>Tip</span><span class="num">{{ money(p.tip) }}</span></div>
               }
@@ -83,7 +83,6 @@ import { Icon } from '../../shared/icon';
             <div class="receipt-foot">
               <p class="strong" style="color: var(--ink)">Thank you for dining with us.</p>
               <p style="margin-top: 2px">This receipt was issued by {{ settings().restaurant }}.</p>
-              <p style="margin-top: 8px">Powered by RestoPro</p>
             </div>
           </div>
         } @else {
@@ -105,7 +104,7 @@ import { Icon } from '../../shared/icon';
     </div>
   `,
 })
-export class ReceiptPage {
+export class ReceiptPage implements OnInit {
   private readonly store = inject(Store);
   private readonly route = inject(ActivatedRoute);
 
@@ -114,18 +113,20 @@ export class ReceiptPage {
   protected readonly clock = clock;
   protected readonly settings = this.store.settings;
 
-  protected readonly order = computed(() => this.store.order(this.id));
+  protected readonly bill = computed(() => this.store.bill(this.id));
   protected readonly payment = computed(() => {
-    const payment = this.store.paymentFor(this.id);
-    return payment && (payment.status === 'PAID' || payment.status === 'REFUNDED') ? payment : undefined;
-  });
-  protected readonly bill = computed(() => {
-    const order = this.order();
-    return order ? this.store.billFor(order) : { subtotal: 0, tax: 0, service: 0, total: 0 };
+    const payments = this.store.paymentsForBill(this.id);
+    return payments
+      .filter((p) => p.status === 'PAID' || p.status === 'REFUNDED')
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
   });
 
-  protected methodLabel(method: 'CASH' | 'QR' | 'PHONE'): string {
-    return method === 'CASH' ? 'cash' : method === 'QR' ? 'QR code' : 'phone push';
+  async ngOnInit(): Promise<void> {
+    await Promise.all([this.store.loadBill(this.id), this.store.loadPayments()]);
+  }
+
+  protected methodLabel(method: string): string {
+    return method === 'CASH' ? 'cash' : method === 'QR_SCAN' ? 'QR code' : 'phone push';
   }
 
   protected print(): void {

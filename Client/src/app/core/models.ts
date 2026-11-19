@@ -8,55 +8,42 @@ export const ROLE_LABEL: Record<Role, string> = {
   KITCHEN: 'Kitchen',
 };
 
-export type StaffStatus = 'ACTIVE' | 'INACTIVE';
+export function roleFrom(value: string | null | undefined): Role {
+  const normalized = (value ?? '').trim().toUpperCase();
+  return normalized in ROLE_LABEL ? (normalized as Role) : 'WAITER';
+}
 
 export interface StaffUser {
   id: string;
   name: string;
-  /** Login identifier. Case-insensitive, unique. */
   username: string;
-  /** Optional contact number; never used to sign in. */
   phone?: string;
   role: Role;
-  status: StaffStatus;
-  password: string;
-  pin?: string;
-  startedAt: string;
+  active: boolean;
+  createdAt: string;
 }
 
-export type OrderStatus = 'PENDING' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLED';
+export type OrderStatus = 'PENDING' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLEDBYKITCHEN';
 export type PaymentStatus =
   | 'UNPAID'
-  | 'INITIATED'
+  | 'PAYMENTINITIATED'
   | 'PAID'
   | 'RETRACTED'
   | 'TRANSFERRED'
+  | 'REFUNDPENDING'
   | 'REFUNDED';
 export type ItemStatus = 'ACTIVE' | 'PREPARED' | 'CANCELLED';
-export type PayMethod = 'CASH' | 'QR' | 'PHONE';
-export type PayState = 'INITIATED' | 'PAID' | 'RETRACTED' | 'TRANSFERRED' | 'REFUNDED';
-
-export interface MenuItem {
-  id: string;
-  name: string;
-  category: string;
-  price: number;
-  taxRate: number;
-  emoji: string;
-  description: string;
-  available: boolean;
-}
 
 export interface OrderLine {
   id: string;
   itemId: string;
   name: string;
-  emoji: string;
   qty: number;
   unitPrice: number;
   taxRate: number;
-  notes: string;
+  notes?: string;
   status: ItemStatus;
+  lineTotal: number;
 }
 
 export interface Order {
@@ -65,25 +52,77 @@ export interface Order {
   table: string;
   waiterId: string;
   waiterName: string;
+  parentOrderId?: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
-  lines: OrderLine[];
-  notes: string;
+  subtotal: number;
+  tax: number;
   tip: number;
+  total: number;
+  notes?: string;
   createdAt: string;
   preparingAt?: string;
   readyAt?: string;
   servedAt?: string;
-  parentNumber?: string;
-  cancelReason?: string;
+  lines: OrderLine[];
 }
+
+export interface DiningSession {
+  id: string;
+  tableId: string;
+  table: string;
+  status: string;
+  openedAt: string;
+  billRequestedAt?: string;
+  closedAt?: string;
+}
+
+export type BillStatus = 'DRAFT' | 'REQUESTED' | 'PAYMENTINITIATED' | 'PAID' | 'VOIDED' | 'REFUNDED';
+
+export interface BillItem {
+  id: string;
+  orderId: string;
+  description: string;
+  qty: number;
+  unitPrice: number;
+  taxRate: number;
+  lineTotal: number;
+}
+
+export interface Bill {
+  id: string;
+  sessionId: string;
+  tableId: string;
+  table: string;
+  number: string;
+  subtotal: number;
+  tax: number;
+  discount: number;
+  tip: number;
+  total: number;
+  status: BillStatus;
+  createdAt: string;
+  paidAt?: string;
+  items: BillItem[];
+}
+
+export type PayMethod = 'CASH' | 'QR_SCAN' | 'PHONE_PUSH';
+export type PayState = 'INITIATED' | 'PAID' | 'FAILED' | 'RETRACTED' | 'TRANSFERRED' | 'REFUNDED';
+
+export const METHOD_LABEL: Record<PayMethod, string> = {
+  CASH: 'Cash',
+  QR_SCAN: 'QR scan',
+  PHONE_PUSH: 'Phone push',
+};
 
 export interface Payment {
   id: string;
+  billId?: string;
   orderId: string;
   orderNumber: string;
-  waiterId: string;
-  waiterName: string;
+  billNumber?: string;
+  waiterId?: string;
+  waiterName?: string;
   method: PayMethod;
   base: number;
   tip: number;
@@ -94,18 +133,96 @@ export interface Payment {
   phone?: string;
   createdAt: string;
   settledAt?: string;
-  tipPaidOut: boolean;
   actor: string;
+  tipPaidOut: boolean;
+  qrData?: string;
 }
 
-export type IssueReason = 'OUT_OF_STOCK' | 'EQUIPMENT' | 'DELAY' | 'OTHER';
+export interface PaymentStatusInfo {
+  paymentId: string;
+  orderId: string;
+  status: string;
+  settled: boolean;
+  total: number;
+  settledAt?: string;
+}
+
+export interface TipEntry {
+  id: string;
+  waiterId?: string;
+  waiterName?: string;
+  orderId: string;
+  orderNumber: string;
+  amount: number;
+  payoutStatus: 'UNSETTLED' | 'PAIDOUT' | string;
+  createdAt: string;
+  paidOutAt?: string;
+}
+
+export interface MenuItem {
+  id: string;
+  categoryId: string;
+  category: string;
+  name: string;
+  description?: string;
+  price: number;
+  taxRate: number;
+  available: boolean;
+  imageUrl?: string;
+}
+
+export interface MenuCategory {
+  id: string;
+  name: string;
+  description?: string;
+  displayOrder: number;
+  active: boolean;
+  items: MenuItem[];
+}
+
+export interface Table {
+  id: string;
+  number: string;
+  name?: string;
+  capacity: number;
+  status: string;
+  active: boolean;
+}
+
+export interface KitchenTicketItem {
+  id: string;
+  menuItemId: string;
+  name: string;
+  qty: number;
+  notes?: string;
+  status: ItemStatus;
+}
+
+export interface KitchenTicket {
+  id: string;
+  number: string;
+  table: string;
+  waiterName: string;
+  status: OrderStatus;
+  paymentStatus: PaymentStatus;
+  createdAt: string;
+  elapsedMinutes: number;
+  items: KitchenTicketItem[];
+}
+
+export type IssueReason = 'OUT_OF_STOCK' | 'EQUIPMENT_ISSUE' | 'PREP_DELAY' | 'OTHER';
 
 export const ISSUE_LABEL: Record<IssueReason, string> = {
   OUT_OF_STOCK: 'Out of stock',
-  EQUIPMENT: 'Equipment issue',
-  DELAY: 'Prep delay',
+  EQUIPMENT_ISSUE: 'Equipment issue',
+  PREP_DELAY: 'Prep delay',
   OTHER: 'Other',
 };
+
+export function issueLabel(reason: string): string {
+  const normalized = reason === 'EQUIPMENT' ? 'EQUIPMENT_ISSUE' : reason === 'DELAY' ? 'PREP_DELAY' : reason;
+  return ISSUE_LABEL[normalized as IssueReason] ?? reason;
+}
 
 export interface Issue {
   id: string;
@@ -113,11 +230,13 @@ export interface Issue {
   orderNumber: string;
   table: string;
   item: string;
-  reason: IssueReason;
-  note: string;
+  reason: IssueReason | string;
+  note?: string;
   createdAt: string;
-  status: 'OPEN' | 'RESOLVED';
+  resolved: boolean;
   resolvedBy?: string;
+  resolvedAt?: string;
+  replacementOrderId?: string;
 }
 
 export type AuditKind = 'order' | 'payment' | 'cancel' | 'refund' | 'transfer' | 'staff' | 'menu';
@@ -126,10 +245,10 @@ export interface AuditEvent {
   id: string;
   at: string;
   actor: string;
-  role: Role;
+  role: string;
   action: string;
   detail: string;
-  kind: AuditKind;
+  kind: string;
 }
 
 export interface Settings {
@@ -146,29 +265,73 @@ export interface Settings {
   webhookSecret: string;
 }
 
-export interface Bill {
-  subtotal: number;
-  tax: number;
-  service: number;
-  total: number;
+export const DEFAULT_SETTINGS: Settings = {
+  restaurant: 'RestoPro',
+  branch: '',
+  phone: '',
+  address: '',
+  taxRate: 0,
+  serviceCharge: 0,
+  tipPresets: [],
+  cash: true,
+  qr: true,
+  phonePay: true,
+  webhookSecret: '',
+};
+
+export interface SalesSummary {
+  grossSales: number;
+  netRevenue: number;
+  taxCollected: number;
+  tipsCollected: number;
+  totalOrders: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  phonePushVolume: number;
+  qrScanVolume: number;
+  cashVolume: number;
+  periodFrom?: string;
+  periodTo?: string;
 }
 
-const r2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
-
-export function bill(lines: OrderLine[], serviceRate = 5): Bill {
-  const live = lines.filter((l) => l.status !== 'CANCELLED');
-  const subtotal = r2(live.reduce((s, l) => s + l.qty * l.unitPrice, 0));
-  const tax = r2(live.reduce((s, l) => s + (l.qty * l.unitPrice * l.taxRate) / 100, 0));
-  const service = r2((subtotal * serviceRate) / 100);
-  return { subtotal, tax, service, total: r2(subtotal + tax + service) };
+export interface WaiterPerformance {
+  waiterId: string;
+  waiterName: string;
+  totalOrders: number;
+  totalRevenue: number;
+  totalTips: number;
+  cancelledOrders: number;
 }
 
-export function orderTotal(order: Order, serviceRate = 5): number {
-  return r2(bill(order.lines, serviceRate).total + order.tip);
+export interface CancellationItem {
+  reasonCode: string;
+  count: number;
+  lostRevenue: number;
+  reordersCreated: number;
 }
 
-export function money(n: number): string {
-  return n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+export interface CancellationReport {
+  byReasonCode: CancellationItem[];
+  totalCancellations: number;
+  totalLostRevenue: number;
+  recoveryRatePercentage: number;
+}
+
+export interface KitchenTurnaround {
+  avgPrepMinutes: number;
+  avgPickupMinutes: number;
+  totalOrdersAnalyzed: number;
+}
+
+export interface Reports {
+  summary: SalesSummary | null;
+  waiters: WaiterPerformance[];
+  cancellations: CancellationReport | null;
+  turnaround: KitchenTurnaround | null;
+}
+
+export function money(n: number | null | undefined): string {
+  return Number(n ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export function minutesSince(iso: string): number {
@@ -185,10 +348,7 @@ export function ageLabel(iso: string): string {
 
 export function clock(iso?: string): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleTimeString('en-US', {
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
 }
 
 export function dayKey(iso: string): string {
@@ -221,4 +381,62 @@ export function statusTone(status: OrderStatus): string {
     default:
       return 'grey';
   }
+}
+
+export function orderStatusLabel(status: OrderStatus): string {
+  switch (status) {
+    case 'PENDING':
+      return 'Pending';
+    case 'PREPARING':
+      return 'Preparing';
+    case 'READY':
+      return 'Ready';
+    case 'SERVED':
+      return 'Served';
+    case 'CANCELLEDBYKITCHEN':
+      return 'Cancelled';
+    default:
+      return status;
+  }
+}
+
+export function paymentStatusLabel(status: PaymentStatus): string {
+  switch (status) {
+    case 'UNPAID':
+      return 'Unpaid';
+    case 'PAYMENTINITIATED':
+      return 'Payment pending';
+    case 'PAID':
+      return 'Paid';
+    case 'RETRACTED':
+      return 'Retracted';
+    case 'TRANSFERRED':
+      return 'Transferred';
+    case 'REFUNDPENDING':
+      return 'Refund pending';
+    case 'REFUNDED':
+      return 'Refunded';
+    default:
+      return status;
+  }
+}
+
+export function paymentTone(status: PayState): string {
+  switch (status) {
+    case 'PAID':
+      return 'pill-green';
+    case 'INITIATED':
+      return 'pill-amber';
+    case 'REFUNDED':
+    case 'FAILED':
+      return 'pill-red';
+    case 'TRANSFERRED':
+      return 'pill-blue';
+    default:
+      return 'pill-grey';
+  }
+}
+
+export function billIsOpen(bill: Bill | undefined | null): boolean {
+  return !!bill && (bill.status === 'REQUESTED' || bill.status === 'PAYMENTINITIATED');
 }

@@ -11,18 +11,6 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/auth/login').then((m) => m.LoginPage),
   },
   {
-    path: 'forgot-password',
-    canActivate: [guestGuard],
-    title: 'Forgot password · RestoPro',
-    loadComponent: () => import('./pages/auth/forgot-password').then((m) => m.ForgotPasswordPage),
-  },
-  {
-    path: 'reset-password',
-    canActivate: [guestGuard],
-    title: 'Reset password · RestoPro',
-    loadComponent: () => import('./pages/auth/reset-password').then((m) => m.ResetPasswordPage),
-  },
-  {
     path: '',
     component: Shell,
     canActivate: [authGuard],

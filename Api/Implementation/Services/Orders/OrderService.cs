@@ -43,9 +43,9 @@ public class OrderService : IOrderService
         if (request.Items == null || !request.Items.Any())
             throw new ValidationException(ErrorMessages.EmptyOrder);
 
-        var menuItemIds = request.Items.Select(i => i.MenuItemId).Distinct().ToList();
+        // Load the catalog and match in memory: EF Core's OPENJSON translation of list Contains
+        // is rejected by this SQL Server instance.
         var menuItems = await _dbContext.MenuItems
-            .Where(m => menuItemIds.Contains(m.Id))
             .ToDictionaryAsync(m => m.Id, ct);
 
         // Atomic check: All items must exist and be available
@@ -230,9 +230,9 @@ public class OrderService : IOrderService
         if (order.OrderStatus == OrderStatus.Served)
             throw new ConflictException("Cannot add items to an order that has already been served.");
 
-        var menuItemIds = request.Items.Select(i => i.MenuItemId).Distinct().ToList();
+        // Load the catalog and match in memory: EF Core's OPENJSON translation of list Contains
+        // is rejected by this SQL Server instance.
         var menuItems = await _dbContext.MenuItems
-            .Where(m => menuItemIds.Contains(m.Id))
             .ToDictionaryAsync(m => m.Id, ct);
 
         foreach (var reqItem in request.Items)
@@ -381,6 +381,8 @@ public class OrderService : IOrderService
         CustomerNotes = order.CustomerNotes,
         CreatedAt = order.CreatedAt,
         UpdatedAt = order.UpdatedAt,
+        PreparingAt = order.PreparingAt,
+        ReadyAt = order.ReadyAt,
         ServedAt = order.ServedAt,
         Items = order.OrderItems.Select(i => new OrderItemResponse
         {
@@ -389,6 +391,7 @@ public class OrderService : IOrderService
             MenuItemName = i.MenuItem?.Name ?? "Item",
             Quantity = i.Quantity,
             UnitPrice = i.UnitPrice,
+            TaxRate = i.TaxRate,
             CustomerNotes = i.CustomerNotes,
             ItemStatus = i.ItemStatus.ToString().ToUpperInvariant()
         }).ToList()

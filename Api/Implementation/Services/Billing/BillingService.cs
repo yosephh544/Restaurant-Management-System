@@ -168,6 +168,31 @@ public class BillingService : IBillingService
         return await GetBillAsync(bill.Id, ct);
     }
 
+    public async Task<BillResponse?> GetActiveBillAsync(Guid tableId, CancellationToken ct = default)
+    {
+        var bill = await _db.Bills.AsNoTracking()
+            .Include(b => b.DiningSession).ThenInclude(s => s.Table)
+            .Include(b => b.Items)
+            .Where(b => b.DiningSession.TableId == tableId &&
+                (b.Status == BillStatus.Requested || b.Status == BillStatus.PaymentInitiated))
+            .OrderByDescending(b => b.CreatedAt)
+            .FirstOrDefaultAsync(ct);
+
+        return bill is null ? null : MapBill(bill);
+    }
+
+    public async Task<List<BillResponse>> GetActiveBillsAsync(CancellationToken ct = default)
+    {
+        var bills = await _db.Bills.AsNoTracking()
+            .Include(b => b.DiningSession).ThenInclude(s => s.Table)
+            .Include(b => b.Items)
+            .Where(b => b.Status == BillStatus.Requested || b.Status == BillStatus.PaymentInitiated)
+            .OrderByDescending(b => b.CreatedAt)
+            .ToListAsync(ct);
+
+        return bills.Select(MapBill).ToList();
+    }
+
     public async Task<BillResponse> GetBillAsync(Guid billId, CancellationToken ct = default)
     {
         var bill = await _db.Bills.AsNoTracking()

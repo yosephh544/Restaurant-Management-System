@@ -1,7 +1,7 @@
-import { Component, computed, inject } from '@angular/core';
+import { Component, computed, inject, OnInit } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
-import { ageLabel, Issue, money, Order } from '../../core/models';
+import { ageLabel, Issue, issueLabel, money, Order } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -33,7 +33,7 @@ import { Icon } from '../../shared/icon';
           <div class="stat-icon" style="background: var(--amber-soft); color: var(--amber)"><app-icon name="bell" /></div>
           <div class="stat-label">Open kitchen notes</div>
           <div class="stat-value">{{ openUpdates().length }}</div>
-          <div class="stat-foot">On your active tickets</div>
+          <div class="stat-foot">On your tickets</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="retract" /></div>
@@ -60,7 +60,7 @@ import { Icon } from '../../shared/icon';
                     <span class="tl-dot cancel" style="margin-top: 2px"><app-icon name="alert" /></span>
                     <div class="list-main">
                       <strong>Order #{{ order.number }} · Table {{ order.table }}</strong>
-                      <span>{{ order.cancelReason || 'Cancelled by kitchen' }} · {{ ageLabel(order.createdAt) }} ago</span>
+                      <span>{{ cancelReason(order) }} · {{ ageLabel(order.createdAt) }} ago</span>
                       <div class="tiny muted" style="margin-top: 3px">{{ items(order) }}</div>
                       <div class="row mt-2" style="gap: 6px">
                         <button class="btn btn-primary btn-sm" type="button" (click)="reorder(order)">
@@ -69,7 +69,7 @@ import { Icon } from '../../shared/icon';
                         <a class="btn btn-secondary btn-sm" [routerLink]="['/waiter/orders', order.id]">View ticket</a>
                       </div>
                     </div>
-                    <span class="ticket-num" style="font-size: 15px; color: var(--muted)">{{ money(total(order)) }}</span>
+                    <span class="ticket-num" style="font-size: 15px; color: var(--muted)">{{ money(order.total) }}</span>
                   </div>
                 }
               </div>
@@ -94,7 +94,7 @@ import { Icon } from '../../shared/icon';
                     <span class="tl-dot"><app-icon name="check" /></span>
                     <div class="list-main">
                       <strong>Order #{{ issue.orderNumber }} · {{ issue.item }}</strong>
-                      <span>{{ reasonLabel(issue.reason) }} · resolved by {{ issue.resolvedBy || 'waiter' }}</span>
+                      <span>{{ reasonLabel(issue.reason) }} · resolved by {{ issue.resolvedBy || 'manager' }}</span>
                     </div>
                     <span class="tiny muted">{{ ageLabel(issue.createdAt) }} ago</span>
                   </div>
@@ -112,7 +112,7 @@ import { Icon } from '../../shared/icon';
           <div class="card-head">
             <div>
               <div class="card-title">Open kitchen notes</div>
-              <div class="card-sub">Flags on tickets still in progress</div>
+              <div class="card-sub">Flags recorded against your orders</div>
             </div>
             <span [class]="'pill ' + (openUpdates().length ? 'pill-amber' : 'pill-green')">
               {{ openUpdates().length ? openUpdates().length + ' open' : 'None' }}
@@ -147,7 +147,7 @@ import { Icon } from '../../shared/icon';
     </div>
   `,
 })
-export class WaiterIssuesPage {
+export class WaiterIssuesPage implements OnInit {
   private readonly store = inject(Store);
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
@@ -163,21 +163,19 @@ export class WaiterIssuesPage {
       .filter(
         (o) =>
           o.waiterId === this.waiterId &&
-          o.status === 'CANCELLED' &&
-          !this.store.orders().some((child) => child.parentNumber === o.number),
+          o.status === 'CANCELLEDBYKITCHEN' &&
+          !this.store.orders().some((child) => child.parentOrderId === o.id),
       ),
   );
 
   protected readonly openUpdates = computed(() =>
-    this.store
-      .issues()
-      .filter((i) => i.status === 'OPEN' && this.store.order(i.orderId)?.waiterId === this.waiterId),
+    this.store.issues().filter((i) => !i.resolved && this.store.order(i.orderId)?.waiterId === this.waiterId),
   );
 
   protected readonly resolved = computed(() =>
     this.store
       .issues()
-      .filter((i) => i.status === 'RESOLVED' && this.store.order(i.orderId)?.waiterId === this.waiterId)
+      .filter((i) => i.resolved && this.store.order(i.orderId)?.waiterId === this.waiterId)
       .slice(0, 6),
   );
 
@@ -188,39 +186,44 @@ export class WaiterIssuesPage {
         .filter(
           (o) =>
             o.waiterId === this.waiterId &&
-            o.status === 'CANCELLED' &&
-            this.store.orders().some((child) => child.parentNumber === o.number),
+            o.status === 'CANCELLEDBYKITCHEN' &&
+            this.store.orders().some((child) => child.parentOrderId === o.id),
         ).length,
   );
+
+  async ngOnInit(): Promise<void> {
+    await Promise.all([this.store.loadOrders(), this.store.loadIssues()]);
+  }
 
   protected items(order: Order): string {
     return order.lines.map((l) => `${l.name} ×${l.qty}`).join(', ');
   }
 
-  protected total(order: Order): number {
-    return this.store.totalFor(order);
+  protected cancelReason(order: Order): string {
+    const issue = this.store.issues().find((i) => i.orderId === order.id);
+    return issue ? this.reasonLabel(issue.reason) : 'Cancelled by kitchen';
   }
 
   protected reasonLabel(reason: Issue['reason']): string {
-    switch (reason) {
-      case 'OUT_OF_STOCK':
-        return 'Out of stock';
-      case 'EQUIPMENT':
-        return 'Equipment issue';
-      case 'DELAY':
-        return 'Prep delay';
-      default:
-        return 'Other';
-    }
+    return issueLabel(reason);
   }
 
-  protected reorder(order: Order): void {
-    const replacement = this.store.reorder(order.id);
-    if (!replacement) {
-      this.toast.show('This ticket can no longer be reordered', 'error');
+  protected async reorder(order: Order): Promise<void> {
+    const live = order.lines.filter((l) => l.status !== 'CANCELLED');
+    const source = live.length ? live : order.lines;
+    if (!source.length) {
+      this.toast.show('This ticket has no items to reorder', 'error');
       return;
     }
-    this.toast.show(`Replacement #${replacement.number} sent to kitchen`);
-    void this.router.navigate(['/waiter/orders', replacement.id]);
+    const result = await this.store.reorder(
+      order.id,
+      source.map((l) => ({ menuItemId: l.itemId, quantity: l.qty, notes: l.notes })),
+    );
+    if (!result.ok) {
+      this.toast.show(result.error, 'error');
+      return;
+    }
+    this.toast.show(`Replacement #${result.data.number} sent to kitchen`);
+    await this.router.navigate(['/waiter/orders', result.data.id]);
   }
 }

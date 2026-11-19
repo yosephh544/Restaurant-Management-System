@@ -13,4 +13,7 @@ public interface IPaymentService
     Task<PaymentResponse> RefundPaymentAsync(Guid paymentId, CancellationToken ct = default);
     Task<PaymentResponse> TransferPaymentAsync(Guid paymentId, TransferPaymentRequest request, CancellationToken ct = default);
     Task<PagedResponse<TipLedgerItemResponse>> GetMyTipLedgerAsync(PagedRequest request, CancellationToken ct = default);
+    Task<PagedResponse<PaymentListItemResponse>> GetPaymentsAsync(PaymentListRequest request, CancellationToken ct = default);
+    Task<PagedResponse<TipLedgerEntryResponse>> GetTipLedgerAsync(PagedRequest request, CancellationToken ct = default);
+    Task<int> PayoutTipsAsync(Guid waiterId, CancellationToken ct = default);
 }

@@ -2,7 +2,6 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/auth.service';
 import { initials, ROLE_LABEL, Role, StaffUser } from '../../core/models';
-import { DEMO_PASSWORD } from '../../core/seed';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -12,6 +11,16 @@ interface RoleCard {
   icon: 'utensils' | 'table' | 'bill' | 'chart' | 'shield';
   blurb: string;
   can: string[];
+}
+
+interface UserDraft {
+  id?: string;
+  name: string;
+  username: string;
+  phone: string;
+  role: Role;
+  password: string;
+  pin: string;
 }
 
 @Component({
@@ -28,7 +37,7 @@ interface RoleCard {
         <div class="head-actions">
           <div class="search">
             <app-icon name="search" />
-            <input type="search" placeholder="Name, username or phone…" [ngModel]="query()" (ngModelChange)="query.set($event)" />
+            <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" />
           </div>
           <button class="btn btn-primary" type="button" (click)="openNew()"><app-icon name="plus" /> New user</button>
         </div>
@@ -51,7 +60,7 @@ interface RoleCard {
           <div class="stat-icon" style="background: var(--brand-soft); color: var(--brand-dark)"><app-icon name="utensils" /></div>
           <div class="stat-label">Waiters</div>
           <div class="stat-value">{{ waiterCount() }}</div>
-          <div class="stat-foot">With PIN sign-in</div>
+          <div class="stat-foot">Floor accounts</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="shield" /></div>
@@ -82,7 +91,7 @@ interface RoleCard {
                 <th>Role</th>
                 <th>Username</th>
                 <th>Status</th>
-                <th>Started</th>
+                <th>Created</th>
                 <th></th>
               </tr>
             </thead>
@@ -94,31 +103,30 @@ interface RoleCard {
                       <span class="avatar">{{ initials(member.name) }}</span>
                       <span>
                         <strong>{{ member.name }}</strong><br />
-                        <span class="tiny muted">{{ member.pin ? 'PIN enabled' : 'Password only' }}</span>
+                        <span class="tiny muted">{{ member.phone || 'No phone' }}</span>
                       </span>
                     </span>
                   </td>
                   <td><span class="pill pill-grey no-dot">{{ roleLabel(member.role) }}</span></td>
                   <td class="muted num">&#64;{{ member.username }}</td>
                   <td>
-                    <span [class]="'pill ' + (member.status === 'ACTIVE' ? 'pill-green' : 'pill-grey')">
-                      {{ member.status === 'ACTIVE' ? 'Active' : 'Inactive' }}
+                    <span [class]="'pill ' + (member.active ? 'pill-green' : 'pill-grey')">
+                      {{ member.active ? 'Active' : 'Inactive' }}
                     </span>
                   </td>
-                  <td class="muted num">{{ member.startedAt.slice(0, 10) }}</td>
+                  <td class="muted num">{{ member.createdAt.slice(0, 10) }}</td>
                   <td>
                     <div class="row" style="gap: 4px; justify-content: flex-end">
                       <button class="btn btn-sm btn-ghost" type="button" (click)="openEdit(member)"><app-icon name="edit" /> Edit</button>
-                      <button class="btn btn-sm btn-secondary" type="button" (click)="resetCredentials(member)">Reset</button>
                       <button
                         class="btn btn-sm"
-                        [class.btn-danger]="member.status === 'ACTIVE'"
-                        [class.btn-secondary]="member.status !== 'ACTIVE'"
+                        [class.btn-danger]="member.active"
+                        [class.btn-secondary]="!member.active"
                         type="button"
-                        [disabled]="member.role === 'OWNER'"
+                        [disabled]="member.role === 'OWNER' || member.id === currentUserId"
                         (click)="toggle(member)"
                       >
-                        {{ member.status === 'ACTIVE' ? 'Deactivate' : 'Activate' }}
+                        {{ member.active ? 'Deactivate' : 'Activate' }}
                       </button>
                     </div>
                   </td>
@@ -170,7 +178,13 @@ interface RoleCard {
           <div class="modal-head">
             <div>
               <h3>{{ editingId() ? 'Edit staff account' : 'New staff account' }}</h3>
-              <p>{{ editingId() ? 'Changes apply at the next sign-in.' : 'Share the temporary password with the new team member.' }}</p>
+              <p>
+                @if (editingId()) {
+                  Leave the password and PIN blank to keep the current credentials.
+                } @else {
+                  Share the temporary password with the new team member.
+                }
+              </p>
             </div>
             <button class="modal-close" type="button" (click)="modalOpen.set(false)"><app-icon name="x" /></button>
           </div>
@@ -178,7 +192,7 @@ interface RoleCard {
             <div class="grid grid-2" style="gap: 12px">
               <div class="field">
                 <label class="label" for="user-name">Full name</label>
-                <input id="user-name" class="input" [(ngModel)]="draft.name" placeholder="Abebe Kebede" />
+                <input id="user-name" class="input" [(ngModel)]="draft.name" />
               </div>
               <div class="field">
                 <label class="label" for="user-username">Username</label>
@@ -186,7 +200,6 @@ interface RoleCard {
                   id="user-username"
                   class="input"
                   [(ngModel)]="draft.username"
-                  placeholder="e.g. abebe.k"
                   autocomplete="off"
                   autocapitalize="none"
                   spellcheck="false"
@@ -194,7 +207,7 @@ interface RoleCard {
               </div>
               <div class="field">
                 <label class="label" for="user-phone">Phone (optional)</label>
-                <input id="user-phone" class="input" [(ngModel)]="draft.phone" placeholder="0912 345 678" inputmode="tel" />
+                <input id="user-phone" class="input" [(ngModel)]="draft.phone" inputmode="tel" />
               </div>
               <div class="field">
                 <label class="label" for="user-role">Role</label>
@@ -206,20 +219,11 @@ interface RoleCard {
               </div>
               <div class="field">
                 <label class="label" for="user-password">Password</label>
-                <input id="user-password" class="input" [(ngModel)]="draft.password" />
+                <input id="user-password" class="input" [(ngModel)]="draft.password" autocomplete="new-password" />
               </div>
               <div class="field">
                 <label class="label" for="user-pin">Device PIN (optional)</label>
-                <input id="user-pin" class="input" [(ngModel)]="draft.pin" maxlength="6" placeholder="1234" inputmode="numeric" />
-              </div>
-              <div class="field">
-                <label class="label">Account status</label>
-                <div class="row" style="height: 38px">
-                  <button class="switch" type="button" [class.on]="draft.status === 'ACTIVE'" (click)="toggleDraftStatus()">
-                    <span></span>
-                  </button>
-                  <span class="small muted">{{ draft.status === 'ACTIVE' ? 'Can sign in' : 'Blocked' }}</span>
-                </div>
+                <input id="user-pin" class="input" [(ngModel)]="draft.pin" maxlength="6" inputmode="numeric" autocomplete="off" />
               </div>
             </div>
             <p class="tiny muted mt-3">
@@ -232,7 +236,9 @@ interface RoleCard {
           </div>
           <div class="modal-foot">
             <button class="btn btn-ghost" type="button" (click)="modalOpen.set(false)">Cancel</button>
-            <button class="btn btn-primary" type="button" (click)="save()">{{ editingId() ? 'Save changes' : 'Create account' }}</button>
+            <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="save()">
+              {{ busy() ? 'Saving…' : editingId() ? 'Save changes' : 'Create account' }}
+            </button>
           </div>
         </div>
       </div>
@@ -250,6 +256,8 @@ export class UsersPage {
   protected readonly modalOpen = signal(false);
   protected readonly editingId = signal<string | null>(null);
   protected readonly error = signal('');
+  protected readonly busy = signal(false);
+  protected readonly currentUserId = this.auth.user()?.id ?? '';
 
   protected readonly roleOptions: Role[] = ['OWNER', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN'];
 
@@ -286,9 +294,9 @@ export class UsersPage {
     },
   ];
 
-  protected draft: StaffUser = this.blank();
+  protected draft: UserDraft = this.blank();
 
-  protected readonly activeCount = computed(() => this.store.users().filter((u) => u.status === 'ACTIVE').length);
+  protected readonly activeCount = computed(() => this.store.users().filter((u) => u.active).length);
   protected readonly waiterCount = computed(() => this.store.users().filter((u) => u.role === 'WAITER').length);
   protected readonly rolesInUse = computed(() => new Set(this.store.users().map((u) => u.role)).size);
 
@@ -312,7 +320,15 @@ export class UsersPage {
   }
 
   protected openEdit(member: StaffUser): void {
-    this.draft = { ...member };
+    this.draft = {
+      id: member.id,
+      name: member.name,
+      username: member.username,
+      phone: member.phone ?? '',
+      role: member.role,
+      password: '',
+      pin: '',
+    };
     this.editingId.set(member.id);
     this.error.set('');
     this.modalOpen.set(true);
@@ -320,19 +336,15 @@ export class UsersPage {
 
   protected setRole(role: Role): void {
     this.draft = { ...this.draft, role };
-    if (role === 'WAITER' || role === 'KITCHEN') {
-      this.draft.pin = this.draft.pin || '1234';
-    }
   }
 
-  protected toggleDraftStatus(): void {
-    this.draft = { ...this.draft, status: this.draft.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE' };
-  }
-
-  protected save(): void {
+  protected async save(): Promise<void> {
     const name = this.draft.name.trim();
     const username = this.draft.username.trim().toLowerCase();
-    const phone = (this.draft.phone ?? '').trim();
+    const phone = this.draft.phone.trim();
+    const password = this.draft.password;
+    const pin = this.draft.pin.trim();
+
     if (!name) {
       this.error.set('Enter the staff member’s name.');
       return;
@@ -352,55 +364,59 @@ export class UsersPage {
       this.error.set('Enter a valid phone number, or leave it blank.');
       return;
     }
-    if (!this.draft.password || this.draft.password.length < 6) {
+    if (!this.editingId() && password.length < 6) {
       this.error.set('Use a password of at least 6 characters.');
       return;
     }
+    if (password && password.length < 6) {
+      this.error.set('Use a password of at least 6 characters.');
+      return;
+    }
+    if (pin && !/^\d{4,6}$/.test(pin)) {
+      this.error.set('The PIN must be 4–6 digits.');
+      return;
+    }
 
-    const existing = this.editingId();
-    const member: StaffUser = {
-      ...this.draft,
-      id: existing ?? `u-${Date.now()}`,
-      name,
+    this.busy.set(true);
+    const result = await this.store.saveUser({
+      id: this.editingId() ?? undefined,
+      fullName: name,
       username,
       phone: phone || undefined,
-      pin: this.draft.pin?.trim() || undefined,
-      startedAt: existing ? this.draft.startedAt : new Date().toISOString(),
-    };
-    this.store.saveUser(member);
+      role: this.draft.role,
+      password: password || undefined,
+      pin: pin || undefined,
+    });
+    this.busy.set(false);
+    if (!result.ok) {
+      this.error.set(result.error);
+      return;
+    }
     this.modalOpen.set(false);
-    this.toast.show(existing ? 'Account updated' : 'Staff account created');
+    this.toast.show(this.editingId() ? 'Account updated' : 'Staff account created');
   }
 
-  protected resetCredentials(member: StaffUser): void {
-    this.store.saveUser({ ...member, password: DEMO_PASSWORD, pin: '1234' });
-    this.toast.show(`Credentials for ${member.name} reset to the demo defaults`);
-  }
-
-  protected toggle(member: StaffUser): void {
-    if (member.role === 'OWNER') {
-      this.toast.show('The owner account cannot be deactivated', 'error');
+  protected async toggle(member: StaffUser): Promise<void> {
+    if (member.role === 'OWNER' || member.id === this.currentUserId) {
+      this.toast.show('This account cannot be deactivated', 'error');
       return;
     }
-    if (member.id === this.auth.user()?.id) {
-      this.toast.show('You cannot deactivate your own account', 'error');
+    const result = await this.store.toggleUserActive(member.id, !member.active);
+    if (!result.ok) {
+      this.toast.show(result.error, 'error');
       return;
     }
-    this.store.toggleUserStatus(member.id);
-    this.toast.show(member.status === 'ACTIVE' ? `${member.name} deactivated` : `${member.name} reactivated`);
+    this.toast.show(member.active ? `${member.name} deactivated` : `${member.name} reactivated`);
   }
 
-  private blank(): StaffUser {
+  private blank(): UserDraft {
     return {
-      id: '',
       name: '',
       username: '',
       phone: '',
       role: 'WAITER',
-      status: 'ACTIVE',
-      password: DEMO_PASSWORD,
-      pin: '1234',
-      startedAt: new Date().toISOString(),
+      password: '',
+      pin: '',
     };
   }
 }

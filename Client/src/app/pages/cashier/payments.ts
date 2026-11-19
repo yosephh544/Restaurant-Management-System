@@ -1,4 +1,4 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { clock, dayKey, money, Payment } from '../../core/models';
@@ -67,7 +67,6 @@ import { Icon } from '../../shared/icon';
             <app-icon name="search" />
             <input
               type="search"
-              placeholder="Order # or waiter…"
               [ngModel]="query()"
               (ngModelChange)="query.set($event)"
             />
@@ -93,23 +92,27 @@ import { Icon } from '../../shared/icon';
                 @for (payment of filtered(); track payment.id) {
                   <tr>
                     <td>
-                      <a class="strong" [routerLink]="['/cashier/bills', payment.orderId]">#{{ payment.orderNumber }}</a>
+                      @if (payment.billId) {
+                        <a class="strong" [routerLink]="['/cashier/bills', payment.billId]">{{ payment.billNumber || 'Bill' }}</a>
+                      } @else {
+                        <span class="strong">{{ payment.billNumber || payment.orderNumber }}</span>
+                      }
                     </td>
                     <td class="muted num">{{ clock(payment.settledAt ?? payment.createdAt) }}</td>
                     <td>
                       <span class="row" style="gap: 6px">
-                        <app-icon [name]="payment.method === 'CASH' ? 'cash' : payment.method === 'QR' ? 'qr' : 'phone'" style="font-size: 15px; color: var(--muted)" />
+                        <app-icon [name]="payment.method === 'CASH' ? 'cash' : payment.method === 'QR_SCAN' ? 'qr' : 'phone'" style="font-size: 15px; color: var(--muted)" />
                         {{ methodLabel(payment) }}
                       </span>
                     </td>
-                    <td>{{ payment.waiterName }}</td>
+                    <td>{{ payment.waiterName || '—' }}</td>
                     <td class="t-right strong num">{{ money(payment.total) }}</td>
                     <td class="t-right muted num">{{ payment.tip ? money(payment.tip) : '—' }}</td>
                     <td><span [class]="'pill ' + statusPill(payment)">{{ statusLabel(payment) }}</span></td>
                     <td>
                       <div class="row" style="gap: 4px; justify-content: flex-end">
-                        @if (payment.status === 'PAID' || payment.status === 'REFUNDED') {
-                          <a class="btn btn-sm btn-ghost" [routerLink]="['/cashier/bills', payment.orderId, 'receipt']" title="Receipt">
+                        @if (payment.billId && (payment.status === 'PAID' || payment.status === 'REFUNDED')) {
+                          <a class="btn btn-sm btn-ghost" [routerLink]="['/cashier/bills', payment.billId, 'receipt']" title="Receipt">
                             <app-icon name="printer" />
                           </a>
                         }
@@ -147,7 +150,7 @@ import { Icon } from '../../shared/icon';
     @if (refundTarget(); as payment) {
       <app-confirm
         title="Refund this payment?"
-        [message]="'Return ' + money(payment.total) + ' ETB for order #' + payment.orderNumber + '. The payment is marked REFUNDED and removed from revenue.'"
+        [message]="'Return ' + money(payment.total) + ' ETB for ' + (payment.billNumber || 'order #' + payment.orderNumber) + '. The payment is marked REFUNDED and removed from revenue.'"
         confirmLabel="Refund payment"
         [danger]="true"
         (confirmed)="refund()"
@@ -156,23 +159,27 @@ import { Icon } from '../../shared/icon';
     }
   `,
 })
-export class CashierPaymentsPage {
+export class CashierPaymentsPage implements OnInit {
   private readonly store = inject(Store);
   private readonly toast = inject(ToastService);
 
   protected readonly money = money;
   protected readonly clock = clock;
   protected readonly scope = signal<'today' | 'all'>('today');
-  protected readonly method = signal<'ALL' | 'CASH' | 'QR' | 'PHONE'>('ALL');
+  protected readonly method = signal<'ALL' | 'CASH' | 'QR_SCAN' | 'PHONE_PUSH'>('ALL');
   protected readonly query = signal('');
   protected readonly refundTarget = signal<Payment | null>(null);
 
-  protected readonly methods: { value: 'ALL' | 'CASH' | 'QR' | 'PHONE'; label: string }[] = [
+  protected readonly methods: { value: 'ALL' | 'CASH' | 'QR_SCAN' | 'PHONE_PUSH'; label: string }[] = [
     { value: 'ALL', label: 'All methods' },
     { value: 'CASH', label: 'Cash' },
-    { value: 'QR', label: 'QR' },
-    { value: 'PHONE', label: 'Phone' },
+    { value: 'QR_SCAN', label: 'QR' },
+    { value: 'PHONE_PUSH', label: 'Phone' },
   ];
+
+  async ngOnInit(): Promise<void> {
+    await Promise.all([this.store.loadPayments(), this.store.loadOrders()]);
+  }
 
   protected readonly filtered = computed(() => {
     const today = dayKey(new Date().toISOString());
@@ -184,8 +191,9 @@ export class CashierPaymentsPage {
       .filter(
         (p) =>
           !query ||
+          (p.billNumber ?? '').toLowerCase().includes(query) ||
           p.orderNumber.includes(query) ||
-          p.waiterName.toLowerCase().includes(query),
+          (p.waiterName ?? '').toLowerCase().includes(query),
       );
   });
 
@@ -200,7 +208,7 @@ export class CashierPaymentsPage {
   });
 
   protected methodLabel(payment: Payment): string {
-    return payment.method === 'CASH' ? 'Cash' : payment.method === 'QR' ? 'QR' : 'Phone';
+    return payment.method === 'CASH' ? 'Cash' : payment.method === 'QR_SCAN' ? 'QR' : 'Phone';
   }
 
   protected statusLabel(payment: Payment): string {
@@ -213,6 +221,8 @@ export class CashierPaymentsPage {
         return 'Refunded';
       case 'TRANSFERRED':
         return 'Transferred';
+      case 'FAILED':
+        return 'Failed';
       default:
         return 'Retracted';
     }
@@ -245,17 +255,18 @@ export class CashierPaymentsPage {
     this.refundTarget.set(payment);
   }
 
-  protected refund(): void {
+  protected async refund(): Promise<void> {
     const payment = this.refundTarget();
     if (!payment) return;
-    const error = this.store.refundPayment(payment.id);
+    const result = await this.store.refundPayment(payment.id);
     this.refundTarget.set(null);
-    if (error) this.toast.show(error, 'error');
+    if (!result.ok) this.toast.show(result.error, 'error');
     else this.toast.show('Payment refunded');
   }
 
-  protected retract(payment: Payment): void {
-    this.store.retractPayment(payment.id);
-    this.toast.show('Payment request retracted', 'info');
+  protected async retract(payment: Payment): Promise<void> {
+    const result = await this.store.retractPayment(payment.id);
+    if (!result.ok) this.toast.show(result.error, 'error');
+    else this.toast.show('Payment request retracted', 'info');
   }
 }

@@ -34,11 +34,13 @@ public class KitchenService : IKitchenService
 
     public async Task<PagedResponse<KitchenQueueItemResponse>> GetQueueAsync(PagedRequest request, CancellationToken ct = default)
     {
-        var activeStatuses = new[] { OrderStatus.Pending, OrderStatus.Preparing };
-
+        // READY tickets stay on the board until a waiter collects them.
+        // Explicit comparisons: EF Core's JSON-based Contains translation is rejected by this SQL Server.
         var query = _dbContext.Orders
             .AsNoTracking()
-            .Where(o => activeStatuses.Contains(o.OrderStatus))
+            .Where(o => o.OrderStatus == OrderStatus.Pending
+                || o.OrderStatus == OrderStatus.Preparing
+                || o.OrderStatus == OrderStatus.Ready)
             .Include(o => o.Waiter)
             .Include(o => o.OrderItems)
                 .ThenInclude(i => i.MenuItem)

@@ -16,7 +16,7 @@ import { Icon } from '../../shared/icon';
         <div>
           <div class="eyebrow">Manager</div>
           <h1 class="page-title">Staff</h1>
-          <p class="page-sub">Team status, tips and shift activity.</p>
+          <p class="page-sub">Team status, tips and daily activity.</p>
         </div>
         <div class="head-actions">
           @if (isOwner()) {
@@ -24,7 +24,7 @@ import { Icon } from '../../shared/icon';
           }
           <div class="search">
             <app-icon name="search" />
-            <input type="search" placeholder="Name or username…" [ngModel]="query()" (ngModelChange)="query.set($event)" />
+            <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" />
           </div>
         </div>
       </div>
@@ -63,7 +63,7 @@ import { Icon } from '../../shared/icon';
             <button type="button" [class.active]="filter() === 'FLOOR'" (click)="filter.set('FLOOR')">Floor team</button>
             <button type="button" [class.active]="filter() === 'INACTIVE'" (click)="filter.set('INACTIVE')">Inactive</button>
           </div>
-          <span class="tiny muted">PIN reset sets the default 1234 for shared devices</span>
+          <span class="tiny muted">Tip payouts settle every unsettled tip for a waiter</span>
         </div>
 
         <div class="table-wrap">
@@ -87,7 +87,7 @@ import { Icon } from '../../shared/icon';
                       <span class="avatar">{{ initials(member.name) }}</span>
                       <span>
                         <strong>{{ member.name }}</strong><br />
-                        <span class="tiny muted">{{ member.status === 'ACTIVE' ? 'Can sign in' : 'Sign-in blocked' }}</span>
+                        <span class="tiny muted">{{ member.active ? 'Can sign in' : 'Sign-in blocked' }}</span>
                       </span>
                     </span>
                   </td>
@@ -102,8 +102,8 @@ import { Icon } from '../../shared/icon';
                     }
                   </td>
                   <td>
-                    <span [class]="'pill ' + (member.status === 'ACTIVE' ? 'pill-green' : 'pill-grey')">
-                      {{ member.status === 'ACTIVE' ? 'Active' : 'Inactive' }}
+                    <span [class]="'pill ' + (member.active ? 'pill-green' : 'pill-grey')">
+                      {{ member.active ? 'Active' : 'Inactive' }}
                     </span>
                   </td>
                   <td>
@@ -111,16 +111,15 @@ import { Icon } from '../../shared/icon';
                       @if (member.role === 'WAITER' && tipsFor(member.id) > 0) {
                         <button class="btn btn-sm btn-secondary" type="button" (click)="payTips(member)">Pay tips</button>
                       }
-                      <button class="btn btn-sm btn-ghost" type="button" (click)="resetPin(member)">Reset PIN</button>
                       <button
                         class="btn btn-sm"
-                        [class.btn-danger]="member.status === 'ACTIVE'"
-                        [class.btn-secondary]="member.status !== 'ACTIVE'"
+                        [class.btn-danger]="member.active"
+                        [class.btn-secondary]="!member.active"
                         type="button"
-                        [disabled]="member.role === 'OWNER'"
+                        [disabled]="member.role === 'OWNER' || member.id === currentUserId"
                         (click)="toggle(member)"
                       >
-                        {{ member.status === 'ACTIVE' ? 'Deactivate' : 'Activate' }}
+                        {{ member.active ? 'Deactivate' : 'Activate' }}
                       </button>
                     </div>
                   </td>
@@ -151,6 +150,7 @@ export class StaffPage {
   protected readonly query = signal('');
   protected readonly filter = signal<'ALL' | 'FLOOR' | 'INACTIVE'>('ALL');
 
+  protected readonly currentUserId = this.auth.user()?.id ?? '';
   protected readonly isOwner = computed(() => this.auth.user()?.role === 'OWNER');
 
   protected readonly stats = computed(() => {
@@ -158,13 +158,13 @@ export class StaffPage {
     const paidToday = this.store.payments().filter((p) => p.status === 'PAID' && dayKey(p.createdAt) === today);
     return {
       total: this.store.users().length,
-      active: this.store.users().filter((u) => u.status === 'ACTIVE').length,
+      active: this.store.users().filter((u) => u.active).length,
       onFloor: this.store
         .users()
-        .filter((u) => u.role === 'WAITER' && u.status === 'ACTIVE')
+        .filter((u) => u.role === 'WAITER' && u.active)
         .filter((u) => this.store.orders().some((o) => o.waiterId === u.id && dayKey(o.createdAt) === today)).length,
       tipsToday: paidToday.reduce((sum, p) => sum + p.tip, 0),
-      unsettled: this.store.payments().filter((p) => p.status === 'PAID' && p.tip > 0 && !p.tipPaidOut).reduce((sum, p) => sum + p.tip, 0),
+      unsettled: this.store.tips().filter((t) => t.payoutStatus === 'UNSETTLED').reduce((sum, t) => sum + t.amount, 0),
       ordersToday: this.store.orders().filter((o) => dayKey(o.createdAt) === today).length,
     };
   });
@@ -173,7 +173,7 @@ export class StaffPage {
     const query = this.query().trim().toLowerCase();
     return this.store
       .users()
-      .filter((u) => this.filter() !== 'INACTIVE' || u.status === 'INACTIVE')
+      .filter((u) => this.filter() !== 'INACTIVE' || !u.active)
       .filter((u) => this.filter() !== 'FLOOR' || u.role === 'WAITER' || u.role === 'KITCHEN')
       .filter((u) => !query || `${u.name} ${u.username} ${u.phone ?? ''}`.toLowerCase().includes(query));
   });
@@ -188,32 +188,28 @@ export class StaffPage {
   }
 
   protected tipsFor(waiterId: string): number {
-    return this.store
-      .payments()
-      .filter((p) => p.waiterId === waiterId && p.status === 'PAID' && p.tip > 0 && !p.tipPaidOut)
-      .reduce((sum, p) => sum + p.tip, 0);
+    return this.store.tips().filter((t) => t.waiterId === waiterId && t.payoutStatus === 'UNSETTLED').reduce((sum, t) => sum + t.amount, 0);
   }
 
-  protected payTips(member: StaffUser): void {
-    this.store.markTipsPaid(member.id);
+  protected async payTips(member: StaffUser): Promise<void> {
+    const result = await this.store.payoutTips(member.id);
+    if (!result.ok) {
+      this.toast.show(result.error, 'error');
+      return;
+    }
     this.toast.show(`Tips paid out to ${member.name}`);
   }
 
-  protected resetPin(member: StaffUser): void {
-    this.store.resetPin(member.id);
-    this.toast.show(`PIN for ${member.name} reset to 1234`);
-  }
-
-  protected toggle(member: StaffUser): void {
-    if (member.role === 'OWNER') {
-      this.toast.show('The owner account cannot be deactivated', 'error');
+  protected async toggle(member: StaffUser): Promise<void> {
+    if (member.role === 'OWNER' || member.id === this.currentUserId) {
+      this.toast.show('This account cannot be deactivated', 'error');
       return;
     }
-    if (member.id === this.auth.user()?.id) {
-      this.toast.show('You cannot deactivate your own account', 'error');
+    const result = await this.store.toggleUserActive(member.id, !member.active);
+    if (!result.ok) {
+      this.toast.show(result.error, 'error');
       return;
     }
-    this.store.toggleUserStatus(member.id);
-    this.toast.show(member.status === 'ACTIVE' ? `${member.name} deactivated` : `${member.name} reactivated`);
+    this.toast.show(member.active ? `${member.name} deactivated` : `${member.name} reactivated`);
   }
 }

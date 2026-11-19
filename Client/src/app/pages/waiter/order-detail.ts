@@ -1,7 +1,17 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
-import { ageLabel, clock, money } from '../../core/models';
+import {
+  ageLabel,
+  clock,
+  issueLabel,
+  METHOD_LABEL,
+  money,
+  orderStatusLabel,
+  OrderStatus,
+  paymentStatusLabel,
+  statusTone,
+} from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -18,10 +28,8 @@ import { PaySheet } from '../../shared/pay-sheet';
             <a class="back-link" routerLink="/waiter/orders"><app-icon name="arrow-left" /> Back to orders</a>
             <div class="row" style="gap: 10px; flex-wrap: wrap">
               <h1 class="page-title">Order #{{ o.number }}</h1>
-              <span [class]="'pill pill-' + (o.status === 'CANCELLED' ? 'red' : o.status === 'READY' ? 'green' : o.status === 'PREPARING' ? 'orange' : o.status === 'SERVED' ? 'blue' : 'amber')">
-                {{ o.status === 'CANCELLED' ? 'Cancelled' : o.status }}
-              </span>
-              <span [class]="'pill ' + paymentPill()">{{ paymentLabel() }}</span>
+              <span [class]="'pill pill-' + tone(o.status)">{{ orderStatusLabel(o.status) }}</span>
+              <span [class]="'pill ' + paymentPill()">{{ paymentStatusLabel(o.paymentStatus) }}</span>
             </div>
             <p class="page-sub">
               Table {{ o.table }} · {{ o.waiterName }} · opened {{ clock(o.createdAt) }} ({{ ageLabel(o.createdAt) }} ago)
@@ -34,22 +42,22 @@ import { PaySheet } from '../../shared/pay-sheet';
               </button>
             }
             @if (o.status === 'READY') {
-              <button class="btn btn-primary" type="button" (click)="serve()">
+              <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="serve()">
                 <app-icon name="check" /> Mark served
               </button>
             }
             @if (canPay()) {
               <button class="btn btn-primary" type="button" (click)="showPay.set(true)">
-                <app-icon name="cash" /> {{ o.paymentStatus === 'INITIATED' ? 'Payment pending' : 'Take payment' }}
+                <app-icon name="cash" /> {{ o.paymentStatus === 'PAYMENTINITIATED' ? 'Payment pending' : 'Take payment' }}
               </button>
             }
-            @if (o.status === 'CANCELLED') {
+            @if (o.status === 'CANCELLEDBYKITCHEN') {
               @if (replacement(); as r) {
                 <a class="btn btn-secondary" [routerLink]="['/waiter/orders', r.id]">
                   <app-icon name="receipt" /> Replaced by #{{ r.number }}
                 </a>
               } @else {
-                <button class="btn btn-primary" type="button" (click)="reorder()">
+                <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="reorder()">
                   <app-icon name="retract" /> Reorder ticket
                 </button>
               }
@@ -57,13 +65,16 @@ import { PaySheet } from '../../shared/pay-sheet';
           </div>
         </div>
 
-        @if (o.status === 'CANCELLED') {
+        @if (o.status === 'CANCELLEDBYKITCHEN') {
           <div class="pending-box" style="background: var(--red-soft); border-color: var(--red-line); margin-bottom: 16px">
             <div class="row">
               <app-icon name="alert-circle" style="color: var(--red)" />
               <div>
                 <strong style="color: var(--red)">Kitchen cancelled this ticket</strong>
-                <p style="color: var(--red)">{{ o.cancelReason || 'No reason recorded' }}. No payment was created, so nothing needs to be refunded.</p>
+                <p style="color: var(--red)">
+                  {{ cancelSummary() || 'The kitchen cancelled this order.' }}
+                  Any pending payment is retracted automatically by the server.
+                </p>
               </div>
             </div>
           </div>
@@ -87,7 +98,7 @@ import { PaySheet } from '../../shared/pay-sheet';
           <div class="ticket-note" style="margin: 0 0 10px">
             <app-icon name="alert" />
             <span>
-              <strong>{{ issue.item }}</strong> — {{ reasonLabel(issue.reason) }}{{ issue.note ? ': ' + issue.note : '' }}
+              <strong>{{ issue.item }}</strong> — {{ issueLabel(issue.reason) }}{{ issue.note ? ': ' + issue.note : '' }}
               <span class="muted"> · kitchen update</span>
             </span>
           </div>
@@ -112,10 +123,10 @@ import { PaySheet } from '../../shared/pay-sheet';
                   <div class="bill-line" [style.opacity]="line.status === 'CANCELLED' ? 0.45 : 1">
                     <div>
                       <strong [style.text-decoration]="line.status === 'CANCELLED' ? 'line-through' : 'none'">
-                        {{ line.emoji }} {{ line.name }}
+                        {{ line.name }}
                       </strong>
                       <div class="tiny muted">
-                        {{ money(line.unitPrice) }} ETB each
+                        {{ money(line.unitPrice) }} ETB each · tax {{ line.taxRate }}%
                         @if (line.status === 'CANCELLED') {
                           · <span style="color: var(--red)">cancelled</span>
                         } @else if (line.status === 'PREPARED') {
@@ -132,13 +143,12 @@ import { PaySheet } from '../../shared/pay-sheet';
                 }
               </div>
               <div class="bill-totals">
-                <div class="bill-total-row"><span>Subtotal</span><span class="num">{{ money(bill().subtotal) }} ETB</span></div>
-                <div class="bill-total-row"><span>VAT ({{ settings().taxRate }}%)</span><span class="num">{{ money(bill().tax) }} ETB</span></div>
-                <div class="bill-total-row"><span>Service ({{ settings().serviceCharge }}%)</span><span class="num">{{ money(bill().service) }} ETB</span></div>
+                <div class="bill-total-row"><span>Subtotal</span><span class="num">{{ money(subtotal()) }} ETB</span></div>
+                <div class="bill-total-row"><span>Tax</span><span class="num">{{ money(tax()) }} ETB</span></div>
                 @if (o.tip > 0) {
                   <div class="bill-total-row"><span>Tip</span><span class="num">{{ money(o.tip) }} ETB</span></div>
                 }
-                <div class="bill-total-row grand"><span>Total</span><span class="num">{{ money(total()) }} ETB</span></div>
+                <div class="bill-total-row grand"><span>Total</span><span class="num">{{ money(o.total) }} ETB</span></div>
               </div>
             </div>
 
@@ -154,7 +164,7 @@ import { PaySheet } from '../../shared/pay-sheet';
             <div class="card card-pad">
               <div class="between" style="margin-bottom: 10px">
                 <div class="card-title">Payment</div>
-                <span [class]="'pill ' + paymentPill()">{{ paymentLabel() }}</span>
+                <span [class]="'pill ' + paymentPill()">{{ paymentStatusLabel(o.paymentStatus) }}</span>
               </div>
 
               @if (payment(); as p) {
@@ -168,16 +178,13 @@ import { PaySheet } from '../../shared/pay-sheet';
                     <div class="between small"><span class="muted">Tip</span><span class="strong">{{ money(p.tip) }} ETB</span></div>
                     <div class="between small"><span class="muted">Settled</span><span class="strong">{{ clock(p.settledAt) }}</span></div>
                   </div>
-                  <p class="tiny muted mt-3">
-                    The cashier can refund or transfer this payment after service.
-                  </p>
                 } @else if (p.status === 'INITIATED') {
                   <div class="pending-box" style="margin-top: 0">
                     <div class="row">
                       <app-icon name="clock" />
                       <div>
                         <strong>Waiting for {{ methodLabel(p.method) }}</strong>
-                        <p>{{ money(p.total) }} ETB · confirm or retract from the payment sheet.</p>
+                        <p>{{ money(p.total) }} ETB · check or retract from the payment sheet.</p>
                       </div>
                     </div>
                   </div>
@@ -189,13 +196,11 @@ import { PaySheet } from '../../shared/pay-sheet';
                     <span style="color: var(--red)">Refunded</span>
                     <strong style="color: var(--red)">{{ money(p.total) }} ETB</strong>
                   </div>
-                  <p class="tiny muted mt-3">The guest returned the food and the payment was refunded.</p>
                 } @else if (p.status === 'TRANSFERRED') {
                   <div class="amount-cell" style="background: var(--blue-soft); border-color: var(--blue-line)">
                     <span style="color: var(--blue)">Transferred</span>
                     <strong style="color: var(--blue)">{{ money(p.total) }} ETB</strong>
                   </div>
-                  <p class="tiny muted mt-3">This payment was moved to the correct order by the cashier.</p>
                 }
               } @else if (canPay()) {
                 <p class="small muted" style="margin-bottom: 10px">
@@ -205,9 +210,7 @@ import { PaySheet } from '../../shared/pay-sheet';
                   <app-icon name="cash" /> Take payment
                 </button>
               } @else {
-                <p class="small muted">
-                  Payment opens when the kitchen marks this ticket ready.
-                </p>
+                <p class="small muted">Payment opens when the kitchen marks this ticket ready.</p>
               }
             </div>
 
@@ -226,8 +229,8 @@ import { PaySheet } from '../../shared/pay-sheet';
                 @if (o.servedAt) {
                   <div class="between small"><span class="muted">Served</span><span class="strong">{{ clock(o.servedAt) }}</span></div>
                 }
-                @if (o.parentNumber) {
-                  <div class="between small"><span class="muted">Replaces</span><span class="strong">#{{ o.parentNumber }}</span></div>
+                @if (replacement(); as r) {
+                  <div class="between small"><span class="muted">Replaced by</span><span class="strong">#{{ r.number }}</span></div>
                 }
               </div>
             </div>
@@ -236,7 +239,14 @@ import { PaySheet } from '../../shared/pay-sheet';
       </div>
 
       @if (showPay()) {
-        <app-pay-sheet [orderId]="o.id" (closed)="showPay.set(false)" />
+        <app-pay-sheet
+          [tableId]="tableId()"
+          [tableNumber]="o.table"
+          [reference]="'Order #' + o.number"
+          [allowReceipt]="true"
+          (settled)="onSettled()"
+          (closed)="showPay.set(false)"
+        />
       }
 
       @if (showAdd()) {
@@ -252,12 +262,12 @@ import { PaySheet } from '../../shared/pay-sheet';
             <div class="modal-body">
               <div class="search" style="margin-bottom: 10px">
                 <app-icon name="search" />
-                <input type="search" placeholder="Search the menu…" [ngModel]="addQuery()" (ngModelChange)="addQuery.set($event)" />
+                <input type="search" [ngModel]="addQuery()" (ngModelChange)="addQuery.set($event)" placeholder="Search available items" />
               </div>
               <div class="list" style="max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 10px">
                 @for (item of addOptions(); track item.id) {
-                  <button class="list-row" type="button" style="border: 0; background: none; width: 100%; text-align: left" (click)="addItem(item.id)">
-                    <span class="sum-emoji">{{ item.emoji }}</span>
+                  <button class="list-row" type="button" style="border: 0; background: none; width: 100%; text-align: left" [disabled]="busy()" (click)="addItem(item.id)">
+                    <span class="sum-emoji"><app-icon name="utensils" /></span>
                     <span class="list-main">
                       <strong>{{ item.name }}</strong>
                       <span>{{ money(item.price) }} ETB · {{ item.category }}</span>
@@ -284,14 +294,14 @@ import { PaySheet } from '../../shared/pay-sheet';
         <div class="card empty">
           <app-icon name="alert-circle" />
           <strong>Order not found</strong>
-          <p>It may have been removed.</p>
+          <p>It may have been removed or belongs to another waiter.</p>
           <a class="btn btn-primary btn-sm mt-3" routerLink="/waiter/orders">Back to orders</a>
         </div>
       </div>
     }
   `,
 })
-export class OrderDetailPage {
+export class OrderDetailPage implements OnInit {
   private readonly store = inject(Store);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -301,32 +311,65 @@ export class OrderDetailPage {
   protected readonly money = money;
   protected readonly clock = clock;
   protected readonly ageLabel = ageLabel;
-  protected readonly settings = this.store.settings;
+  protected readonly orderStatusLabel = orderStatusLabel;
+  protected readonly paymentStatusLabel = paymentStatusLabel;
+  protected readonly issueLabel = issueLabel;
+
   protected readonly showPay = signal(false);
   protected readonly showAdd = signal(false);
   protected readonly addQuery = signal('');
+  protected readonly busy = signal(false);
 
   protected readonly order = computed(() => this.store.order(this.id));
-  protected readonly bill = computed(() => {
+  protected readonly tableId = computed(() => {
     const order = this.order();
-    return order ? this.store.billFor(order) : { subtotal: 0, tax: 0, service: 0, total: 0 };
+    return order ? this.store.tableByNumber(order.table)?.id ?? null : null;
   });
-  protected readonly total = computed(() => {
+
+  protected readonly payment = computed(() => {
     const order = this.order();
-    return order ? this.store.totalFor(order) : 0;
+    if (!order) return undefined;
+    const bill = this.store.bills().find((b) => b.items.some((i) => i.orderId === order.id));
+    return (
+      (bill ? this.store.paymentsForBill(bill.id).find((p) => p.status !== 'RETRACTED') : undefined) ??
+      this.store.payments().find((p) => p.orderId === order.id && p.status !== 'RETRACTED')
+    );
   });
-  protected readonly payment = computed(() => this.store.paymentFor(this.id));
-  protected readonly openIssues = computed(() =>
-    this.store.issues().filter((i) => i.orderId === this.id && i.status === 'OPEN'),
-  );
+
+  protected readonly openIssues = computed(() => this.store.issues().filter((i) => i.orderId === this.id && !i.resolved));
+
   protected readonly replacement = computed(() => {
     const order = this.order();
-    return order ? this.store.orders().find((o) => o.parentNumber === order.number) : undefined;
+    return order ? this.store.orders().find((o) => o.parentOrderId === order.id) : undefined;
+  });
+
+  protected readonly subtotal = computed(() => {
+    const order = this.order();
+    if (!order) return 0;
+    return Math.round(
+      order.lines.filter((l) => l.status !== 'CANCELLED').reduce((sum, l) => sum + l.unitPrice * l.qty, 0) * 100,
+    ) / 100;
+  });
+
+  protected readonly tax = computed(() => {
+    const order = this.order();
+    if (!order) return 0;
+    return Math.round(
+      order.lines
+        .filter((l) => l.status !== 'CANCELLED')
+        .reduce((sum, l) => sum + (l.unitPrice * l.qty * l.taxRate) / 100, 0) * 100,
+    ) / 100;
   });
 
   protected readonly canPay = computed(() => {
     const order = this.order();
-    return order ? this.store.canPay(order) : false;
+    if (!order) return false;
+    return (
+      (order.status === 'READY' || order.status === 'SERVED') &&
+      order.paymentStatus !== 'PAID' &&
+      order.paymentStatus !== 'REFUNDED' &&
+      order.paymentStatus !== 'TRANSFERRED'
+    );
   });
 
   protected readonly canEdit = computed(() => {
@@ -357,84 +400,91 @@ export class OrderDetailPage {
       .filter((m) => !query || m.name.toLowerCase().includes(query));
   });
 
+  async ngOnInit(): Promise<void> {
+    await Promise.all([
+      this.store.loadOrders(),
+      this.store.loadMenu(),
+      this.store.loadBills(),
+      this.store.loadPayments(),
+      this.store.loadIssues(),
+    ]);
+  }
+
+  protected tone(status: OrderStatus): string {
+    return statusTone(status);
+  }
+
+  protected paymentPill(): string {
+    switch (this.order()?.paymentStatus) {
+      case 'PAID':
+        return 'pill-green';
+      case 'PAYMENTINITIATED':
+        return 'pill-amber';
+      case 'REFUNDED':
+        return 'pill-red';
+      case 'TRANSFERRED':
+        return 'pill-blue';
+      default:
+        return 'pill-grey';
+    }
+  }
+
+  protected methodLabel(method: string): string {
+    return METHOD_LABEL[method as keyof typeof METHOD_LABEL] ?? method;
+  }
+
+  protected cancelSummary(): string {
+    const whole = this.store.issues().find((i) => i.orderId === this.id && i.item === 'Whole order');
+    const item = this.store.issues().find((i) => i.orderId === this.id);
+    const issue = whole ?? item;
+    if (!issue) return '';
+    return `${issueLabel(issue.reason)}${issue.note ? ': ' + issue.note : ''}`;
+  }
+
   protected itemCount(): number {
     return this.order()?.lines.reduce((sum, l) => sum + l.qty, 0) ?? 0;
   }
 
-  protected paymentLabel(): string {
+  protected async serve(): Promise<void> {
+    if (this.busy()) return;
+    this.busy.set(true);
+    const result = await this.store.serveOrder(this.id);
+    this.busy.set(false);
+    this.toast.show(result.ok ? 'Order marked served' : result.error, result.ok ? 'success' : 'error');
+  }
+
+  protected async addItem(menuId: string): Promise<void> {
+    if (this.busy()) return;
+    this.busy.set(true);
+    const result = await this.store.addItems(this.id, [{ menuItemId: menuId, quantity: 1 }]);
+    this.busy.set(false);
+    this.toast.show(result.ok ? 'Item added to the ticket' : result.error, result.ok ? 'success' : 'error');
+  }
+
+  protected async reorder(): Promise<void> {
     const order = this.order();
-    if (!order) return '';
-    switch (order.paymentStatus) {
-      case 'UNPAID':
-        return 'Unpaid';
-      case 'INITIATED':
-        return 'Pending';
-      case 'PAID':
-        return 'Paid';
-      case 'REFUNDED':
-        return 'Refunded';
-      case 'TRANSFERRED':
-        return 'Transferred';
-      case 'RETRACTED':
-        return 'Retracted';
-      default:
-        return order.paymentStatus;
-    }
-  }
-
-  protected paymentPill(): string {
-    const status = this.order()?.paymentStatus;
-    return status === 'PAID'
-      ? 'pill-green'
-      : status === 'INITIATED'
-        ? 'pill-amber'
-        : status === 'REFUNDED' || status === 'TRANSFERRED'
-          ? 'pill-blue'
-          : status === 'RETRACTED'
-            ? 'pill-red'
-            : 'pill-grey';
-  }
-
-  protected methodLabel(method: 'CASH' | 'QR' | 'PHONE'): string {
-    return method === 'CASH' ? 'Cash' : method === 'QR' ? 'QR code' : 'Phone push';
-  }
-
-  protected reasonLabel(reason: string): string {
-    switch (reason) {
-      case 'OUT_OF_STOCK':
-        return 'Out of stock';
-      case 'EQUIPMENT':
-        return 'Equipment issue';
-      case 'DELAY':
-        return 'Prep delay';
-      default:
-        return 'Kitchen note';
-    }
-  }
-
-  protected serve(): void {
-    const order = this.order();
-    if (!order) return;
-    this.store.serve(order.id);
-    this.toast.show('Order marked served');
-  }
-
-  protected addItem(menuId: string): void {
-    const order = this.order();
-    if (!order) return;
-    this.store.addLine(order.id, menuId);
-    this.toast.show('Item added to the ticket');
-  }
-
-  protected reorder(): void {
-    const order = this.order();
-    if (!order) return;
-    const replacement = this.store.reorder(order.id);
-    if (!replacement) {
-      this.toast.show('This ticket cannot be reordered', 'error');
+    if (!order || this.busy()) return;
+    const live = order.lines.filter((l) => l.status !== 'CANCELLED');
+    const source = live.length ? live : order.lines;
+    if (!source.length) {
+      this.toast.show('This ticket has no items to reorder', 'error');
       return;
     }
-    this.toast.show(`Replacement order #${replacement.number} sent`);
-    void this.router.navigate(['/waiter/orders', replacement.id]);
+    this.busy.set(true);
+    const result = await this.store.reorder(
+      order.id,
+      source.map((l) => ({ menuItemId: l.itemId, quantity: l.qty, notes: l.notes })),
+    );
+    this.busy.set(false);
+    if (!result.ok) {
+      this.toast.show(result.error, 'error');
+      return;
+    }
+    this.toast.show(`Replacement order #${result.data.number} sent`);
+    await this.router.navigate(['/waiter/orders', result.data.id]);
+  }
+
+  protected async onSettled(): Promise<void> {
+    await this.store.loadOrders();
   }
 }

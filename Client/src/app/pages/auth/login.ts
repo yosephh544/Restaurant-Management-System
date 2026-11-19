@@ -1,14 +1,12 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
-import { initials, ROLE_LABEL, StaffUser } from '../../core/models';
-import { Store } from '../../core/store';
 import { Icon } from '../../shared/icon';
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule, RouterLink, Icon],
+  imports: [FormsModule, Icon],
   template: `
     <div class="auth">
       <section class="auth-brand">
@@ -70,7 +68,6 @@ import { Icon } from '../../shared/icon';
                   class="input"
                   name="identifier"
                   [(ngModel)]="identifier"
-                  placeholder="e.g. yoseph"
                   autocomplete="username"
                   autocapitalize="none"
                   spellcheck="false"
@@ -89,7 +86,6 @@ import { Icon } from '../../shared/icon';
                     name="password"
                     type="password"
                     [(ngModel)]="password"
-                    placeholder="Your password"
                     autocomplete="current-password"
                   />
                 </div>
@@ -107,7 +103,6 @@ import { Icon } from '../../shared/icon';
                     [(ngModel)]="pin"
                     maxlength="6"
                     inputmode="numeric"
-                    placeholder="4-digit PIN"
                     autocomplete="off"
                   />
                 </div>
@@ -119,29 +114,13 @@ import { Icon } from '../../shared/icon';
                 <span>Use your password if you have not set a PIN.</span>
               } @else {
                 <span>Waiters and kitchen staff can switch to Device PIN.</span>
-                <a routerLink="/forgot-password">Forgot password?</a>
               }
             </div>
 
-            <button class="btn btn-primary btn-lg btn-block" type="submit">
-              Sign in <app-icon name="chevron-right" />
+            <button class="btn btn-primary btn-lg btn-block" type="submit" [disabled]="busy()">
+              {{ busy() ? 'Signing in…' : 'Sign in' }} <app-icon name="chevron-right" />
             </button>
           </form>
-
-          <div class="demo-box">
-            <span class="label">Demo accounts — tap to sign in</span>
-            <div class="demo-grid">
-              @for (user of demoUsers(); track user.id) {
-                <button class="demo-user" type="button" (click)="demo(user)">
-                  <span class="avatar">{{ initials(user.name) }}</span>
-                  <span>
-                    <strong>{{ user.name }}</strong>
-                    &#64;{{ user.username }} · {{ roleLabel(user) }}
-                  </span>
-                </button>
-              }
-            </div>
-          </div>
 
           <p class="tiny muted mt-3">
             Accounts are managed by the owner under Users &amp; Roles. Deactivated staff cannot sign in.
@@ -155,42 +134,22 @@ export class LoginPage {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   private readonly route = inject(ActivatedRoute);
-  private readonly store = inject(Store);
 
   protected identifier = '';
   protected password = '';
   protected pin = '';
   protected readonly mode = signal<'PASSWORD' | 'PIN'>('PASSWORD');
   protected readonly error = signal('');
-  protected readonly initials = initials;
-
-  protected readonly demoUsers = computed(() => {
-    const seen = new Set<string>();
-    return this.store.users().filter((u) => {
-      if (u.status !== 'ACTIVE' || seen.has(u.role)) return false;
-      seen.add(u.role);
-      return true;
-    });
-  });
-
-  protected roleLabel(user: StaffUser): string {
-    return ROLE_LABEL[user.role];
-  }
-
-  protected demo(user: StaffUser): void {
-    this.identifier = user.username;
-    this.password = user.password;
-    this.mode.set('PASSWORD');
-    this.submit();
-  }
+  protected readonly busy = signal(false);
 
   protected setMode(mode: 'PASSWORD' | 'PIN'): void {
     this.mode.set(mode);
     this.error.set('');
   }
 
-  protected submit(): void {
+  protected async submit(): Promise<void> {
     this.error.set('');
+    if (this.busy()) return;
     if (!this.identifier.trim()) {
       this.error.set('Enter your username.');
       return;
@@ -203,15 +162,21 @@ export class LoginPage {
       this.error.set('Enter your password.');
       return;
     }
-    const failure =
-      this.mode() === 'PIN'
-        ? this.auth.loginPin(this.identifier, this.pin)
-        : this.auth.login(this.identifier, this.password);
-    if (failure) {
-      this.error.set(failure);
-      return;
+
+    this.busy.set(true);
+    try {
+      const failure =
+        this.mode() === 'PIN'
+          ? await this.auth.loginPin(this.identifier, this.pin)
+          : await this.auth.login(this.identifier, this.password);
+      if (failure) {
+        this.error.set(failure);
+        return;
+      }
+      const redirect = this.route.snapshot.queryParamMap.get('redirect');
+      await this.router.navigateByUrl(redirect && redirect.startsWith('/') ? redirect : this.auth.home());
+    } finally {
+      this.busy.set(false);
     }
-    const redirect = this.route.snapshot.queryParamMap.get('redirect');
-    void this.router.navigateByUrl(redirect && redirect.startsWith('/') ? redirect : this.auth.home());
   }
 }

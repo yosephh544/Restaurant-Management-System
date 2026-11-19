@@ -1,7 +1,8 @@
-import { Component, computed, inject, OnDestroy, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { ageLabel, Order } from '../../core/models';
+import { KitchenTicket } from '../../core/models';
 import { Store } from '../../core/store';
+import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
 import { IssueDialog } from '../../shared/issue-dialog';
 
@@ -12,7 +13,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
     <div class="page">
       <div class="page-head">
         <div>
-          <div class="eyebrow">Kitchen display · {{ station }}</div>
+          <div class="eyebrow">Kitchen display · {{ station() }}</div>
           <h1 class="page-title">Kitchen board</h1>
           <p class="page-sub">Tickets appear the moment a waiter sends them. Work oldest first.</p>
         </div>
@@ -56,56 +57,47 @@ import { IssueDialog } from '../../shared/issue-dialog';
 
       @if (queue().length) {
         <div class="board">
-          @for (order of queue(); track order.id) {
-            <article [class]="'ticket ticket-' + order.status.toLowerCase()">
+          @for (ticket of queue(); track ticket.id) {
+            <article [class]="'ticket ticket-' + ticket.status.toLowerCase()">
               <div class="ticket-head">
-                <a class="ticket-num" [routerLink]="['/kitchen', order.id]">#{{ order.number }}</a>
-                <span class="ticket-table">Table {{ order.table }}</span>
-                <span [class]="'ticket-time ' + timerTone(order)">
-                  <app-icon name="clock" /> {{ elapsed(order) }} min
+                <a class="ticket-num" [routerLink]="['/kitchen', ticket.id]">#{{ ticket.number }}</a>
+                <span class="ticket-table">Table {{ ticket.table }}</span>
+                <span [class]="'ticket-time ' + timerTone(ticket)">
+                  <app-icon name="clock" /> {{ elapsed(ticket) }} min
                 </span>
               </div>
 
               <div class="ticket-items">
-                @for (line of order.lines; track line.id) {
+                @for (item of ticket.items; track item.id) {
                   <div class="ticket-item">
-                    <span class="ticket-qty">{{ line.qty }}</span>
+                    <span class="ticket-qty">{{ item.qty }}</span>
                     <div style="flex: 1">
-                      <span [style.text-decoration]="line.status === 'CANCELLED' ? 'line-through' : 'none'" [style.opacity]="line.status === 'CANCELLED' ? 0.45 : 1">
-                        {{ line.name }}
+                      <span [style.text-decoration]="item.status === 'CANCELLED' ? 'line-through' : 'none'" [style.opacity]="item.status === 'CANCELLED' ? 0.45 : 1">
+                        {{ item.name }}
                       </span>
-                      @if (line.notes) {
-                        <div class="tiny" style="color: var(--amber)">{{ line.notes }}</div>
+                      @if (item.notes) {
+                        <div class="tiny" style="color: var(--amber)">{{ item.notes }}</div>
                       }
                     </div>
                   </div>
                 }
               </div>
 
-              @if (order.notes) {
-                <div class="ticket-note"><app-icon name="alert" /> {{ order.notes }}</div>
-              }
-
               <div class="ticket-actions">
-                @if (order.status === 'PENDING') {
-                  <button class="btn btn-primary btn-block" type="button" (click)="advance(order.id)">
-                    <app-icon name="check" /> Accept
-                  </button>
-                } @else {
-                  <button class="btn btn-primary btn-block" type="button" (click)="advance(order.id)">
-                    <app-icon name="check" /> Mark ready
-                  </button>
-                }
-                <button class="btn btn-secondary btn-block" type="button" (click)="issueOrder.set(order)">
+                <button class="btn btn-primary btn-block" type="button" [disabled]="busy() === ticket.id" (click)="advance(ticket)">
+                  <app-icon name="check" />
+                  {{ busy() === ticket.id ? 'Working…' : ticket.status === 'PENDING' ? 'Accept' : 'Mark ready' }}
+                </button>
+                <button class="btn btn-secondary btn-block" type="button" (click)="issueTicket.set(ticket)">
                   <app-icon name="alert" /> Report issue
                 </button>
               </div>
 
               <div class="ticket-foot">
-                <span [class]="'pill ' + (order.status === 'PENDING' ? 'pill-amber' : 'pill-orange')">
-                  {{ order.status === 'PENDING' ? 'New' : 'Preparing' }}
+                <span [class]="'pill ' + (ticket.status === 'PENDING' ? 'pill-amber' : 'pill-orange')">
+                  {{ ticket.status === 'PENDING' ? 'New' : 'Preparing' }}
                 </span>
-                <span class="tiny muted">{{ order.waiterName }} · {{ order.lines.length }} lines</span>
+                <span class="tiny muted">{{ ticket.waiterName }} · {{ ticket.items.length }} lines</span>
               </div>
             </article>
           }
@@ -128,12 +120,12 @@ import { IssueDialog } from '../../shared/issue-dialog';
             <span class="pill pill-green no-dot">{{ ready().length }} waiting</span>
           </div>
           <div class="list">
-            @for (order of ready(); track order.id) {
-              <a class="list-row" [routerLink]="['/kitchen', order.id]">
-                <span class="ticket-num" style="font-size: 16px">#{{ order.number }}</span>
+            @for (ticket of ready(); track ticket.id) {
+              <a class="list-row" [routerLink]="['/kitchen', ticket.id]">
+                <span class="ticket-num" style="font-size: 16px">#{{ ticket.number }}</span>
                 <div class="list-main">
-                  <strong>Table {{ order.table }}</strong>
-                  <span>{{ order.lines.length }} lines · ready {{ ageLabel(order.readyAt ?? order.createdAt) }} ago</span>
+                  <strong>Table {{ ticket.table }}</strong>
+                  <span>{{ ticket.items.length }} lines · {{ elapsed(ticket) }} min on the board</span>
                 </div>
                 <span class="pill pill-green">Ready</span>
                 <app-icon name="chevron-right" style="color: var(--muted-2); font-size: 15px" />
@@ -144,60 +136,76 @@ import { IssueDialog } from '../../shared/issue-dialog';
       }
     </div>
 
-    @if (issueOrder(); as order) {
-      <app-issue-dialog [order]="order" (closed)="issueOrder.set(null)" />
+    @if (issueTicket(); as ticket) {
+      <app-issue-dialog [ticket]="ticket" (closed)="issueTicket.set(null)" />
     }
   `,
 })
-export class KitchenBoardPage implements OnDestroy {
+export class KitchenBoardPage implements OnInit, OnDestroy {
   private readonly store = inject(Store);
+  private readonly toast = inject(ToastService);
 
-  protected readonly station = this.store.settings().branch + ' kitchen';
-  protected readonly issueOrder = signal<Order | null>(null);
+  protected readonly station = computed(() => {
+    const branch = this.store.settings().branch;
+    return branch ? `${branch} kitchen` : 'kitchen';
+  });
+  protected readonly issueTicket = signal<KitchenTicket | null>(null);
+  protected readonly busy = signal<string | null>(null);
   protected readonly now = signal(Date.now());
-  protected readonly ageLabel = ageLabel;
-  private readonly timer = window.setInterval(() => this.now.set(Date.now()), 20000);
+
+  private readonly timer = window.setInterval(() => {
+    this.now.set(Date.now());
+    void this.store.loadKitchen();
+  }, 20000);
 
   protected readonly queue = computed(() => this.store.kitchenQueue());
-  protected readonly ready = computed(() => this.store.readyOrders());
+  protected readonly ready = computed(() => this.store.kitchenTickets().filter((t) => t.status === 'READY'));
 
   protected readonly counts = computed(() => ({
-    new: this.queue().filter((o) => o.status === 'PENDING').length,
-    preparing: this.queue().filter((o) => o.status === 'PREPARING').length,
+    new: this.queue().filter((t) => t.status === 'PENDING').length,
+    preparing: this.queue().filter((t) => t.status === 'PREPARING').length,
     ready: this.ready().length,
   }));
 
   protected readonly oldest = computed(() => {
     const queue = this.queue();
     if (!queue.length) return 0;
-    const oldest = queue[0];
-    return Math.floor((this.now() - new Date(oldest.createdAt).getTime()) / 60000);
+    return Math.max(0, Math.floor((this.now() - new Date(queue[0].createdAt).getTime()) / 60000));
   });
 
   protected readonly clockLabel = computed(() =>
     new Date(this.now()).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
   );
 
+  async ngOnInit(): Promise<void> {
+    await this.store.loadKitchen();
+  }
+
   ngOnDestroy(): void {
     window.clearInterval(this.timer);
   }
 
-  protected elapsed(order: Order): number {
-    return Math.max(0, Math.floor((this.now() - new Date(order.createdAt).getTime()) / 60000));
+  protected elapsed(ticket: KitchenTicket): number {
+    return Math.max(0, Math.floor((this.now() - new Date(ticket.createdAt).getTime()) / 60000));
   }
 
-  protected timerTone(order: Order): string {
-    const minutes = this.elapsed(order);
+  protected timerTone(ticket: KitchenTicket): string {
+    const minutes = this.elapsed(ticket);
     if (minutes >= 20) return 'late';
     if (minutes >= 12) return 'warn';
     return '';
   }
 
-  protected advance(id: string): void {
-    this.store.advance(id);
+  protected async advance(ticket: KitchenTicket): Promise<void> {
+    if (this.busy()) return;
+    this.busy.set(ticket.id);
+    const result = await this.store.kitchenStatus(ticket.id, ticket.status === 'PENDING' ? 'PREPARING' : 'READY');
+    this.busy.set(null);
+    if (!result.ok) this.toast.show(result.error, 'error');
   }
 
-  protected refresh(): void {
+  protected async refresh(): Promise<void> {
     this.now.set(Date.now());
+    await this.store.loadKitchen();
   }
 }

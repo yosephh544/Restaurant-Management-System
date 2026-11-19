@@ -1,8 +1,16 @@
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
-import { ageLabel, dayKey, money, Order, statusTone } from '../../core/models';
+import {
+  ageLabel,
+  dayKey,
+  money,
+  Order,
+  orderStatusLabel,
+  paymentStatusLabel,
+  statusTone,
+} from '../../core/models';
 import { Store } from '../../core/store';
 import { Icon } from '../../shared/icon';
 
@@ -59,12 +67,7 @@ import { Icon } from '../../shared/icon';
           </div>
           <div class="search">
             <app-icon name="search" />
-            <input
-              type="search"
-              placeholder="Order # or table…"
-              [ngModel]="query()"
-              (ngModelChange)="query.set($event)"
-            />
+            <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" placeholder="Search orders" />
           </div>
         </div>
 
@@ -72,16 +75,18 @@ import { Icon } from '../../shared/icon';
           <div class="list">
             @for (order of filtered(); track order.id) {
               <a class="list-row" [routerLink]="['/waiter/orders', order.id]">
-                <div class="ticket-num" style="font-size: 17px; min-width: 58px">#{{ order.number }}</div>
+                <div class="ticket-num" style="font-size: 14px; min-width: 92px; overflow: hidden; text-overflow: ellipsis">
+                  #{{ order.number }}
+                </div>
                 <div class="list-main">
                   <strong>Table {{ order.table }} <span class="muted tiny">· {{ countItems(order) }} items</span></strong>
                   <span>{{ summary(order) }} · {{ ageLabel(order.createdAt) }} ago</span>
                 </div>
                 <div class="list-meta">
-                  <strong>{{ money(total(order)) }} ETB</strong>
-                  <span>{{ paymentLabel(order) }}</span>
+                  <strong>{{ money(order.total) }} ETB</strong>
+                  <span>{{ paymentStatusLabel(order.paymentStatus) }}</span>
                 </div>
-                <span [class]="'pill pill-' + tone(order)">{{ statusLabel(order) }}</span>
+                <span [class]="'pill pill-' + tone(order)">{{ orderStatusLabel(order.status) }}</span>
                 <app-icon name="chevron-right" style="color: var(--muted-2); font-size: 15px" />
               </a>
             }
@@ -102,12 +107,14 @@ import { Icon } from '../../shared/icon';
     </div>
   `,
 })
-export class WaiterOrdersPage {
+export class WaiterOrdersPage implements OnInit {
   private readonly store = inject(Store);
   private readonly auth = inject(AuthService);
 
   protected readonly money = money;
   protected readonly ageLabel = ageLabel;
+  protected readonly orderStatusLabel = orderStatusLabel;
+  protected readonly paymentStatusLabel = paymentStatusLabel;
   protected readonly scope = signal<'active' | 'all'>('active');
   protected readonly query = signal('');
 
@@ -120,15 +127,15 @@ export class WaiterOrdersPage {
       active: orders.length,
       ready: orders.filter((o) => o.status === 'READY').length,
       unpaid: orders
-        .filter((o) => o.paymentStatus === 'UNPAID' || o.paymentStatus === 'INITIATED')
-        .reduce((sum, o) => sum + this.store.totalFor(o), 0),
+        .filter((o) => o.paymentStatus === 'UNPAID' || o.paymentStatus === 'PAYMENTINITIATED' || o.paymentStatus === 'RETRACTED')
+        .reduce((sum, o) => sum + o.total, 0),
       ordersToday: this.store
         .orders()
         .filter((o) => o.waiterId === this.waiterId && dayKey(o.createdAt) === today).length,
       tips: this.store
-        .tipsFor(this.waiterId)
-        .filter((p) => dayKey(p.createdAt) === today)
-        .reduce((sum, p) => sum + p.tip, 0),
+        .tips()
+        .filter((t) => t.waiterId === this.waiterId && dayKey(t.createdAt) === today)
+        .reduce((sum, t) => sum + t.amount, 0),
     };
   });
 
@@ -138,11 +145,11 @@ export class WaiterOrdersPage {
     const query = this.query().trim().toLowerCase();
     return this.store
       .ordersForWaiter(this.waiterId, this.scope())
-      .filter((o) => !query || o.number.includes(query) || o.table.toLowerCase().includes(query));
+      .filter((o) => !query || o.number.toLowerCase().includes(query) || o.table.toLowerCase().includes(query));
   });
 
-  protected total(order: Order): number {
-    return this.store.totalFor(order);
+  async ngOnInit(): Promise<void> {
+    await Promise.all([this.store.loadOrders(), this.store.loadTips()]);
   }
 
   protected countItems(order: Order): number {
@@ -150,39 +157,13 @@ export class WaiterOrdersPage {
   }
 
   protected summary(order: Order): string {
-    const names = order.lines
-      .filter((l) => l.status !== 'CANCELLED')
-      .slice(0, 2)
-      .map((l) => `${l.name} ×${l.qty}`);
+    const lines = order.lines.filter((l) => l.status !== 'CANCELLED');
+    const names = lines.slice(0, 2).map((l) => `${l.name} ×${l.qty}`);
     if (!names.length) return 'All items cancelled';
-    return names.join(', ') + (order.lines.length > 2 ? '…' : '');
-  }
-
-  protected statusLabel(order: Order): string {
-    if (order.status === 'CANCELLED') return 'Cancelled';
-    return order.status;
+    return names.join(', ') + (lines.length > 2 ? '…' : '');
   }
 
   protected tone(order: Order): string {
     return statusTone(order.status);
-  }
-
-  protected paymentLabel(order: Order): string {
-    switch (order.paymentStatus) {
-      case 'UNPAID':
-        return order.status === 'SERVED' ? 'Awaiting payment' : 'Not paid yet';
-      case 'INITIATED':
-        return 'Payment pending';
-      case 'PAID':
-        return 'Paid';
-      case 'RETRACTED':
-        return 'Payment retracted';
-      case 'REFUNDED':
-        return 'Refunded';
-      case 'TRANSFERRED':
-        return 'Transferred';
-      default:
-        return order.paymentStatus;
-    }
   }
 }

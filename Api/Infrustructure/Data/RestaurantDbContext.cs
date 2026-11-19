@@ -3,6 +3,7 @@ using RestaurantManagement.Infrustructure.Models.Identity;
 using RestaurantManagement.Infrustructure.Models.Menu;
 using RestaurantManagement.Infrustructure.Models.Orders;
 using RestaurantManagement.Infrustructure.Models.Billing;
+using RestaurantManagement.Infrustructure.Models.Configuration;
 using RestaurantManagement.Infrustructure.Enums.Identity;
 using RestaurantManagement.Infrustructure.Enums.Orders;
 using RestaurantManagement.Infrustructure.Enums.Billing;
@@ -43,6 +44,9 @@ public class RestaurantDbContext : DbContext
     public DbSet<BillItem> BillItems { get; set; }
     public DbSet<BillAudit> BillAudits { get; set; }
 
+    // ── Configuration ────────────────────────────────────────────────────────
+    public DbSet<RestaurantSettings> RestaurantSettings { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -65,6 +69,20 @@ public class RestaurantDbContext : DbContext
         modelBuilder.Entity<Bill>().ToTable("bills");
         modelBuilder.Entity<BillItem>().ToTable("bill_items");
         modelBuilder.Entity<BillAudit>().ToTable("bill_audits");
+        modelBuilder.Entity<RestaurantSettings>().ToTable("restaurant_settings");
+
+        modelBuilder.Entity<RestaurantSettings>(entity =>
+        {
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.RestaurantName).IsRequired().HasMaxLength(120);
+            entity.Property(s => s.BranchName).IsRequired().HasMaxLength(120);
+            entity.Property(s => s.Phone).HasMaxLength(30);
+            entity.Property(s => s.Address).HasMaxLength(250);
+            entity.Property(s => s.TaxRate).HasPrecision(5, 2);
+            entity.Property(s => s.ServiceCharge).HasPrecision(5, 2);
+            entity.Property(s => s.TipPresetsCsv).HasMaxLength(100);
+            entity.Property(s => s.WebhookSecret).HasMaxLength(250);
+        });
 
         modelBuilder.Entity<RestaurantTable>(entity =>
         {

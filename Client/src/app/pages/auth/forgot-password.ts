@@ -43,7 +43,6 @@ import { Icon } from '../../shared/icon';
                     class="input"
                     name="username"
                     [(ngModel)]="username"
-                    placeholder="e.g. yoseph"
                     autocomplete="username"
                     autocapitalize="none"
                     spellcheck="false"

@@ -98,4 +98,30 @@ public class PaymentsController : ApiControllerBase
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.PagedResponse<TipLedgerItemResponse>), 200)]
     public async Task<IActionResult> GetMyTipLedger([FromQuery] PagedRequest request, CancellationToken ct)
         => PagedOkResponse(await _paymentService.GetMyTipLedgerAsync(request, ct));
+
+    /// <summary>Lists every payment record for cashier history and reporting.</summary>
+    [HttpGet]
+    [Permission(Permissions.PaymentsView)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.PagedResponse<PaymentListItemResponse>), 200)]
+    public async Task<IActionResult> GetPayments([FromQuery] PaymentListRequest request, CancellationToken ct)
+        => PagedOkResponse(await _paymentService.GetPaymentsAsync(request, ct));
+
+    /// <summary>Lists the tip ledger for every waiter so managers can settle payouts.</summary>
+    [HttpGet("tips")]
+    [Permission(Permissions.TipsView)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.PagedResponse<TipLedgerEntryResponse>), 200)]
+    public async Task<IActionResult> GetTipLedger([FromQuery] PagedRequest request, CancellationToken ct)
+        => PagedOkResponse(await _paymentService.GetTipLedgerAsync(request, ct));
+
+    /// <summary>Marks all unsettled tips for a waiter as paid out.</summary>
+    [HttpPost("tips/payout")]
+    [Permission(Permissions.PaymentsRetract)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<object>), 200)]
+    public async Task<IActionResult> PayoutTips([FromBody] TipPayoutRequest request, CancellationToken ct)
+    {
+        var count = await _paymentService.PayoutTipsAsync(request.WaiterId, ct);
+        return OkResponse<object>(new { count }, count == 0
+            ? "No unsettled tips for this waiter."
+            : $"{count} tip record(s) marked as paid out.");
+    }
 }

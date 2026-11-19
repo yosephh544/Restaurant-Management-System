@@ -1,14 +1,13 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
-import { ageLabel, clock, money } from '../../core/models';
+import { ageLabel, clock, Issue, issueLabel, money } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
 
 @Component({
   selector: 'app-manager-issues',
-  imports: [FormsModule, RouterLink, Icon],
+  imports: [FormsModule, Icon],
   template: `
     <div class="page">
       <div class="page-head">
@@ -25,7 +24,7 @@ import { Icon } from '../../shared/icon';
           </div>
           <div class="search">
             <app-icon name="search" />
-            <input type="search" placeholder="Order # or item…" [ngModel]="query()" (ngModelChange)="query.set($event)" />
+            <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" />
           </div>
         </div>
       </div>
@@ -57,16 +56,16 @@ import { Icon } from '../../shared/icon';
             <div class="card card-pad">
               <div class="between">
                 <div class="row" style="gap: 8px">
-                  <span [class]="'tl-dot ' + (issue.status === 'OPEN' ? 'cancel' : '')">
-                    <app-icon [name]="issue.status === 'OPEN' ? 'alert' : 'check'" />
+                  <span [class]="'tl-dot ' + (issue.resolved ? '' : 'cancel')">
+                    <app-icon [name]="issue.resolved ? 'check' : 'alert'" />
                   </span>
                   <div>
                     <strong class="strong">Order #{{ issue.orderNumber }}</strong>
                     <div class="tiny muted">Table {{ issue.table }} · {{ ageLabel(issue.createdAt) }} ago</div>
                   </div>
                 </div>
-                <span [class]="'pill ' + (issue.status === 'OPEN' ? 'pill-red' : 'pill-green')">
-                  {{ issue.status === 'OPEN' ? 'Open' : 'Resolved' }}
+                <span [class]="'pill ' + (issue.resolved ? 'pill-green' : 'pill-red')">
+                  {{ issue.resolved ? 'Resolved' : 'Open' }}
                 </span>
               </div>
 
@@ -82,12 +81,11 @@ import { Icon } from '../../shared/icon';
 
               <div class="between mt-3" style="border-top: 1px solid var(--line); padding-top: 10px">
                 <div class="tiny muted">
-                  {{ issue.resolvedBy ? 'Resolved by ' + issue.resolvedBy : 'Flagged by kitchen' }}
+                  {{ issue.resolved && issue.resolvedBy ? 'Resolved by ' + issue.resolvedBy : 'Flagged by kitchen' }}
                   · {{ clock(issue.createdAt) }}
                 </div>
                 <div class="row" style="gap: 6px">
-                  <a class="btn btn-sm btn-secondary" [routerLink]="['/cashier/bills', issue.orderId]">View bill</a>
-                  @if (issue.status === 'OPEN') {
+                  @if (!issue.resolved) {
                     <button class="btn btn-sm btn-primary" type="button" (click)="resolve(issue.id)">Resolve</button>
                   }
                 </div>
@@ -121,7 +119,7 @@ export class ManagerIssuesPage {
     const query = this.query().trim().toLowerCase();
     return this.store
       .issues()
-      .filter((i) => this.tab() === 'ALL' || i.status === this.tab())
+      .filter((i) => this.tab() === 'ALL' || (this.tab() === 'RESOLVED' ? i.resolved : !i.resolved))
       .filter(
         (i) =>
           !query ||
@@ -136,7 +134,7 @@ export class ManagerIssuesPage {
     this.rows().forEach((issue) => {
       const order = this.store.order(issue.orderId);
       if (!order) return;
-      if (order.status === 'CANCELLED' && issue.item === 'Whole order') {
+      if (order.status === 'CANCELLEDBYKITCHEN' && issue.item === 'Whole ticket') {
         total += order.lines.reduce((sum, l) => sum + l.qty * l.unitPrice * (1 + l.taxRate / 100), 0);
       } else {
         const line = order.lines.find((l) => l.name === issue.item && l.status === 'CANCELLED');
@@ -150,22 +148,19 @@ export class ManagerIssuesPage {
     () =>
       this.store
         .orders()
-        .filter((o) => o.status === 'CANCELLED' && this.store.orders().some((child) => child.parentNumber === o.number))
-        .length,
+        .filter(
+          (o) =>
+            o.status === 'CANCELLEDBYKITCHEN' && this.store.orders().some((child) => child.parentOrderId === o.id),
+        ).length,
   );
 
-  protected reasonLabel(reason: string): string {
-    return reason === 'OUT_OF_STOCK'
-      ? 'Out of stock'
-      : reason === 'EQUIPMENT'
-        ? 'Equipment issue'
-        : reason === 'DELAY'
-          ? 'Prep delay'
-          : 'Other';
+  protected reasonLabel(reason: Issue['reason']): string {
+    return issueLabel(reason);
   }
 
-  protected resolve(id: string): void {
-    this.store.resolveIssue(id);
-    this.toast.show('Issue resolved');
+  protected async resolve(id: string): Promise<void> {
+    const result = await this.store.resolveIssue(id);
+    if (!result.ok) this.toast.show(result.error, 'error');
+    else this.toast.show('Issue resolved');
   }
 }

@@ -564,6 +564,121 @@ public class PaymentService : IPaymentService
         return PagedResponse<TipLedgerItemResponse>.Ok(dtos, paged.Pagination);
     }
 
+    public async Task<PagedResponse<PaymentListItemResponse>> GetPaymentsAsync(PaymentListRequest request, CancellationToken ct = default)
+    {
+        var query = _dbContext.Payments
+            .AsNoTracking()
+            .Include(p => p.Order)
+                .ThenInclude(o => o.Waiter)
+            .Include(p => p.InitiatedBy)
+            .Include(p => p.Bill)
+            .Include(p => p.WaiterTip)
+            .AsQueryable();
+
+        if (!string.IsNullOrWhiteSpace(request.Status) &&
+            Enum.TryParse<PaymentGatewayStatus>(request.Status, true, out var status))
+            query = query.Where(p => p.Status == status);
+
+        if (!string.IsNullOrWhiteSpace(request.Method))
+        {
+            var normalized = request.Method.Trim().ToUpperInvariant();
+            if (normalized is "QR" or "QR_SCAN") query = query.Where(p => p.Method == PaymentMethod.QrScan);
+            else if (normalized is "PHONE" or "PHONE_PUSH" or "USSD") query = query.Where(p => p.Method == PaymentMethod.PhonePush);
+            else if (normalized == "CASH") query = query.Where(p => p.Method == PaymentMethod.Cash);
+        }
+
+        if (request.WaiterId.HasValue)
+            query = query.Where(p => p.Order.WaiterId == request.WaiterId.Value);
+
+        if (request.From.HasValue)
+            query = query.Where(p => p.CreatedAt >= request.From.Value);
+
+        if (request.To.HasValue)
+            query = query.Where(p => p.CreatedAt <= request.To.Value);
+
+        if (!string.IsNullOrWhiteSpace(request.Search))
+        {
+            var search = request.Search.Trim().ToLower();
+            query = query.Where(p =>
+                p.Order.OrderNumber.ToLower().Contains(search) ||
+                p.InitiatedBy.FullName.ToLower().Contains(search) ||
+                (p.Bill != null && p.Bill.BillNumber.ToLower().Contains(search)));
+        }
+
+        query = query.OrderByDescending(p => p.CreatedAt);
+        var paged = await query.ToPagedResponseAsync(request, ct);
+
+        var items = paged.Data.Select(p => new PaymentListItemResponse
+        {
+            Id = p.Id,
+            BillId = p.BillId,
+            OrderId = p.OrderId,
+            OrderNumber = p.Order.OrderNumber,
+            BillNumber = p.Bill?.BillNumber,
+            WaiterId = p.Order.WaiterId,
+            WaiterName = p.Order.Waiter?.FullName,
+            Method = ToApiMethod(p.Method),
+            BaseAmount = p.BaseAmount,
+            TipAmount = p.TipAmount,
+            TotalAmount = p.TotalAmount,
+            Status = p.Status.ToString().ToUpperInvariant(),
+            AmountTendered = p.AmountTendered,
+            ChangeGiven = p.ChangeGiven,
+            CustomerPhone = p.CustomerPhone,
+            CreatedAt = p.CreatedAt,
+            SettledAt = p.SettledAt,
+            Actor = p.InitiatedBy?.FullName ?? "System",
+            TipPaidOut = p.WaiterTip?.PayoutStatus == PayoutStatus.PaidOut
+        }).ToList();
+
+        return PagedResponse<PaymentListItemResponse>.Ok(items, paged.Pagination);
+    }
+
+    public async Task<PagedResponse<TipLedgerEntryResponse>> GetTipLedgerAsync(PagedRequest request, CancellationToken ct = default)
+    {
+        var query = _dbContext.WaiterTips
+            .AsNoTracking()
+            .Include(t => t.Waiter)
+            .Include(t => t.Order)
+            .OrderByDescending(t => t.CreatedAt);
+
+        var paged = await query.ToPagedResponseAsync(request, ct);
+
+        var items = paged.Data.Select(t => new TipLedgerEntryResponse
+        {
+            TipId = t.Id,
+            WaiterId = t.WaiterId,
+            WaiterName = t.Waiter?.FullName ?? "Waiter",
+            OrderId = t.OrderId,
+            OrderNumber = t.Order?.OrderNumber ?? string.Empty,
+            TipAmount = t.TipAmount,
+            PayoutStatus = t.PayoutStatus.ToString().ToUpperInvariant(),
+            CreatedAt = t.CreatedAt,
+            PaidOutAt = t.PaidOutAt
+        }).ToList();
+
+        return PagedResponse<TipLedgerEntryResponse>.Ok(items, paged.Pagination);
+    }
+
+    public async Task<int> PayoutTipsAsync(Guid waiterId, CancellationToken ct = default)
+    {
+        if (waiterId == Guid.Empty)
+            throw new ValidationException("WaiterId", "A waiter is required.");
+
+        var tips = await _dbContext.WaiterTips
+            .Where(t => t.WaiterId == waiterId && t.PayoutStatus == PayoutStatus.Unsettled)
+            .ToListAsync(ct);
+
+        foreach (var tip in tips)
+        {
+            tip.PayoutStatus = PayoutStatus.PaidOut;
+            tip.PaidOutAt = DateTime.UtcNow;
+        }
+
+        await _dbContext.SaveChangesAsync(ct);
+        return tips.Count;
+    }
+
     private void VerifyWebhookSignature(ArifpayWebhookPayload payload)
     {
         var secret = _configuration["Arifpay:WebhookSecret"];
@@ -600,6 +715,7 @@ public class PaymentService : IPaymentService
     private static PaymentResponse MapPaymentToResponse(PaymentEntity p, string orderNumber, string? qrData = null) => new()
     {
         Id = p.Id,
+        BillId = p.BillId,
         OrderId = p.OrderId,
         OrderNumber = orderNumber,
         Method = ToApiMethod(p.Method),

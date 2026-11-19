@@ -5,6 +5,16 @@ import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
 
+interface MenuDraft {
+  id?: string;
+  categoryId: string;
+  name: string;
+  description: string;
+  price: number;
+  taxRate: number;
+  available: boolean;
+}
+
 @Component({
   selector: 'app-menu',
   imports: [FormsModule, Icon],
@@ -19,9 +29,10 @@ import { Icon } from '../../shared/icon';
         <div class="head-actions">
           <div class="search">
             <app-icon name="search" />
-            <input type="search" placeholder="Search dishes…" [ngModel]="query()" (ngModelChange)="query.set($event)" />
+            <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" />
           </div>
-          <button class="btn btn-primary" type="button" (click)="openNew()">
+          <button class="btn btn-secondary" type="button" (click)="openCategory()"><app-icon name="plus" /> Category</button>
+          <button class="btn btn-primary" type="button" (click)="openNew()" [disabled]="!store.menuCategories().length">
             <app-icon name="plus" /> Add item
           </button>
         </div>
@@ -32,7 +43,7 @@ import { Icon } from '../../shared/icon';
           <div class="stat-icon"><app-icon name="utensils" /></div>
           <div class="stat-label">Menu items</div>
           <div class="stat-value">{{ store.menu().length }}</div>
-          <div class="stat-foot">Across {{ categories().length - 1 }} categories</div>
+          <div class="stat-foot">Across {{ store.menuCategories().length }} categories</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="check-circle" /></div>
@@ -51,9 +62,10 @@ import { Icon } from '../../shared/icon';
       <div class="card">
         <div class="card-head" style="flex-wrap: wrap">
           <div class="chip-row">
-            @for (category of categories(); track category) {
-              <button class="chip" type="button" [class.active]="active() === category" (click)="active.set(category)">
-                {{ category }}
+            <button class="chip" type="button" [class.active]="active() === 'all'" (click)="active.set('all')">All</button>
+            @for (category of store.menuCategories(); track category.id) {
+              <button class="chip" type="button" [class.active]="active() === category.id" (click)="active.set(category.id)">
+                {{ category.name }}
               </button>
             }
           </div>
@@ -76,13 +88,10 @@ import { Icon } from '../../shared/icon';
               @for (item of filtered(); track item.id) {
                 <tr>
                   <td>
-                    <span class="row">
-                      <span class="sum-emoji">{{ item.emoji }}</span>
-                      <span>
-                        <strong>{{ item.name }}</strong><br />
-                        <span class="tiny muted">{{ item.description }}</span>
-                      </span>
-                    </span>
+                    <strong>{{ item.name }}</strong><br />
+                    @if (item.description) {
+                      <span class="tiny muted">{{ item.description }}</span>
+                    }
                   </td>
                   <td class="muted">{{ item.category }}</td>
                   <td class="t-right strong num">{{ money(item.price) }}</td>
@@ -107,7 +116,13 @@ import { Icon } from '../../shared/icon';
           <div class="empty">
             <app-icon name="utensils" />
             <strong>No items found</strong>
-            <p>Add a dish or change the category filter.</p>
+            <p>
+              @if (store.menuCategories().length) {
+                Add a dish or change the category filter.
+              } @else {
+                Create a category first, then add menu items to it.
+              }
+            </p>
           </div>
         }
       </div>
@@ -127,17 +142,13 @@ import { Icon } from '../../shared/icon';
             <div class="grid grid-2" style="gap: 12px">
               <div class="field">
                 <label class="label" for="item-name">Name</label>
-                <input id="item-name" class="input" [(ngModel)]="draft.name" placeholder="Grilled Chicken" />
-              </div>
-              <div class="field">
-                <label class="label" for="item-emoji">Icon</label>
-                <input id="item-emoji" class="input" [(ngModel)]="draft.emoji" maxlength="4" placeholder="🍗" />
+                <input id="item-name" class="input" [(ngModel)]="draft.name" />
               </div>
               <div class="field">
                 <label class="label" for="item-category">Category</label>
-                <select id="item-category" class="select" [(ngModel)]="draft.category">
-                  @for (category of categories().slice(1); track category) {
-                    <option [value]="category">{{ category }}</option>
+                <select id="item-category" class="select" [(ngModel)]="draft.categoryId">
+                  @for (category of store.menuCategories(); track category.id) {
+                    <option [value]="category.id">{{ category.name }}</option>
                   }
                 </select>
               </div>
@@ -161,7 +172,7 @@ import { Icon } from '../../shared/icon';
             </div>
             <div class="field mt-3">
               <label class="label" for="item-desc">Description</label>
-              <input id="item-desc" class="input" [(ngModel)]="draft.description" placeholder="Short description for the menu" />
+              <input id="item-desc" class="input" [(ngModel)]="draft.description" />
             </div>
             @if (error()) {
               <div class="auth-error mt-3">{{ error() }}</div>
@@ -169,7 +180,38 @@ import { Icon } from '../../shared/icon';
           </div>
           <div class="modal-foot">
             <button class="btn btn-ghost" type="button" (click)="modalOpen.set(false)">Cancel</button>
-            <button class="btn btn-primary" type="button" (click)="save()">{{ editingId() ? 'Save changes' : 'Add item' }}</button>
+            <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="save()">
+              {{ busy() ? 'Saving…' : editingId() ? 'Save changes' : 'Add item' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (categoryOpen()) {
+      <div class="modal-backdrop" (click)="categoryOpen.set(false)">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <div class="modal-head">
+            <div>
+              <h3>New category</h3>
+              <p>Menu items are grouped by category on every order screen.</p>
+            </div>
+            <button class="modal-close" type="button" (click)="categoryOpen.set(false)"><app-icon name="x" /></button>
+          </div>
+          <div class="modal-body">
+            <div class="field">
+              <label class="label" for="category-name">Name</label>
+              <input id="category-name" class="input" [(ngModel)]="categoryName" />
+            </div>
+            @if (error()) {
+              <div class="auth-error mt-3">{{ error() }}</div>
+            }
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost" type="button" (click)="categoryOpen.set(false)">Cancel</button>
+            <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="saveCategory()">
+              {{ busy() ? 'Saving…' : 'Add category' }}
+            </button>
           </div>
         </div>
       </div>
@@ -182,76 +224,120 @@ export class MenuPage {
 
   protected readonly money = money;
   protected readonly query = signal('');
-  protected readonly active = signal('All');
+  protected readonly active = signal('all');
   protected readonly modalOpen = signal(false);
+  protected readonly categoryOpen = signal(false);
   protected readonly editingId = signal<string | null>(null);
   protected readonly error = signal('');
+  protected readonly busy = signal(false);
+  protected categoryName = '';
 
-  protected draft: MenuItem = this.blank();
+  protected draft: MenuDraft = this.blank();
 
-  protected readonly categories = computed(() => ['All', ...new Set(this.store.menu().map((m) => m.category))]);
   protected readonly availableCount = computed(() => this.store.menu().filter((m) => m.available).length);
 
   protected readonly filtered = computed(() => {
     const query = this.query().trim().toLowerCase();
     return this.store
       .menu()
-      .filter((m) => this.active() === 'All' || m.category === this.active())
-      .filter((m) => !query || `${m.name} ${m.description}`.toLowerCase().includes(query));
+      .filter((m) => this.active() === 'all' || m.categoryId === this.active())
+      .filter((m) => !query || `${m.name} ${m.description ?? ''}`.toLowerCase().includes(query));
   });
 
-  protected toggle(item: MenuItem): void {
-    this.store.setAvailability(item.id, !item.available);
+  protected async toggle(item: MenuItem): Promise<void> {
+    const result = await this.store.setAvailability(item.id, !item.available);
+    if (!result.ok) {
+      this.toast.show(result.error, 'error');
+      return;
+    }
     this.toast.show(item.available ? `${item.name} marked sold out` : `${item.name} is available again`, 'info');
   }
 
   protected openNew(): void {
     this.draft = this.blank();
-    this.draft.category = this.active() === 'All' ? this.categories()[1] ?? 'Mains' : this.active();
+    this.draft.categoryId = this.active() === 'all' ? this.store.menuCategories()[0]?.id ?? '' : this.active();
     this.editingId.set(null);
     this.error.set('');
     this.modalOpen.set(true);
   }
 
   protected openEdit(item: MenuItem): void {
-    this.draft = { ...item };
+    this.draft = {
+      id: item.id,
+      categoryId: item.categoryId,
+      name: item.name,
+      description: item.description ?? '',
+      price: item.price,
+      taxRate: item.taxRate,
+      available: item.available,
+    };
     this.editingId.set(item.id);
     this.error.set('');
     this.modalOpen.set(true);
   }
 
-  protected save(): void {
+  protected openCategory(): void {
+    this.categoryName = '';
+    this.error.set('');
+    this.categoryOpen.set(true);
+  }
+
+  protected async saveCategory(): Promise<void> {
+    const name = this.categoryName.trim();
+    if (!name) {
+      this.error.set('Give the category a name.');
+      return;
+    }
+    this.busy.set(true);
+    const result = await this.store.createCategory(name);
+    this.busy.set(false);
+    if (!result.ok) {
+      this.error.set(result.error);
+      return;
+    }
+    this.categoryOpen.set(false);
+    this.toast.show('Category added');
+  }
+
+  protected async save(): Promise<void> {
     if (!this.draft.name.trim()) {
       this.error.set('Give the item a name.');
+      return;
+    }
+    if (!this.draft.categoryId) {
+      this.error.set('Choose a category.');
       return;
     }
     if (!this.draft.price || this.draft.price <= 0) {
       this.error.set('Price must be greater than zero.');
       return;
     }
-    const id = this.editingId() ?? `m-${Date.now()}`;
-    this.store.saveMenuItem({
-      ...this.draft,
-      id,
+    this.busy.set(true);
+    const result = await this.store.saveMenuItem({
+      id: this.draft.id,
+      categoryId: this.draft.categoryId,
       name: this.draft.name.trim(),
       price: Math.round(+this.draft.price * 100) / 100,
       taxRate: +this.draft.taxRate || 0,
       description: this.draft.description.trim(),
-      emoji: this.draft.emoji.trim() || '🍽️',
+      available: this.draft.available,
     });
+    this.busy.set(false);
+    if (!result.ok) {
+      this.error.set(result.error);
+      return;
+    }
     this.modalOpen.set(false);
     this.toast.show(this.editingId() ? 'Menu item updated' : 'Menu item added');
   }
 
-  private blank(): MenuItem {
+  private blank(): MenuDraft {
     return {
-      id: '',
+      categoryId: this.store.menuCategories()[0]?.id ?? '',
       name: '',
-      category: 'Mains',
+      description: '',
       price: 0,
       taxRate: this.store.settings().taxRate,
-      emoji: '🍽️',
-      description: '',
       available: true,
     };
   }

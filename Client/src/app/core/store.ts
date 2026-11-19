@@ -1,132 +1,565 @@
-import { computed, Injectable, signal } from '@angular/core';
+import { computed, inject, Injectable, signal } from '@angular/core';
+import { ApiService } from './api.service';
 import {
   AuditEvent,
-  AuditKind,
   Bill,
-  bill,
-  dayKey,
+  BillItem,
+  BillStatus,
+  CancellationReport,
+  DEFAULT_SETTINGS,
   Issue,
-  ISSUE_LABEL,
   IssueReason,
+  ItemStatus,
+  KitchenTicket,
+  KitchenTurnaround,
+  MenuCategory,
   MenuItem,
-  money,
   Order,
   OrderLine,
-  orderTotal,
+  OrderStatus,
   PayMethod,
+  PayState,
   Payment,
-  Role,
+  PaymentStatus,
+  PaymentStatusInfo,
+  Reports,
+  roleFrom,
+  SalesSummary,
   Settings,
-  shortDate,
   StaffUser,
+  Table,
+  TipEntry,
+  WaiterPerformance,
 } from './models';
-import { createSeed, SeedData } from './seed';
+import { SessionService } from './session.service';
+
+export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string };
 
 export interface DraftLine {
   menuItemId: string;
-  qty: number;
-  notes: string;
+  quantity: number;
+  notes?: string;
 }
 
-const byNewest = <T extends { createdAt: string }>(a: T, b: T) =>
-  new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+export interface BillRequest {
+  tableId: string;
+  tipAmount?: number;
+  discountAmount?: number;
+}
 
-const byNewestEvent = (a: AuditEvent, b: AuditEvent) =>
-  new Date(b.at).getTime() - new Date(a.at).getTime();
+export interface PaymentRequest {
+  billId: string;
+  method: PayMethod;
+  tipAmount: number;
+  customerPhone?: string;
+  amountTendered?: number;
+}
+
+export interface MenuItemInput {
+  id?: string;
+  categoryId: string;
+  name: string;
+  description?: string;
+  price: number;
+  taxRate: number;
+  available: boolean;
+}
+
+export interface UserInput {
+  id?: string;
+  fullName: string;
+  username: string;
+  phone?: string;
+  role: string;
+  pin?: string;
+  password?: string;
+}
+
+interface UserDto {
+  id: string;
+  fullName: string;
+  username: string;
+  phone?: string | null;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
+interface OrderItemDto {
+  id: string;
+  menuItemId: string;
+  menuItemName: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  customerNotes?: string | null;
+  itemStatus: ItemStatus;
+}
+
+interface OrderDto {
+  id: string;
+  orderNumber: string;
+  tableNumber: string;
+  waiterId: string;
+  waiterName: string;
+  parentOrderId?: string | null;
+  orderStatus: OrderStatus;
+  paymentStatus: PaymentStatus;
+  subtotal: number;
+  taxTotal: number;
+  tipAmount: number;
+  grandTotal: number;
+  customerNotes?: string | null;
+  createdAt: string;
+  preparingAt?: string | null;
+  readyAt?: string | null;
+  servedAt?: string | null;
+  items: OrderItemDto[];
+}
+
+interface BillItemDto {
+  id: string;
+  orderId: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxRate: number;
+  lineTotal: number;
+}
+
+interface BillDto {
+  id: string;
+  diningSessionId: string;
+  tableId: string;
+  tableNumber: string;
+  billNumber: string;
+  subtotal: number;
+  taxTotal: number;
+  discountAmount: number;
+  tipAmount: number;
+  grandTotal: number;
+  status: BillStatus;
+  createdAt: string;
+  paidAt?: string | null;
+  items: BillItemDto[];
+}
+
+interface PaymentDto {
+  id: string;
+  billId?: string | null;
+  orderId: string;
+  orderNumber: string;
+  billNumber?: string | null;
+  waiterId?: string | null;
+  waiterName?: string | null;
+  method: PayMethod;
+  baseAmount: number;
+  tipAmount: number;
+  totalAmount: number;
+  status: PayState;
+  amountTendered?: number | null;
+  changeGiven?: number | null;
+  customerPhone?: string | null;
+  createdAt: string;
+  settledAt?: string | null;
+  actor: string;
+  tipPaidOut: boolean;
+  qrData?: string | null;
+}
+
+interface PaymentStatusDto {
+  paymentId: string;
+  orderId: string;
+  status: string;
+  isSettled: boolean;
+  totalAmount: number;
+  settledAt?: string | null;
+}
+
+interface TipDto {
+  tipId: string;
+  waiterId: string;
+  waiterName: string;
+  orderId: string;
+  orderNumber: string;
+  tipAmount: number;
+  payoutStatus: string;
+  createdAt: string;
+  paidOutAt?: string | null;
+}
+
+interface MenuItemDto {
+  id: string;
+  categoryId: string;
+  categoryName: string;
+  name: string;
+  description?: string | null;
+  unitPrice: number;
+  taxRate: number;
+  isAvailable: boolean;
+  imageUrl?: string | null;
+}
+
+interface MenuCategoryDto {
+  id: string;
+  name: string;
+  description?: string | null;
+  displayOrder: number;
+  isActive: boolean;
+  items: MenuItemDto[];
+}
+
+interface TableDto {
+  id: string;
+  number: string;
+  name?: string | null;
+  capacity: number;
+  status: string;
+  isActive: boolean;
+}
+
+interface KitchenItemDto {
+  id: string;
+  menuItemId: string;
+  menuItemName: string;
+  quantity: number;
+  customerNotes?: string | null;
+  itemStatus: ItemStatus;
+}
+
+interface KitchenTicketDto {
+  orderId: string;
+  orderNumber: string;
+  tableNumber: string;
+  waiterName: string;
+  orderStatus: OrderStatus;
+  paymentStatus: PaymentStatus;
+  createdAt: string;
+  elapsedMinutes: number;
+  items: KitchenItemDto[];
+}
+
+interface IssueDto {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  tableNumber: string;
+  item: string;
+  reason: string;
+  note?: string | null;
+  createdAt: string;
+  isResolved: boolean;
+  resolvedBy?: string | null;
+  resolvedAt?: string | null;
+  replacementOrderId?: string | null;
+}
+
+interface AuditDto {
+  id: string;
+  at: string;
+  actor: string;
+  role: string;
+  action: string;
+  detail: string;
+  kind: string;
+}
+
+interface SettingsDto {
+  restaurant: string;
+  branch: string;
+  phone?: string | null;
+  address?: string | null;
+  taxRate: number;
+  serviceCharge: number;
+  tipPresets: number[];
+  cash: boolean;
+  qr: boolean;
+  phonePay: boolean;
+  webhookSecret?: string | null;
+}
 
 @Injectable({ providedIn: 'root' })
 export class Store {
-  private seed: SeedData = createSeed();
+  private readonly api = inject(ApiService);
+  private readonly session = inject(SessionService);
 
-  readonly users = signal<StaffUser[]>(this.seed.users);
-  readonly menu = signal<MenuItem[]>(this.seed.menu);
-  readonly orders = signal<Order[]>(this.seed.orders.slice().sort(byNewest));
-  readonly payments = signal<Payment[]>(this.seed.payments.slice().sort(byNewest));
-  readonly issues = signal<Issue[]>(this.seed.issues.slice().sort(byNewest));
-  readonly audit = signal<AuditEvent[]>(this.seed.audit.slice().sort(byNewestEvent));
-  readonly settings = signal<Settings>(this.seed.settings);
-  readonly actor = signal<StaffUser | null>(null);
+  readonly settings = signal<Settings>(DEFAULT_SETTINGS);
+  readonly tables = signal<Table[]>([]);
+  readonly menuCategories = signal<MenuCategory[]>([]);
+  readonly orders = signal<Order[]>([]);
+  readonly kitchenTickets = signal<KitchenTicket[]>([]);
+  readonly bills = signal<Bill[]>([]);
+  readonly payments = signal<Payment[]>([]);
+  readonly tips = signal<TipEntry[]>([]);
+  readonly issues = signal<Issue[]>([]);
+  readonly audit = signal<AuditEvent[]>([]);
+  readonly users = signal<StaffUser[]>([]);
+  readonly reports = signal<Reports>({
+    summary: null,
+    waiters: [],
+    cancellations: null,
+    turnaround: null,
+  });
+  readonly loaded = signal(false);
+  readonly refreshing = signal(false);
 
-  private seq = this.seed.nextNumber;
-
-  /* ------------------------------------------------------------------ */
-  /* Derived state                                                       */
-  /* ------------------------------------------------------------------ */
+  readonly menu = computed<MenuItem[]>(() => this.menuCategories().flatMap((c) => c.items));
 
   readonly kitchenQueue = computed(() =>
-    this.orders()
-      .filter((o) => o.status === 'PENDING' || o.status === 'PREPARING')
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+    this.kitchenTickets().filter((t) => t.status === 'PENDING' || t.status === 'PREPARING'),
   );
 
-  readonly readyOrders = computed(() =>
-    this.orders()
-      .filter((o) => o.status === 'READY')
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
-  );
+  readonly readyOrders = computed(() => this.orders().filter((o) => o.status === 'READY'));
 
-  readonly openBills = computed(() =>
-    this.orders()
-      .filter(
-        (o) =>
-          (o.status === 'READY' || o.status === 'SERVED') &&
-          (o.paymentStatus === 'UNPAID' || o.paymentStatus === 'INITIATED' || o.paymentStatus === 'RETRACTED'),
-      )
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
-  );
+  readonly openBills = computed(() => this.bills().filter((b) => b.status === 'REQUESTED' || b.status === 'PAYMENTINITIATED'));
 
-  readonly activeOrders = computed(() =>
-    this.orders().filter((o) => o.status === 'PENDING' || o.status === 'PREPARING' || o.status === 'READY'),
-  );
-
-  readonly openIssues = computed(() => this.issues().filter((i) => i.status === 'OPEN'));
+  readonly openIssues = computed(() => this.issues().filter((i) => !i.resolved));
 
   readonly unreadIssues = computed(() => this.openIssues().length);
 
   readonly metrics = computed(() => {
-    const today = dayKey(new Date().toISOString());
-    const paidToday = this.payments().filter((p) => p.status === 'PAID' && dayKey(p.createdAt) === today);
-    const refundedToday = this.payments().filter(
-      (p) => p.status === 'REFUNDED' && p.settledAt && dayKey(p.settledAt) === today,
-    );
-    const ordersToday = this.orders().filter((o) => dayKey(o.createdAt) === today);
-    const gross = paidToday.reduce((s, p) => s + p.total, 0);
-    const tips = paidToday.reduce((s, p) => s + p.tip, 0);
-    const refunds = refundedToday.reduce((s, p) => s + p.total, 0);
-    const outstanding = this.openBills().reduce((s, o) => s + orderTotal(o, this.settings().serviceCharge), 0);
-    const prepSamples = this.orders().filter((o) => o.preparingAt && o.readyAt);
-    const avgPrep =
-      prepSamples.length === 0
-        ? 0
-        : Math.round(
-            prepSamples.reduce(
-              (s, o) =>
-                s + (new Date(o.readyAt as string).getTime() - new Date(o.preparingAt as string).getTime()) / 60000,
-              0,
-            ) / prepSamples.length,
-          );
+    const summary = this.reports().summary;
     return {
-      orders: ordersToday.length,
-      gross: Math.round(gross * 100) / 100,
-      collected: Math.round((gross - refunds) * 100) / 100,
-      outstanding: Math.round(outstanding * 100) / 100,
-      refunds: Math.round(refunds * 100) / 100,
-      tips: Math.round(tips * 100) / 100,
-      avgPrep,
+      orders: summary?.totalOrders ?? this.orders().length,
+      gross: summary?.grossSales ?? 0,
+      collected: summary?.netRevenue ?? 0,
+      tips: summary?.tipsCollected ?? 0,
+      tax: summary?.taxCollected ?? 0,
+      cancelled: summary?.cancelledOrders ?? 0,
+      outstanding: this.openBills().reduce((sum, b) => sum + b.total, 0),
       activeIssues: this.openIssues().length,
+      activeTickets: this.orders().filter((o) => o.status !== 'SERVED' && o.status !== 'CANCELLEDBYKITCHEN').length,
+      avgPrep: this.reports().turnaround?.avgPrepMinutes ?? 0,
     };
   });
+
+  /* ------------------------------------------------------------------ */
+  /* Loaders                                                             */
+  /* ------------------------------------------------------------------ */
+
+  async refreshAll(): Promise<void> {
+    if (this.refreshing()) return;
+    this.refreshing.set(true);
+    const jobs: Promise<unknown>[] = [this.loadSettings()];
+    if (this.can('tables.view')) jobs.push(this.loadTables());
+    if (this.can('menu.view')) jobs.push(this.loadMenu());
+    if (this.can('orders.view')) jobs.push(this.loadOrders(), this.loadIssues());
+    if (this.can('kitchen.view')) jobs.push(this.loadKitchen());
+    if (this.can('payments.view')) jobs.push(this.loadBills(), this.loadPayments());
+    if (this.can('tips.view')) jobs.push(this.loadTips());
+    if (this.can('reports.view')) jobs.push(this.loadAudit());
+    if (this.can('users.view')) jobs.push(this.loadUsers());
+    await Promise.allSettled(jobs);
+    this.loaded.set(true);
+    this.refreshing.set(false);
+  }
+
+  async loadSettings(): Promise<void> {
+    await this.guard(async () => {
+      const dto = await this.api.get<SettingsDto>('/settings');
+      this.settings.set({
+        restaurant: dto.restaurant,
+        branch: dto.branch,
+        phone: dto.phone ?? '',
+        address: dto.address ?? '',
+        taxRate: dto.taxRate,
+        serviceCharge: dto.serviceCharge,
+        tipPresets: dto.tipPresets ?? [],
+        cash: dto.cash,
+        qr: dto.qr,
+        phonePay: dto.phonePay,
+        webhookSecret: dto.webhookSecret ?? '',
+      });
+    });
+  }
+
+  async loadTables(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.get<TableDto[]>('/tables');
+      this.tables.set(
+        data.map((t) => ({
+          id: t.id,
+          number: t.number,
+          name: t.name ?? undefined,
+          capacity: t.capacity,
+          status: (t.status ?? '').toUpperCase(),
+          active: t.isActive,
+        })),
+      );
+    });
+  }
+
+  async loadMenu(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.get<MenuCategoryDto[]>('/menu/categories');
+      this.menuCategories.set(
+        data.map((c) => ({
+          id: c.id,
+          name: c.name,
+          description: c.description ?? undefined,
+          displayOrder: c.displayOrder,
+          active: c.isActive,
+          items: c.items.map((i) => this.mapMenuItem(i)),
+        })),
+      );
+    });
+  }
+
+  async loadOrders(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.getAll<OrderDto>('/orders');
+      this.orders.set(data.map((o) => this.mapOrder(o)));
+    });
+  }
+
+  async loadKitchen(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.getAll<KitchenTicketDto>('/kitchen/queue');
+      this.kitchenTickets.set(
+        data
+          .map((t) => ({
+            id: t.orderId,
+            number: t.orderNumber,
+            table: t.tableNumber,
+            waiterName: t.waiterName,
+            status: t.orderStatus,
+            paymentStatus: t.paymentStatus,
+            createdAt: t.createdAt,
+            elapsedMinutes: t.elapsedMinutes,
+            items: t.items.map((i) => ({
+              id: i.id,
+              menuItemId: i.menuItemId,
+              name: i.menuItemName,
+              qty: i.quantity,
+              notes: i.customerNotes ?? undefined,
+              status: i.itemStatus,
+            })),
+          }))
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
+      );
+    });
+  }
+
+  async loadBills(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.get<BillDto[]>('/bills/active');
+      this.bills.set(data.map((b) => this.mapBill(b)));
+    });
+  }
+
+  async loadBill(billId: string): Promise<Bill | null> {
+    const result = await this.guard(async () => {
+      const bill = this.mapBill(await this.api.get<BillDto>(`/bills/${billId}`));
+      this.upsertBill(bill);
+      return bill;
+    });
+    return result.ok ? result.data : null;
+  }
+
+  async loadPayments(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.getAll<PaymentDto>('/payments');
+      this.payments.set(data.map((p) => this.mapPayment(p)));
+    });
+  }
+
+  async loadTips(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.getAll<TipDto>('/payments/tips');
+      this.tips.set(
+        data.map((t) => ({
+          id: t.tipId,
+          waiterId: t.waiterId,
+          waiterName: t.waiterName,
+          orderId: t.orderId,
+          orderNumber: t.orderNumber,
+          amount: t.tipAmount,
+          payoutStatus: t.payoutStatus,
+          createdAt: t.createdAt,
+          paidOutAt: t.paidOutAt ?? undefined,
+        })),
+      );
+    });
+  }
+
+  async loadIssues(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.getAll<IssueDto>('/issues');
+      this.issues.set(
+        data
+          .map((i) => ({
+            id: i.id,
+            orderId: i.orderId,
+            orderNumber: i.orderNumber,
+            table: i.tableNumber,
+            item: i.item,
+            reason: i.reason,
+            note: i.note ?? undefined,
+            createdAt: i.createdAt,
+            resolved: i.isResolved,
+            resolvedBy: i.resolvedBy ?? undefined,
+            resolvedAt: i.resolvedAt ?? undefined,
+            replacementOrderId: i.replacementOrderId ?? undefined,
+          }))
+          .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()),
+      );
+    });
+  }
+
+  async loadAudit(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.getAll<AuditDto>('/audit');
+      this.audit.set(
+        data.map((e) => ({
+          id: e.id,
+          at: e.at,
+          actor: e.actor,
+          role: e.role,
+          action: e.action,
+          detail: e.detail,
+          kind: e.kind.toLowerCase(),
+        })),
+      );
+    });
+  }
+
+  async loadUsers(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.getAll<UserDto>('/users');
+      this.users.set(data.map((u) => this.mapUser(u)));
+    });
+  }
+
+  async loadReports(from: Date, to: Date): Promise<void> {
+    const params = { from: from.toISOString(), to: to.toISOString() };
+    const [summary, waiters, cancellations, turnaround] = await Promise.allSettled([
+      this.api.get<SalesSummary>('/reports/sales-summary', params),
+      this.api.get<{ waiters: WaiterPerformance[] }>('/reports/waiterperformance', params),
+      this.api.get<CancellationReport>('/reports/cancellations', params),
+      this.api.get<KitchenTurnaround>('/reports/kitchenturnaround', params),
+    ]);
+    this.reports.set({
+      summary: summary.status === 'fulfilled' ? summary.value : null,
+      waiters: waiters.status === 'fulfilled' ? waiters.value.waiters : [],
+      cancellations: cancellations.status === 'fulfilled' ? cancellations.value : null,
+      turnaround: turnaround.status === 'fulfilled' ? turnaround.value : null,
+    });
+  }
 
   /* ------------------------------------------------------------------ */
   /* Lookups                                                             */
   /* ------------------------------------------------------------------ */
 
+  can(permission: string): boolean {
+    return this.session.hasPermission(permission);
+  }
+
   order(id: string): Order | undefined {
     return this.orders().find((o) => o.id === id);
   }
 
-  orderByNumber(number: string): Order | undefined {
-    return this.orders().find((o) => o.number === number);
+  bill(id: string): Bill | undefined {
+    return this.bills().find((b) => b.id === id);
   }
 
   payment(id: string): Payment | undefined {
@@ -141,23 +574,28 @@ export class Store {
     return this.users().find((u) => u.id === id);
   }
 
-  billFor(order: Order): Bill {
-    return bill(order.lines, this.settings().serviceCharge);
+  tableByNumber(number: string): Table | undefined {
+    return this.tables().find((t) => t.number === number);
   }
 
-  totalFor(order: Order): number {
-    return orderTotal(order, this.settings().serviceCharge);
+  activeBillForTable(tableId: string): Bill | undefined {
+    return this.openBills().find((b) => b.tableId === tableId);
   }
 
-  paymentFor(orderId: string): Payment | undefined {
-    return this.payments().find(
-      (p) =>
-        p.orderId === orderId &&
-        (p.status === 'PAID' ||
-          p.status === 'INITIATED' ||
-          p.status === 'REFUNDED' ||
-          p.status === 'TRANSFERRED'),
-    );
+  paymentsForBill(billId: string): Payment[] {
+    return this.payments().filter((p) => p.billId === billId);
+  }
+
+  pendingPaymentForBill(billId: string): Payment | undefined {
+    return this.payments().find((p) => p.billId === billId && p.status === 'INITIATED');
+  }
+
+  paidPaymentForBill(billId: string): Payment | undefined {
+    return this.payments().find((p) => p.billId === billId && p.status === 'PAID');
+  }
+
+  orderForBill(bill: Bill | null | undefined): Order | undefined {
+    return bill?.items[0] ? this.order(bill.items[0].orderId) : undefined;
   }
 
   ordersForWaiter(waiterId: string, scope: 'active' | 'all' = 'active'): Order[] {
@@ -166,529 +604,457 @@ export class Store {
     return list.filter((o) => o.status === 'PENDING' || o.status === 'PREPARING' || o.status === 'READY');
   }
 
-  tipsFor(waiterId: string): Payment[] {
-    return this.payments().filter((p) => p.waiterId === waiterId && p.tip > 0 && p.status === 'PAID');
-  }
-
-  tipTotal(waiterId: string): number {
-    return this.tipsFor(waiterId).reduce((s, p) => s + p.tip, 0);
-  }
-
-  salesSeries(range: 'today' | 'week'): { label: string; value: number }[] {
-    const paid = this.payments().filter((p) => p.status === 'PAID');
-    if (range === 'week') {
-      const out: { label: string; value: number }[] = [];
-      for (let d = 6; d >= 0; d -= 1) {
-        const date = new Date();
-        date.setDate(date.getDate() - d);
-        const key = dayKey(date.toISOString());
-        out.push({
-          label: shortDate(date.toISOString()),
-          value: Math.round(paid.filter((p) => dayKey(p.createdAt) === key).reduce((s, p) => s + p.total, 0)),
-        });
-      }
-      return out;
-    }
-    const today = dayKey(new Date().toISOString());
-    return Array.from({ length: 14 }, (_, i) => {
-      const hour = 9 + i;
-      return {
-        label: `${hour > 12 ? hour - 12 : hour}${hour >= 12 ? 'PM' : 'AM'}`,
-        value: Math.round(
-          paid
-            .filter((p) => dayKey(p.createdAt) === today && new Date(p.createdAt).getHours() === hour)
-            .reduce((s, p) => s + p.total, 0),
-        ),
-      };
-    });
+  tipsFor(waiterId: string): TipEntry[] {
+    return this.tips().filter((t) => t.waiterId === waiterId && t.payoutStatus === 'UNSETTLED');
   }
 
   /* ------------------------------------------------------------------ */
   /* Orders                                                              */
   /* ------------------------------------------------------------------ */
 
-  createOrder(table: string, waiterId: string, draft: DraftLine[], notes = ''): Order {
-    const waiter = this.user(waiterId);
-    if (!waiter) throw new Error('Waiter not found');
-    this.seq += 1;
-    const lines: OrderLine[] = [];
-    draft.forEach((d, i) => {
-      const item = this.menuItem(d.menuItemId);
-      if (!item) return;
-      lines.push({
-        id: `l-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
-        itemId: item.id,
-        name: item.name,
-        emoji: item.emoji,
-        qty: d.qty,
-        unitPrice: item.price,
-        taxRate: item.taxRate,
-        notes: d.notes,
-        status: 'ACTIVE',
+  async createOrder(tableNumber: string, items: DraftLine[], notes = ''): Promise<Result<Order>> {
+    return await this.guard(async () => {
+      const created = await this.api.post<OrderDto>('/orders', {
+        tableNumber,
+        items: items.map((i) => ({ menuItemId: i.menuItemId, quantity: i.quantity, customerNotes: i.notes })),
+        customerNotes: notes || null,
       });
+      const order = this.mapOrder(created);
+      this.orders.update((list) => [order, ...list]);
+      return order;
     });
-    const order: Order = {
-      id: `o${this.seq}`,
-      number: String(this.seq),
-      table,
-      waiterId,
-      waiterName: waiter.name,
-      status: 'PENDING',
-      paymentStatus: 'UNPAID',
-      lines,
-      notes,
-      tip: 0,
-      createdAt: new Date().toISOString(),
-    };
-    this.orders.update((list) => [order, ...list]);
-    this.log('Order sent to kitchen', `Order #${order.number} · Table ${order.table}`, 'order');
-    return order;
   }
 
-  addLine(orderId: string, menuId: string): void {
-    const item = this.menuItem(menuId);
-    if (!item) return;
-    this.orders.update((list) =>
-      list.map((o) => {
-        if (o.id !== orderId) return o;
-        const existing = o.lines.find((l) => l.itemId === menuId && l.status === 'ACTIVE' && !l.notes);
-        if (existing) {
-          return {
-            ...o,
-            lines: o.lines.map((l) => (l.id === existing.id ? { ...l, qty: l.qty + 1 } : l)),
-          };
-        }
-        const line: OrderLine = {
-          id: `l-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          itemId: item.id,
-          name: item.name,
-          emoji: item.emoji,
-          qty: 1,
-          unitPrice: item.price,
-          taxRate: item.taxRate,
-          notes: '',
-          status: 'ACTIVE',
-        };
-        return { ...o, lines: [...o.lines, line] };
-      }),
-    );
-  }
-
-  changeQty(orderId: string, lineId: string, delta: number): void {
-    this.orders.update((list) =>
-      list.map((o) => {
-        if (o.id !== orderId) return o;
-        const lines = o.lines
-          .map((l) => (l.id === lineId ? { ...l, qty: Math.max(0, l.qty + delta) } : l))
-          .filter((l) => l.qty > 0);
-        return { ...o, lines };
-      }),
-    );
-  }
-
-  removeLine(orderId: string, lineId: string): void {
-    this.orders.update((list) =>
-      list.map((o) =>
-        o.id === orderId ? { ...o, lines: o.lines.filter((l) => l.id !== lineId) } : o,
-      ),
-    );
-  }
-
-  setLineNote(orderId: string, lineId: string, notes: string): void {
-    this.orders.update((list) =>
-      list.map((o) =>
-        o.id === orderId
-          ? { ...o, lines: o.lines.map((l) => (l.id === lineId ? { ...l, notes } : l)) }
-          : o,
-      ),
-    );
-  }
-
-  setOrderNote(orderId: string, notes: string): void {
-    this.orders.update((list) => list.map((o) => (o.id === orderId ? { ...o, notes } : o)));
-  }
-
-  advance(orderId: string): void {
-    const order = this.order(orderId);
-    if (!order) return;
-    if (order.status === 'PENDING') {
-      this.patchOrder(orderId, {
-        status: 'PREPARING',
-        preparingAt: new Date().toISOString(),
+  async addItems(orderId: string, items: DraftLine[]): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.post(`/orders/${orderId}/items`, {
+        items: items.map((i) => ({ menuItemId: i.menuItemId, quantity: i.quantity, customerNotes: i.notes })),
       });
-      this.log('Order accepted by kitchen', `Order #${order.number} · Table ${order.table}`, 'order');
-    } else if (order.status === 'PREPARING') {
-      this.patchOrder(orderId, {
-        status: 'READY',
-        readyAt: new Date().toISOString(),
-        lines: order.lines.map((l) => (l.status === 'ACTIVE' ? { ...l, status: 'PREPARED' } : l)),
-      });
-      this.log('Order marked ready', `Order #${order.number} · Table ${order.table}`, 'order');
-    }
-  }
-
-  serve(orderId: string): void {
-    const order = this.order(orderId);
-    if (!order || order.status !== 'READY') return;
-    this.patchOrder(orderId, { status: 'SERVED', servedAt: new Date().toISOString() });
-    this.log('Order served', `Order #${order.number} · Table ${order.table}`, 'order');
-  }
-
-  cancelLine(orderId: string, lineId: string, reason: IssueReason, note: string): void {
-    const order = this.order(orderId);
-    if (!order) return;
-    const line = order.lines.find((l) => l.id === lineId);
-    if (!line) return;
-    const lines = order.lines.map((l) => (l.id === lineId ? { ...l, status: 'CANCELLED' as const } : l));
-    const allCancelled = lines.every((l) => l.status === 'CANCELLED');
-    this.patchOrder(orderId, {
-      lines,
-      status: allCancelled ? 'CANCELLED' : order.status,
-      cancelReason: allCancelled ? ISSUE_LABEL[reason] : order.cancelReason,
+      await this.loadOrders();
     });
-    this.addIssue(order, line.name, reason, note);
-    this.log(
-      allCancelled ? 'Order cancelled by kitchen' : 'Item reported unavailable',
-      `Order #${order.number} · ${line.name} · ${ISSUE_LABEL[reason]}`,
-      'cancel',
-    );
   }
 
-  cancelOrder(orderId: string, reason: IssueReason, note: string): void {
-    const order = this.order(orderId);
-    if (!order) return;
-    this.patchOrder(orderId, {
-      status: 'CANCELLED',
-      cancelReason: ISSUE_LABEL[reason],
-      lines: order.lines.map((l) => ({ ...l, status: 'CANCELLED' as const })),
+  async serveOrder(orderId: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch(`/orders/${orderId}/served`);
+      await this.loadOrders();
     });
-    this.addIssue(order, 'Whole order', reason, note);
-    this.log('Order cancelled by kitchen', `Order #${order.number} · ${ISSUE_LABEL[reason]}`, 'cancel');
   }
 
-  reorder(orderId: string): Order | undefined {
+  async reorder(orderId: string, items: DraftLine[]): Promise<Result<Order>> {
     const original = this.order(orderId);
-    if (!original || original.status !== 'CANCELLED') return undefined;
-    this.seq += 1;
-    const replacement: Order = {
-      id: `o${this.seq}`,
-      number: String(this.seq),
-      table: original.table,
-      waiterId: original.waiterId,
-      waiterName: original.waiterName,
-      status: 'PENDING',
-      paymentStatus: 'UNPAID',
-      lines: original.lines.map((l, i) => ({
-        ...l,
-        id: `l-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
-        status: 'ACTIVE',
-      })),
-      notes: original.notes,
-      tip: 0,
-      createdAt: new Date().toISOString(),
-      parentNumber: original.number,
-    };
-    this.orders.update((list) => [replacement, ...list]);
-    this.issues.update((list) =>
-      list.map((i) =>
-        i.orderId === original.id
-          ? { ...i, status: 'RESOLVED', resolvedBy: this.actor()?.name ?? 'Waiter' }
-          : i,
-      ),
-    );
-    this.log('Replacement order created', `Order #${replacement.number} replaces #${original.number}`, 'order');
-    return replacement;
+    if (!original) return { ok: false, error: 'Order not found' };
+    return await this.guard(async () => {
+      const created = await this.api.post<OrderDto>(`/orders/${orderId}/reorder`, {
+        parentOrderId: orderId,
+        tableNumber: original.table,
+        items: items.map((i) => ({ menuItemId: i.menuItemId, quantity: i.quantity, customerNotes: i.notes })),
+        customerNotes: original.notes ?? null,
+      });
+      const order = this.mapOrder(created);
+      this.orders.update((list) => [order, ...list]);
+      await this.loadIssues();
+      return order;
+    });
   }
 
-  resolveIssue(issueId: string): void {
-    const issue = this.issues().find((i) => i.id === issueId);
-    if (!issue) return;
-    this.issues.update((list) =>
-      list.map((i) =>
-        i.id === issueId ? { ...i, status: 'RESOLVED', resolvedBy: this.actor()?.name ?? 'Manager' } : i,
-      ),
-    );
-    this.log('Issue resolved', `Order #${issue.orderNumber} · ${issue.item}`, 'cancel');
+  /* ------------------------------------------------------------------ */
+  /* Kitchen                                                             */
+  /* ------------------------------------------------------------------ */
+
+  async kitchenStatus(orderId: string, status: 'PREPARING' | 'READY'): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch(`/kitchen/orders/${orderId}/status`, { status });
+      await Promise.all([this.loadKitchen(), this.loadOrders()]);
+    });
+  }
+
+  async cancelKitchen(
+    orderId: string,
+    reason: IssueReason,
+    note: string,
+    orderItemId?: string,
+  ): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.post(`/kitchen/orders/${orderId}/cancel`, {
+        reasonCode: reason,
+        reasonNote: note || null,
+        orderItemId: orderItemId ?? null,
+      });
+      await Promise.all([this.loadKitchen(), this.loadOrders(), this.loadIssues()]);
+    });
+  }
+
+  /* ------------------------------------------------------------------ */
+  /* Bills                                                               */
+  /* ------------------------------------------------------------------ */
+
+  async generateBill(request: BillRequest): Promise<Result<Bill>> {
+    return await this.guard(async () => {
+      const bill = this.mapBill(
+        await this.api.post<BillDto>('/bills/generate', {
+          tableId: request.tableId,
+          tipAmount: request.tipAmount ?? 0,
+          discountAmount: request.discountAmount ?? 0,
+        }),
+      );
+      this.upsertBill(bill);
+      await this.loadOrders();
+      return bill;
+    });
+  }
+
+  async reopenBill(billId: string): Promise<Result<Bill>> {
+    return await this.guard(async () => {
+      const bill = this.mapBill(await this.api.post<BillDto>(`/bills/${billId}/reopen`));
+      this.upsertBill(bill);
+      await this.loadOrders();
+      return bill;
+    });
   }
 
   /* ------------------------------------------------------------------ */
   /* Payments                                                            */
   /* ------------------------------------------------------------------ */
 
-  canPay(order: Order): boolean {
-    return (
-      (order.status === 'READY' || order.status === 'SERVED') &&
-      order.paymentStatus !== 'PAID' &&
-      order.paymentStatus !== 'REFUNDED' &&
-      order.paymentStatus !== 'TRANSFERRED'
-    );
+  async initiatePayment(request: PaymentRequest): Promise<Result<Payment>> {
+    return await this.guard(async () => {
+      const dto = await this.api.post<PaymentDto>('/payments/initiate', {
+        billId: request.billId,
+        method: request.method,
+        tipAmount: request.tipAmount,
+        customerPhone: request.customerPhone || null,
+        amountTendered: request.amountTendered ?? null,
+      });
+      const payment = this.mapPayment(dto);
+      this.payments.update((list) => [payment, ...list]);
+      await this.reloadBilling();
+      return payment;
+    });
   }
 
-  payCash(orderId: string, tip: number, tendered: number): Payment | null {
-    const order = this.order(orderId);
-    if (!order || !this.canPay(order)) return null;
-    const b = this.billFor(order);
-    const total = Math.round((b.total + tip) * 100) / 100;
-    if (tendered < total) return null;
-    this.retractPending(orderId);
-    const now = new Date().toISOString();
-    const payment: Payment = {
-      id: `p-${Date.now()}`,
-      orderId,
-      orderNumber: order.number,
-      waiterId: order.waiterId,
-      waiterName: order.waiterName,
-      method: 'CASH',
-      base: b.total,
-      tip,
-      total,
-      status: 'PAID',
-      tendered,
-      change: Math.round((tendered - total) * 100) / 100,
-      createdAt: now,
-      settledAt: now,
-      tipPaidOut: false,
-      actor: this.actor()?.name ?? order.waiterName,
-    };
-    this.payments.update((list) => [payment, ...list]);
-    this.patchOrder(orderId, { paymentStatus: 'PAID', tip });
-    this.log('Cash payment settled', `Order #${order.number} · ${money(total)} ETB`, 'payment');
-    return payment;
+  async paymentStatus(paymentId: string): Promise<PaymentStatusInfo | null> {
+    const result = await this.guard(async () => {
+      const dto = await this.api.get<PaymentStatusDto>(`/payments/${paymentId}/status`);
+      const info: PaymentStatusInfo = {
+        paymentId: dto.paymentId,
+        orderId: dto.orderId,
+        status: dto.status,
+        settled: dto.isSettled,
+        total: dto.totalAmount,
+        settledAt: dto.settledAt ?? undefined,
+      };
+      if (info.settled) await this.reloadBilling();
+      return info;
+    });
+    return result.ok ? result.data : null;
   }
 
-  initiatePayment(orderId: string, method: PayMethod, tip: number, phone?: string): Payment | null {
-    const order = this.order(orderId);
-    if (!order || !this.canPay(order)) return null;
-    this.retractPending(orderId);
-    const b = this.billFor(order);
-    const total = Math.round((b.total + tip) * 100) / 100;
-    const payment: Payment = {
-      id: `p-${Date.now()}`,
-      orderId,
-      orderNumber: order.number,
-      waiterId: order.waiterId,
-      waiterName: order.waiterName,
-      method,
-      base: b.total,
-      tip,
-      total,
-      status: 'INITIATED',
-      phone,
-      createdAt: new Date().toISOString(),
-      tipPaidOut: false,
-      actor: this.actor()?.name ?? order.waiterName,
-    };
-    this.payments.update((list) => [payment, ...list]);
-    this.patchOrder(orderId, { paymentStatus: 'INITIATED', tip });
-    this.log(
-      `${method === 'QR' ? 'QR' : 'Phone'} payment requested`,
-      `Order #${order.number} · ${money(total)} ETB`,
-      'payment',
-    );
-    return payment;
+  async retractPayment(paymentId: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.post(`/payments/${paymentId}/retract`);
+      await Promise.all([this.loadPayments(), this.loadBills(), this.loadOrders()]);
+    });
   }
 
-  confirmPayment(paymentId: string): void {
-    const payment = this.payment(paymentId);
-    if (!payment || payment.status !== 'INITIATED') return;
-    const order = this.order(payment.orderId);
-    const now = new Date().toISOString();
-    this.payments.update((list) =>
-      list.map((p) => (p.id === paymentId ? { ...p, status: 'PAID', settledAt: now } : p)),
-    );
-    if (order) {
-      this.patchOrder(order.id, { paymentStatus: 'PAID', tip: payment.tip });
-      this.log(
-        `${payment.method === 'QR' ? 'QR' : 'Phone'} payment settled`,
-        `Order #${order.number} · ${money(payment.total)} ETB`,
-        'payment',
-      );
-    }
+  async refundPayment(paymentId: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.post(`/payments/${paymentId}/refund`);
+      await this.reloadBilling();
+    });
   }
 
-  retractPayment(paymentId: string): void {
-    const payment = this.payment(paymentId);
-    if (!payment || payment.status !== 'INITIATED') return;
-    this.payments.update((list) =>
-      list.map((p) => (p.id === paymentId ? { ...p, status: 'RETRACTED' } : p)),
-    );
-    this.patchOrder(payment.orderId, { paymentStatus: 'RETRACTED', tip: 0 });
-    this.log('Payment request retracted', `Order #${payment.orderNumber}`, 'payment');
+  async transferPayment(paymentId: string, targetOrderId: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.post(`/payments/${paymentId}/transfer`, { targetOrderId });
+      await this.reloadBilling();
+    });
   }
 
-  refundPayment(paymentId: string): string | null {
-    const payment = this.payment(paymentId);
-    if (!payment) return 'Payment not found';
-    if (payment.status !== 'PAID') return 'Only settled payments can be refunded';
-    const order = this.order(payment.orderId);
-    if (!order) return 'Order not found';
-    if (order.status !== 'SERVED') return 'Refunds are only allowed after the order is served';
-    this.payments.update((list) =>
-      list.map((p) => (p.id === paymentId ? { ...p, status: 'REFUNDED' } : p)),
-    );
-    this.patchOrder(order.id, { paymentStatus: 'REFUNDED', tip: 0 });
-    this.log('Payment refunded', `Order #${order.number} · ${money(payment.total)} ETB`, 'refund');
-    return null;
-  }
-
-  transferPayment(paymentId: string, targetOrderId: string): string | null {
-    const source = this.payment(paymentId);
-    if (!source || source.status !== 'PAID') return 'Only settled payments can be transferred';
-    const from = this.order(source.orderId);
-    const target = this.order(targetOrderId);
-    if (!from || !target) return 'Order not found';
-    if (from.status !== 'SERVED') return 'Source order must be served first';
-    if (source.tipPaidOut) return 'The tip on this payment has already been paid out';
-    if (target.status !== 'READY' && target.status !== 'SERVED') return 'Target order is not ready for payment';
-    if (target.id === from.id) return 'Choose a different order';
-    if (!['UNPAID', 'RETRACTED', 'TRANSFERRED'].includes(target.paymentStatus)) {
-      return 'Target order already has payment activity';
-    }
-    const targetTotal = Math.round((this.billFor(target).total + source.tip) * 100) / 100;
-    if (Math.abs(targetTotal - source.total) > 0.01) return 'Target total must match the payment exactly';
-    const now = new Date().toISOString();
-    this.payments.update((list) =>
-      list.map((p) => (p.id === source.id ? { ...p, status: 'TRANSFERRED' } : p)),
-    );
-    const moved: Payment = {
-      ...source,
-      id: `p-${Date.now()}`,
-      orderId: target.id,
-      orderNumber: target.number,
-      waiterId: target.waiterId,
-      waiterName: target.waiterName,
-      status: 'PAID',
-      createdAt: source.createdAt,
-      settledAt: now,
-      actor: this.actor()?.name ?? source.actor,
-    };
-    this.payments.update((list) => [moved, ...list]);
-    this.patchOrder(from.id, { paymentStatus: 'TRANSFERRED', tip: 0 });
-    this.patchOrder(target.id, { paymentStatus: 'PAID', tip: source.tip });
-    this.log(
-      'Payment transferred',
-      `#${from.number} → #${target.number} · ${money(source.total)} ETB`,
-      'transfer',
-    );
-    return null;
-  }
-
-  markTipsPaid(waiterId: string): void {
-    const waiter = this.user(waiterId);
-    this.payments.update((list) =>
-      list.map((p) =>
-        p.waiterId === waiterId && p.status === 'PAID' && p.tip > 0 ? { ...p, tipPaidOut: true } : p,
-      ),
-    );
-    this.log('Tips paid out', `Waiter · ${waiter?.name ?? waiterId}`, 'staff');
+  async payoutTips(waiterId: string): Promise<Result<number>> {
+    return await this.guard(async () => {
+      const response = await this.api.post<{ count: number }>('/payments/tips/payout', { waiterId });
+      await Promise.all([this.loadTips(), this.loadPayments()]);
+      return response.count;
+    });
   }
 
   /* ------------------------------------------------------------------ */
-  /* Menu, users, settings                                               */
+  /* Issues                                                              */
   /* ------------------------------------------------------------------ */
 
-  setAvailability(id: string, available: boolean): void {
-    this.menu.update((list) => list.map((m) => (m.id === id ? { ...m, available } : m)));
-    const item = this.menuItem(id);
-    this.log(
-      available ? 'Item marked available' : 'Item marked unavailable',
-      item?.name ?? id,
-      'menu',
-    );
-  }
-
-  saveMenuItem(item: MenuItem): void {
-    this.menu.update((list) => {
-      const exists = list.some((m) => m.id === item.id);
-      return exists ? list.map((m) => (m.id === item.id ? { ...item } : m)) : [...list, { ...item }];
+  async resolveIssue(issueId: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.post(`/issues/${issueId}/resolve`);
+      await this.loadIssues();
     });
-    this.log('Menu item saved', item.name, 'menu');
   }
 
-  saveUser(user: StaffUser): void {
-    this.users.update((list) => {
-      const exists = list.some((u) => u.id === user.id);
-      return exists ? list.map((u) => (u.id === user.id ? { ...user } : u)) : [...list, { ...user }];
+  /* ------------------------------------------------------------------ */
+  /* Menu                                                                */
+  /* ------------------------------------------------------------------ */
+
+  async saveMenuItem(input: MenuItemInput): Promise<Result> {
+    return await this.guard(async () => {
+      const body = {
+        categoryId: input.categoryId,
+        name: input.name,
+        description: input.description || null,
+        unitPrice: input.price,
+        taxRate: input.taxRate,
+        isAvailable: input.available,
+      };
+      if (input.id) {
+        await this.api.patch(`/menu/items/${input.id}`, body);
+      } else {
+        await this.api.post('/menu/items', body);
+      }
+      await this.loadMenu();
     });
-    this.log('Staff account saved', `${user.name} · ${user.role}`, 'staff');
   }
 
-  toggleUserStatus(id: string): void {
-    const user = this.user(id);
-    if (!user) return;
-    const status = user.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
-    this.users.update((list) => list.map((u) => (u.id === id ? { ...u, status } : u)));
-    this.log(status === 'ACTIVE' ? 'Staff reactivated' : 'Staff deactivated', user.name, 'staff');
+  async createCategory(name: string, description = ''): Promise<Result> {
+    return await this.guard(async () => {
+      const nextOrder = this.menuCategories().reduce((max, c) => Math.max(max, c.displayOrder), 0) + 1;
+      await this.api.post('/menu/categories', { name, description: description || null, displayOrder: nextOrder });
+      await this.loadMenu();
+    });
   }
 
-  resetPin(id: string): void {
-    const user = this.user(id);
-    if (!user) return;
-    this.users.update((list) => list.map((u) => (u.id === id ? { ...u, pin: '1234' } : u)));
-    this.log('PIN reset to 1234', user.name, 'staff');
+  async setAvailability(itemId: string, available: boolean): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch(`/menu/items/${itemId}/availability`, { isAvailable: available });
+      await this.loadMenu();
+    });
   }
 
-  saveSettings(settings: Settings): void {
-    this.settings.set({ ...settings, tipPresets: [...settings.tipPresets] });
-    this.log('Restaurant settings updated', settings.restaurant, 'staff');
+  /* ------------------------------------------------------------------ */
+  /* Tables, users, settings                                             */
+  /* ------------------------------------------------------------------ */
+
+  async createTable(number: string, name: string, capacity: number): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.post('/tables', { number, name: name || null, capacity });
+      await this.loadTables();
+    });
   }
 
-  resetDemo(): void {
-    this.seed = createSeed();
-    this.users.set(this.seed.users);
-    this.menu.set(this.seed.menu);
-    this.orders.set(this.seed.orders.slice().sort(byNewest));
-    this.payments.set(this.seed.payments.slice().sort(byNewest));
-    this.issues.set(this.seed.issues.slice().sort(byNewest));
-    this.audit.set(this.seed.audit.slice().sort(byNewestEvent));
-    this.settings.set(this.seed.settings);
-    this.seq = this.seed.nextNumber;
+  async saveUser(input: UserInput): Promise<Result> {
+    return await this.guard(async () => {
+      if (input.id) {
+        await this.api.patch(`/users/${input.id}`, {
+          fullName: input.fullName,
+          username: input.username,
+          phone: input.phone ?? '',
+          role: input.role,
+          pin: input.pin || undefined,
+          password: input.password || undefined,
+        });
+      } else {
+        await this.api.post('/users', {
+          fullName: input.fullName,
+          username: input.username,
+          phone: input.phone || null,
+          role: input.role,
+          pin: input.pin || null,
+          password: input.password || null,
+        });
+      }
+      await this.loadUsers();
+    });
   }
 
-  setActor(user: StaffUser | null): void {
-    this.actor.set(user);
+  async toggleUserActive(userId: string, active: boolean): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch(`/users/${userId}/status`, { isActive: active });
+      await this.loadUsers();
+    });
+  }
+
+  async saveSettings(settings: Settings): Promise<Result> {
+    return await this.guard(async () => {
+      const saved = await this.api.put<SettingsDto>('/settings', {
+        restaurant: settings.restaurant,
+        branch: settings.branch,
+        phone: settings.phone || null,
+        address: settings.address || null,
+        taxRate: settings.taxRate,
+        serviceCharge: settings.serviceCharge,
+        tipPresets: settings.tipPresets,
+        cash: settings.cash,
+        qr: settings.qr,
+        phonePay: settings.phonePay,
+        webhookSecret: settings.webhookSecret || null,
+      });
+      this.settings.set({
+        restaurant: saved.restaurant,
+        branch: saved.branch,
+        phone: saved.phone ?? '',
+        address: saved.address ?? '',
+        taxRate: saved.taxRate,
+        serviceCharge: saved.serviceCharge,
+        tipPresets: saved.tipPresets ?? [],
+        cash: saved.cash,
+        qr: saved.qr,
+        phonePay: saved.phonePay,
+        webhookSecret: saved.webhookSecret ?? '',
+      });
+    });
+  }
+
+  reset(): void {
+    this.settings.set(DEFAULT_SETTINGS);
+    this.tables.set([]);
+    this.menuCategories.set([]);
+    this.orders.set([]);
+    this.kitchenTickets.set([]);
+    this.bills.set([]);
+    this.payments.set([]);
+    this.tips.set([]);
+    this.issues.set([]);
+    this.audit.set([]);
+    this.users.set([]);
+    this.reports.set({ summary: null, waiters: [], cancellations: null, turnaround: null });
+    this.loaded.set(false);
   }
 
   /* ------------------------------------------------------------------ */
   /* Internals                                                           */
   /* ------------------------------------------------------------------ */
 
-  private patchOrder(orderId: string, patch: Partial<Order>): void {
-    this.orders.update((list) => list.map((o) => (o.id === orderId ? { ...o, ...patch } : o)));
+  private async reloadBilling(): Promise<void> {
+    await Promise.all([this.loadPayments(), this.loadBills(), this.loadOrders(), this.loadTips()]);
   }
 
-  private retractPending(orderId: string): void {
-    this.payments.update((list) =>
-      list.map((p) => (p.orderId === orderId && p.status === 'INITIATED' ? { ...p, status: 'RETRACTED' } : p)),
-    );
+  private async guard<T>(work: () => Promise<T>): Promise<Result<T>> {
+    try {
+      return { ok: true, data: await work() };
+    } catch (error) {
+      return { ok: false, error: this.api.message(error) };
+    }
   }
 
-  private addIssue(order: Order, itemName: string, reason: IssueReason, note: string): void {
-    const issue: Issue = {
-      id: `i-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-      orderId: order.id,
-      orderNumber: order.number,
-      table: order.table,
-      item: itemName,
-      reason,
-      note,
-      createdAt: new Date().toISOString(),
-      status: 'OPEN',
+  private upsertBill(bill: Bill): void {
+    // Closed bills are kept in the list so detail/receipt pages can load them;
+    // computed openBills filters by status.
+    this.bills.update((list) => {
+      const exists = list.some((b) => b.id === bill.id);
+      return exists ? list.map((b) => (b.id === bill.id ? bill : b)) : [bill, ...list];
+    });
+  }
+
+  private mapUser(u: UserDto): StaffUser {
+    return {
+      id: u.id,
+      name: u.fullName,
+      username: u.username,
+      phone: u.phone ?? undefined,
+      role: roleFrom(u.role),
+      active: u.isActive,
+      createdAt: u.createdAt,
     };
-    this.issues.update((list) => [issue, ...list]);
   }
 
-  private log(action: string, detail: string, kind: AuditKind): void {
-    const actor = this.actor();
-    const event: AuditEvent = {
-      id: `a-${Date.now()}-${Math.random().toString(36).slice(2, 5)}`,
-      at: new Date().toISOString(),
-      actor: actor?.name ?? 'System',
-      role: (actor?.role ?? 'MANAGER') as Role,
-      action,
-      detail,
-      kind,
+  private mapOrder(o: OrderDto): Order {
+    return {
+      id: o.id,
+      number: o.orderNumber,
+      table: o.tableNumber,
+      waiterId: o.waiterId,
+      waiterName: o.waiterName,
+      parentOrderId: o.parentOrderId ?? undefined,
+      status: o.orderStatus,
+      paymentStatus: o.paymentStatus,
+      subtotal: o.subtotal,
+      tax: o.taxTotal,
+      tip: o.tipAmount,
+      total: o.grandTotal,
+      notes: o.customerNotes ?? undefined,
+      createdAt: o.createdAt,
+      preparingAt: o.preparingAt ?? undefined,
+      readyAt: o.readyAt ?? undefined,
+      servedAt: o.servedAt ?? undefined,
+      lines: o.items.map(
+        (i): OrderLine => ({
+          id: i.id,
+          itemId: i.menuItemId,
+          name: i.menuItemName,
+          qty: i.quantity,
+          unitPrice: i.unitPrice,
+          taxRate: i.taxRate,
+          notes: i.customerNotes ?? undefined,
+          status: i.itemStatus,
+          lineTotal: Math.round(i.unitPrice * i.quantity * 100) / 100,
+        }),
+      ),
     };
-    this.audit.update((list) => [event, ...list]);
+  }
+
+  private mapBill(b: BillDto): Bill {
+    return {
+      id: b.id,
+      sessionId: b.diningSessionId,
+      tableId: b.tableId,
+      table: b.tableNumber,
+      number: b.billNumber,
+      subtotal: b.subtotal,
+      tax: b.taxTotal,
+      discount: b.discountAmount,
+      tip: b.tipAmount,
+      total: b.grandTotal,
+      status: b.status,
+      createdAt: b.createdAt,
+      paidAt: b.paidAt ?? undefined,
+      items: b.items.map(
+        (i): BillItem => ({
+          id: i.id,
+          orderId: i.orderId,
+          description: i.description,
+          qty: i.quantity,
+          unitPrice: i.unitPrice,
+          taxRate: i.taxRate,
+          lineTotal: i.lineTotal,
+        }),
+      ),
+    };
+  }
+
+  private mapPayment(p: PaymentDto): Payment {
+    return {
+      id: p.id,
+      billId: p.billId ?? undefined,
+      orderId: p.orderId,
+      orderNumber: p.orderNumber,
+      billNumber: p.billNumber ?? undefined,
+      waiterId: p.waiterId ?? undefined,
+      waiterName: p.waiterName ?? undefined,
+      method: p.method,
+      base: p.baseAmount,
+      tip: p.tipAmount,
+      total: p.totalAmount,
+      status: p.status,
+      tendered: p.amountTendered ?? undefined,
+      change: p.changeGiven ?? undefined,
+      phone: p.customerPhone ?? undefined,
+      createdAt: p.createdAt,
+      settledAt: p.settledAt ?? undefined,
+      actor: p.actor,
+      tipPaidOut: p.tipPaidOut,
+      qrData: p.qrData ?? undefined,
+    };
+  }
+
+  private mapMenuItem(i: MenuItemDto): MenuItem {
+    return {
+      id: i.id,
+      categoryId: i.categoryId,
+      category: i.categoryName,
+      name: i.name,
+      description: i.description ?? undefined,
+      price: i.unitPrice,
+      taxRate: i.taxRate,
+      available: i.isAvailable,
+      imageUrl: i.imageUrl ?? undefined,
+    };
   }
 }

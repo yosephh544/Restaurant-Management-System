@@ -1,6 +1,7 @@
-import { computed, inject, Injectable, signal } from '@angular/core';
-import { Role, StaffUser } from './models';
-import { Store } from './store';
+import { computed, inject, Injectable } from '@angular/core';
+import { ApiService } from './api.service';
+import { Role } from './models';
+import { ApiProfile, SessionService } from './session.service';
 
 export const ROLE_HOME: Record<Role, string> = {
   OWNER: '/manager',
@@ -10,67 +11,73 @@ export const ROLE_HOME: Record<Role, string> = {
   KITCHEN: '/kitchen',
 };
 
-const SESSION_KEY = 'restopro.session';
+interface TokenResponse {
+  accessToken: string;
+  refreshToken: string;
+  accessTokenExpiry: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class AuthService {
-  private readonly store = inject(Store);
-  private readonly session = signal<string | null>(this.restore());
+  private readonly api = inject(ApiService);
+  private readonly session = inject(SessionService);
 
-  readonly user = computed<StaffUser | null>(() => {
-    const id = this.session();
-    if (!id) return null;
-    return this.store.users().find((u) => u.id === id && u.status === 'ACTIVE') ?? null;
-  });
+  readonly user = this.session.user;
+  readonly permissions = this.session.permissions;
+  readonly isAuthed = computed(() => this.session.profile() !== null);
 
-  readonly isAuthed = computed(() => this.user() !== null);
-
-  constructor() {
-    this.store.setActor(this.user());
+  async login(username: string, password: string): Promise<string | null> {
+    return this.signIn('/auth/login', { username: username.trim(), password });
   }
 
-  login(username: string, password: string): string | null {
-    const match = this.findUser(username);
-    if (!match || match.password !== password) return 'Incorrect username or password.';
-    if (match.status !== 'ACTIVE') return 'This account is deactivated. Contact your manager.';
-    this.startSession(match);
-    return null;
+  async loginPin(username: string, pin: string): Promise<string | null> {
+    return this.signIn('/auth/pin-login', { username: username.trim(), pin: pin.trim() });
   }
 
-  loginPin(username: string, pin: string): string | null {
-    const match = this.findUser(username);
-    if (!match || !match.pin || match.pin !== pin.trim()) return 'Incorrect username or PIN.';
-    if (match.status !== 'ACTIVE') return 'This account is deactivated. Contact your manager.';
-    this.startSession(match);
-    return null;
+  async logout(): Promise<void> {
+    const refreshToken = this.session.refreshToken();
+    try {
+      if (refreshToken) await this.api.post('/auth/logout', { refreshToken });
+    } catch {
+      // Session is cleared locally even if the server call fails.
+    } finally {
+      this.session.clear();
+    }
   }
 
-  logout(): void {
-    this.session.set(null);
-    localStorage.removeItem(SESSION_KEY);
-    this.store.setActor(null);
+  async reloadProfile(): Promise<void> {
+    if (!this.session.accessToken()) return;
+    try {
+      const profile = await this.api.get<ApiProfile>('/auth/me');
+      this.session.updateProfile(profile);
+    } catch {
+      this.session.clear();
+    }
+  }
+
+  can(permission: string): boolean {
+    return this.session.hasPermission(permission);
   }
 
   home(role: Role = this.user()?.role ?? 'WAITER'): string {
     return ROLE_HOME[role];
   }
 
-  private findUser(username: string): StaffUser | undefined {
-    const needle = username.trim().toLowerCase();
-    return this.store.users().find((u) => u.username.toLowerCase() === needle);
-  }
-
-  private startSession(user: StaffUser): void {
-    this.session.set(user.id);
-    localStorage.setItem(SESSION_KEY, user.id);
-    this.store.setActor(user);
-  }
-
-  private restore(): string | null {
+  private async signIn(path: string, body: unknown): Promise<string | null> {
     try {
-      return localStorage.getItem(SESSION_KEY);
-    } catch {
+      const tokens = await this.api.post<TokenResponse>(path, body);
+      const profile = await this.api.getWithToken<ApiProfile>('/auth/me', tokens.accessToken);
+      this.session.set({
+        accessToken: tokens.accessToken,
+        refreshToken: tokens.refreshToken,
+        accessTokenExpiry: tokens.accessTokenExpiry,
+        profile,
+      });
       return null;
+    } catch (error) {
+      const token = this.session.accessToken();
+      if (token && !this.session.profile()) this.session.clear();
+      return this.api.message(error);
     }
   }
 }

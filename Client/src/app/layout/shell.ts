@@ -141,6 +141,10 @@ export class Shell {
     year: 'numeric',
   });
 
+  constructor() {
+    void this.store.refreshAll();
+  }
+
   protected readonly roleLabel = computed(() => {
     const role = this.user()?.role;
     return role ? ROLE_LABEL[role] : '';
@@ -241,9 +245,10 @@ export class Shell {
     }
   }
 
-  protected logout(): void {
-    this.auth.logout();
-    void this.router.navigate(['/login']);
+  protected async logout(): Promise<void> {
+    await this.auth.logout();
+    this.store.reset();
+    await this.router.navigate(['/login']);
   }
 
   @HostListener('document:click', ['$event'])

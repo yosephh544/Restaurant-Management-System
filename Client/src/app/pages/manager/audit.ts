@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { AuditKind, clock, ROLE_LABEL, shortDate } from '../../core/models';
+import { AuditKind, clock, ROLE_LABEL, roleFrom, shortDate } from '../../core/models';
 import { Store } from '../../core/store';
 import { Icon, IconName } from '../../shared/icon';
 
@@ -17,7 +17,7 @@ import { Icon, IconName } from '../../shared/icon';
         </div>
         <div class="search">
           <app-icon name="search" />
-          <input type="search" placeholder="Actor, action or order…" [ngModel]="query()" (ngModelChange)="query.set($event)" />
+          <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" />
         </div>
       </div>
 
@@ -121,11 +121,11 @@ export class AuditLogPage {
     staff: this.store.audit().filter((e) => e.kind === 'staff').length,
   }));
 
-  protected roleLabel(role: keyof typeof ROLE_LABEL): string {
-    return ROLE_LABEL[role];
+  protected roleLabel(role: string): string {
+    return ROLE_LABEL[roleFrom(role)];
   }
 
-  protected kindIcon(kind: AuditKind): IconName {
+  protected kindIcon(kind: string): IconName {
     switch (kind) {
       case 'payment':
         return 'card';
