@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using RestaurantManagement.Implementation.Dtos.Authentication;
 using RestaurantManagement.Implementation.Interfaces.Authentication;
 using RestaurantManagement.Implementation.Interfaces.Common;
@@ -14,15 +15,18 @@ public class AuthService : IAuthService
     private readonly RestaurantDbContext _dbContext;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IConfiguration _configuration;
 
     public AuthService(
         RestaurantDbContext dbContext,
         IJwtTokenService jwtTokenService,
-        ICurrentUserService currentUserService)
+        ICurrentUserService currentUserService,
+        IConfiguration configuration)
     {
         _dbContext = dbContext;
         _jwtTokenService = jwtTokenService;
         _currentUserService = currentUserService;
+        _configuration = configuration;
     }
 
     public async Task<AuthResponse> LoginAsync(LoginRequest request, CancellationToken ct = default)
@@ -119,6 +123,9 @@ public class AuthService : IAuthService
             .FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException(ErrorMessages.UserNotFound);
 
+        if (!user.IsActive)
+            throw new ForbiddenException(ErrorMessages.UserDeactivated);
+
         return new StaffProfileDto
         {
             Id = user.Id,
@@ -126,12 +133,20 @@ public class AuthService : IAuthService
             Phone = user.Phone,
             Role = user.RoleEntity?.Name ?? user.Role.ToString(),
             IsActive = user.IsActive,
-            CreatedAt = user.CreatedAt
+            CreatedAt = user.CreatedAt,
+            Permissions = user.RoleEntity?.RolePermissions
+                .Select(rp => rp.Permission.Name)
+                .Distinct()
+                .OrderBy(name => name)
+                .ToList() ?? new List<string>()
         };
     }
 
     private async Task<AuthResponse> GenerateAuthResponseAsync(User user, string? deviceToken, CancellationToken ct)
     {
+        var expiryMinutes = int.TryParse(_configuration["Jwt:ExpiryMinutes"], out var minutes) ? minutes : 60;
+        var refreshExpiryDays = int.TryParse(_configuration["Jwt:RefreshTokenExpiryDays"], out var days) ? days : 7;
+
         var accessToken = _jwtTokenService.GenerateAccessToken(user);
         var rawRefreshToken = _jwtTokenService.GenerateRefreshToken();
         var hashedRefreshToken = _jwtTokenService.HashToken(rawRefreshToken);
@@ -141,7 +156,7 @@ public class AuthService : IAuthService
             Id = Guid.NewGuid(),
             UserId = user.Id,
             TokenHash = hashedRefreshToken,
-            ExpiresAt = DateTime.UtcNow.AddDays(7),
+            ExpiresAt = DateTime.UtcNow.AddDays(refreshExpiryDays),
             DeviceToken = deviceToken,
             CreatedAt = DateTime.UtcNow
         };
@@ -153,7 +168,7 @@ public class AuthService : IAuthService
         {
             AccessToken = accessToken,
             RefreshToken = rawRefreshToken,
-            AccessTokenExpiry = DateTime.UtcNow.AddMinutes(60)
+            AccessTokenExpiry = DateTime.UtcNow.AddMinutes(expiryMinutes)
         };
     }
 }

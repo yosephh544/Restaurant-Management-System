@@ -84,11 +84,23 @@ public class KitchenService : IKitchenService
 
         if (request.Status.Equals("PREPARING", StringComparison.OrdinalIgnoreCase))
         {
+            // Status may only move forward: a READY/SERVED ticket cannot go back to the line.
+            if (order.OrderStatus is OrderStatus.Ready or OrderStatus.Served)
+                throw new ConflictException(ErrorMessages.InvalidOrderStatus);
+
             order.OrderStatus = OrderStatus.Preparing;
+            order.PreparingAt ??= DateTime.UtcNow;
         }
         else if (request.Status.Equals("READY", StringComparison.OrdinalIgnoreCase))
         {
+            if (order.OrderStatus == OrderStatus.Served)
+                throw new ConflictException(ErrorMessages.InvalidOrderStatus);
+
+            // A ticket may skip PREPARING; record the prep start so timings stay meaningful.
+            order.PreparingAt ??= DateTime.UtcNow;
             order.OrderStatus = OrderStatus.Ready;
+            order.ReadyAt ??= DateTime.UtcNow;
+
             foreach (var item in order.OrderItems)
             {
                 if (item.ItemStatus == OrderItemStatus.Active)
@@ -197,6 +209,11 @@ public class KitchenService : IKitchenService
         if (order.PaymentStatus == PaymentStatus.PaymentInitiated)
         {
             order.PaymentStatus = PaymentStatus.Retracted;
+        }
+        else if (order.PaymentStatus == PaymentStatus.Paid)
+        {
+            // Money cannot simply disappear: a cancelled paid bill must go through a refund.
+            order.PaymentStatus = PaymentStatus.RefundPending;
         }
     }
 }

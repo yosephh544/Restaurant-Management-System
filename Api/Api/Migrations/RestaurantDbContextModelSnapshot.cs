@@ -432,6 +432,12 @@ namespace RestaurantManagement.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<DateTime?>("PreparingAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("ReadyAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<DateTime?>("ServedAt")
                         .HasColumnType("datetime2");
 

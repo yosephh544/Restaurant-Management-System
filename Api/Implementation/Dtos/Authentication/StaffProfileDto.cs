@@ -8,4 +8,7 @@ public class StaffProfileDto
     public string Role { get; init; } = default!;
     public bool IsActive { get; init; }
     public DateTime CreatedAt { get; init; }
+
+    /// <summary>Permission names granted to the staff member's role, used for client-side UI gating.</summary>
+    public List<string> Permissions { get; init; } = new();
 }

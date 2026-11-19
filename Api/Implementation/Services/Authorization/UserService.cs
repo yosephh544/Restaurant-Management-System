@@ -1,7 +1,10 @@
 using Microsoft.EntityFrameworkCore;
 using RestaurantManagement.Implementation.Dtos.Authorization;
 using RestaurantManagement.Implementation.Interfaces.Authorization;
+using RestaurantManagement.Implementation.Interfaces.Common;
+using RestaurantManagement.Infrustructure.Common.Constants;
 using RestaurantManagement.Infrustructure.Common.Exceptions;
+using RestaurantManagement.Infrustructure.Enums.Identity;
 using RestaurantManagement.Infrustructure.Common.Extensions;
 using RestaurantManagement.Infrustructure.Common.Responses;
 using RestaurantManagement.Infrustructure.Data;
@@ -12,7 +15,21 @@ namespace RestaurantManagement.Implementation.Services.Authorization;
 public class UserService : IUserService
 {
     private readonly RestaurantDbContext _dbContext;
-    public UserService(RestaurantDbContext dbContext) => _dbContext = dbContext;
+    private readonly ICurrentUserService _currentUserService;
+
+    public UserService(RestaurantDbContext dbContext, ICurrentUserService currentUserService)
+    {
+        _dbContext = dbContext;
+        _currentUserService = currentUserService;
+    }
+
+    private bool IsOwner => string.Equals(_currentUserService.Role, Roles.Owner, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsOwnerAccount(User user) =>
+        string.Equals(user.RoleEntity?.Name, Roles.Owner, StringComparison.OrdinalIgnoreCase);
+
+    private static UserRole ParseLegacyRole(string roleName) =>
+        Enum.TryParse<UserRole>(roleName, true, out var role) ? role : UserRole.Waiter;
 
     public async Task<UserResponse> CreateUserAsync(CreateUserRequest request, CancellationToken ct = default)
     {
@@ -20,6 +37,10 @@ public class UserService : IUserService
             throw new ConflictException("User", "Phone", request.Phone);
 
         var roleName = request.Role.Trim();
+
+        if (string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase) && !IsOwner)
+            throw new ForbiddenException("Only an Owner can create another Owner account.");
+
         var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == roleName && r.IsActive, ct)
             ?? throw new ValidationException("Role", "Role does not exist or is inactive.");
 
@@ -28,6 +49,7 @@ public class UserService : IUserService
             Id = Guid.NewGuid(),
             FullName = request.FullName,
             Phone = request.Phone,
+            Role = ParseLegacyRole(roleName),
             RoleId = role.Id,
             RoleEntity = role,
             PinHash = string.IsNullOrWhiteSpace(request.Pin) ? null : BCrypt.Net.BCrypt.HashPassword(request.Pin),
@@ -71,6 +93,9 @@ public class UserService : IUserService
         var user = await _dbContext.Users.Include(u => u.RoleEntity).FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException("User", userId);
 
+        if (IsOwnerAccount(user) && !IsOwner)
+            throw new ForbiddenException("Only an Owner can modify an Owner account.");
+
         if (!string.IsNullOrWhiteSpace(request.FullName)) user.FullName = request.FullName;
         if (!string.IsNullOrWhiteSpace(request.Phone) && request.Phone != user.Phone)
         {
@@ -80,10 +105,16 @@ public class UserService : IUserService
         }
         if (!string.IsNullOrWhiteSpace(request.Role))
         {
-            var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == request.Role && r.IsActive, ct)
+            var roleName = request.Role.Trim();
+
+            if (string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase) && !IsOwner)
+                throw new ForbiddenException("Only an Owner can assign the Owner role.");
+
+            var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == roleName && r.IsActive, ct)
                 ?? throw new ValidationException("Role", "Role does not exist or is inactive.");
             user.RoleId = role.Id;
             user.RoleEntity = role;
+            user.Role = ParseLegacyRole(roleName);
         }
         if (!string.IsNullOrWhiteSpace(request.Pin)) user.PinHash = BCrypt.Net.BCrypt.HashPassword(request.Pin);
         if (!string.IsNullOrWhiteSpace(request.Password)) user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
@@ -96,6 +127,13 @@ public class UserService : IUserService
     {
         var user = await _dbContext.Users.Include(u => u.RoleEntity).FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException("User", userId);
+
+        if (IsOwnerAccount(user) && !IsOwner)
+            throw new ForbiddenException("Only an Owner can change an Owner account's status.");
+
+        if (!request.IsActive && userId == _currentUserService.UserId)
+            throw new ForbiddenException("You cannot deactivate your own account.");
+
         user.IsActive = request.IsActive;
         user.UpdatedAt = DateTime.UtcNow;
 

@@ -27,7 +27,7 @@ public sealed class PermissionAuthorizationHandler : AuthorizationHandler<Permis
         var hasPermission = await _dbContext.Users
             .AsNoTracking()
             .Where(u => u.Id == userId && u.IsActive)
-            .Where(u => u.RoleId != null)
+            .Where(u => u.RoleId != null && u.RoleEntity!.IsActive)
             .SelectMany(u => u.RoleEntity!.RolePermissions)
             .AnyAsync(rp => rp.Permission.Name == requirement.Permission);
 

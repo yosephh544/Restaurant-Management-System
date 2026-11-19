@@ -10,6 +10,7 @@ using RestaurantManagement.Infrustructure.Common.Requests;
 namespace RestaurantManagement.Api.Controllers.Payment;
 
 [ApiController]
+[Authorize]
 [Route("api/v1/payments")]
 public class PaymentsController : ApiControllerBase
 {

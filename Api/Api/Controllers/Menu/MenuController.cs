@@ -9,6 +9,7 @@ using RestaurantManagement.Infrustructure.Common.Constants;
 namespace RestaurantManagement.Api.Controllers.Menu;
 
 [ApiController]
+[Authorize]
 [Route("api/v1/menu")]
 public class MenuController : ApiControllerBase
 {

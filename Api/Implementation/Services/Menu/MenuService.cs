@@ -159,12 +159,13 @@ public class MenuService : IMenuService
             .FirstOrDefaultAsync(i => i.Id == id, ct)
             ?? throw new NotFoundException("MenuItem", id);
 
+        MenuCategory? newCategory = null;
         if (request.CategoryId.HasValue)
         {
-            var catExists = await _dbContext.MenuCategories.AnyAsync(c => c.Id == request.CategoryId.Value, ct);
-            if (!catExists)
-                throw new NotFoundException("MenuCategory", request.CategoryId.Value);
-            item.CategoryId = request.CategoryId.Value;
+            newCategory = await _dbContext.MenuCategories
+                .FirstOrDefaultAsync(c => c.Id == request.CategoryId.Value, ct)
+                ?? throw new NotFoundException("MenuCategory", request.CategoryId.Value);
+            item.CategoryId = newCategory.Id;
         }
 
         if (!string.IsNullOrWhiteSpace(request.Name))
@@ -188,7 +189,7 @@ public class MenuService : IMenuService
         item.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync(ct);
 
-        return MapMenuItemToResponse(item, item.Category.Name);
+        return MapMenuItemToResponse(item, (newCategory ?? item.Category).Name);
     }
 
     public async Task<MenuItemResponse> UpdateAvailabilityAsync(Guid id, UpdateAvailabilityRequest request, CancellationToken ct = default)

@@ -35,11 +35,19 @@ public class PaymentService : IPaymentService
             .FirstOrDefaultAsync(o => o.Id == request.OrderId, ct)
             ?? throw new NotFoundException("Order", request.OrderId);
 
+        // Waiters can only take payment for the tickets they own.
+        if (string.Equals(_currentUserService.Role, Roles.Waiter, StringComparison.OrdinalIgnoreCase)
+            && order.WaiterId != initiatorId)
+            throw new ForbiddenException("You can only initiate payment for your own orders.");
+
         if (order.PaymentStatus == PaymentStatus.Paid)
             throw new ConflictException("Order has already been paid in full.");
 
         if (order.OrderStatus == OrderStatus.CancelledByKitchen)
             throw new ConflictException("Cannot initiate payment for a kitchen-cancelled order.");
+
+        if (order.PaymentStatus is PaymentStatus.RefundPending or PaymentStatus.Refunded)
+            throw new ConflictException("This order is awaiting or has completed a refund.");
 
         var method = request.Method.Equals("PHONE_PUSH", StringComparison.OrdinalIgnoreCase)
             ? PaymentMethod.PhonePush
@@ -109,10 +117,17 @@ public class PaymentService : IPaymentService
         if (payment.Status == PaymentGatewayStatus.Paid)
             return;
 
+        // Never settle for an amount other than the locked payment total.
+        if (payload.Amount > 0 && Math.Abs(payload.Amount - payment.TotalAmount) > 0.01m)
+            throw new ValidationException("Amount", "Webhook amount does not match the payment total.");
+
         var statusUpper = (payload.Status ?? "PAID").ToUpperInvariant();
 
         if (statusUpper == "PAID" || statusUpper == "SUCCESS" || statusUpper == "COMPLETED")
         {
+            if (payment.Order.PaymentStatus is PaymentStatus.RefundPending or PaymentStatus.Refunded)
+                throw new ConflictException("Payment cannot be settled because the order is being refunded.");
+
             payment.Status = PaymentGatewayStatus.Paid;
             payment.SettledAt = DateTime.UtcNow;
             payment.UpdatedAt = DateTime.UtcNow;
@@ -143,7 +158,10 @@ public class PaymentService : IPaymentService
         {
             payment.Status = PaymentGatewayStatus.Failed;
             payment.UpdatedAt = DateTime.UtcNow;
-            payment.Order.PaymentStatus = PaymentStatus.Unpaid;
+
+            // A failed retry must not unpay an order that another payment already settled.
+            if (payment.Order.PaymentStatus == PaymentStatus.PaymentInitiated)
+                payment.Order.PaymentStatus = PaymentStatus.Unpaid;
         }
 
         await _dbContext.SaveChangesAsync(ct);

@@ -44,6 +44,13 @@ public class Order
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
+
+    /// <summary>When the kitchen started preparing (PENDING → PREPARING), used for prep-time reports.</summary>
+    public DateTime? PreparingAt { get; set; }
+
+    /// <summary>When the kitchen marked the order ready (PREPARING → READY), used for prep/pickup reports.</summary>
+    public DateTime? ReadyAt { get; set; }
+
     public DateTime? ServedAt { get; set; }
 
     // Navigation properties

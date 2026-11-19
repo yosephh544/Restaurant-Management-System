@@ -4,6 +4,7 @@ using RestaurantManagement.Implementation.Interfaces.Billing;
 using RestaurantManagement.Infrustructure.Data;
 using RestaurantManagement.Infrustructure.Enums.Billing;
 using RestaurantManagement.Infrustructure.Enums.Orders;
+using RestaurantManagement.Infrustructure.Models.Orders;
 
 namespace RestaurantManagement.Implementation.Services.Billing;
 
@@ -118,6 +119,7 @@ public class ReportService : IReportService
         var query = _dbContext.OrderCancellations
             .AsNoTracking()
             .Include(c => c.Order)
+            .Include(c => c.OrderItem)
             .AsQueryable();
 
         if (request.From.HasValue)
@@ -128,18 +130,24 @@ public class ReportService : IReportService
 
         var cancellations = await query.ToListAsync(ct);
 
+        // A partial cancellation only loses the value of the cancelled line,
+        // not the whole order total.
+        static decimal LostRevenueFor(OrderCancellation c) => c.OrderItemId.HasValue
+            ? (c.OrderItem is null ? 0m : c.OrderItem.UnitPrice * c.OrderItem.Quantity)
+            : (c.Order?.GrandTotal ?? 0m);
+
         var byReason = cancellations
             .GroupBy(c => c.ReasonCode)
             .Select(g => new CancellationReportItem
             {
                 ReasonCode = g.Key.ToString().ToUpperInvariant(),
                 Count = g.Count(),
-                LostRevenue = Math.Round(g.Sum(c => c.Order?.GrandTotal ?? 0), 2),
+                LostRevenue = Math.Round(g.Sum(LostRevenueFor), 2),
                 ReordersCreated = g.Count(c => c.ReplacementOrderId.HasValue)
             })
             .ToList();
 
-        var totalLost = cancellations.Sum(c => c.Order?.GrandTotal ?? 0);
+        var totalLost = cancellations.Sum(LostRevenueFor);
         var totalReorders = cancellations.Count(c => c.ReplacementOrderId.HasValue);
         var recoveryRate = cancellations.Count > 0
             ? Math.Round(((double)totalReorders / cancellations.Count) * 100, 1)
@@ -182,20 +190,21 @@ public class ReportService : IReportService
             };
         }
 
-        // Calculate turnaround time in minutes
-        var totalMinutes = servedOrders
-            .Select(o => (o.ServedAt!.Value - o.CreatedAt).TotalMinutes)
+        // Real durations from recorded kitchen timestamps (no estimates).
+        var prepTimes = servedOrders
+            .Where(o => o.PreparingAt.HasValue && o.ReadyAt.HasValue)
+            .Select(o => (o.ReadyAt!.Value - o.PreparingAt!.Value).TotalMinutes)
             .ToList();
 
-        var avgTotal = totalMinutes.Average();
-        // Estimated prep: ~75% of total time, pickup: ~25%
-        var avgPrep = Math.Round(avgTotal * 0.75, 1);
-        var avgPickup = Math.Round(avgTotal * 0.25, 1);
+        var pickupTimes = servedOrders
+            .Where(o => o.ReadyAt.HasValue && o.ServedAt.HasValue)
+            .Select(o => (o.ServedAt!.Value - o.ReadyAt!.Value).TotalMinutes)
+            .ToList();
 
         return new KitchenTurnaroundResponse
         {
-            AvgPrepMinutes = avgPrep,
-            AvgPickupMinutes = avgPickup,
+            AvgPrepMinutes = prepTimes.Count > 0 ? Math.Round(prepTimes.Average(), 1) : 0,
+            AvgPickupMinutes = pickupTimes.Count > 0 ? Math.Round(pickupTimes.Average(), 1) : 0,
             TotalOrdersAnalyzed = servedOrders.Count,
             PeriodFrom = request.From,
             PeriodTo = request.To

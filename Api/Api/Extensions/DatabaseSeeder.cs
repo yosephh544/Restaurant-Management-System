@@ -55,7 +55,9 @@ public static class DatabaseSeeder
 
         AssignRolePermissions(roles["Cashier"], new[]
         {
-            Permissions.MenuView, Permissions.OrdersView, Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract
+            Permissions.MenuView,
+            Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems, Permissions.OrdersServe,
+            Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract
         }, permissions, db);
 
         AssignRolePermissions(roles["Waiter"], new[]
@@ -94,7 +96,7 @@ public static class DatabaseSeeder
             owner.Role = UserRole.Owner;
             owner.RoleId = ownerRole.Id;
             owner.RoleEntity = ownerRole;
-            owner.PasswordHash = BCrypt.Net.BCrypt.HashPassword("P@ssw0rd");
+            // Never overwrite an existing owner's password on startup.
             owner.IsActive = true;
             owner.UpdatedAt = DateTime.UtcNow;
         }
@@ -108,17 +110,25 @@ public static class DatabaseSeeder
         IReadOnlyDictionary<string, Guid> permissions,
         RestaurantDbContext db)
     {
-        foreach (var permissionName in permissionNames)
+        var desiredIds = permissionNames
+            .Distinct()
+            .Select(name => permissions[name])
+            .ToHashSet();
+
+        var existing = db.RolePermissions.Where(rp => rp.RoleId == role.Id).ToList();
+
+        // Revoke permissions that are no longer part of the role's definition.
+        foreach (var stale in existing.Where(rp => !desiredIds.Contains(rp.PermissionId)))
+            db.RolePermissions.Remove(stale);
+
+        var existingIds = existing.Select(rp => rp.PermissionId).ToHashSet();
+        foreach (var permissionId in desiredIds.Where(id => !existingIds.Contains(id)))
         {
-            var permissionId = permissions[permissionName];
-            if (!db.RolePermissions.Any(rp => rp.RoleId == role.Id && rp.PermissionId == permissionId))
+            db.RolePermissions.Add(new RolePermission
             {
-                db.RolePermissions.Add(new RolePermission
-                {
-                    RoleId = role.Id,
-                    PermissionId = permissionId
-                });
-            }
+                RoleId = role.Id,
+                PermissionId = permissionId
+            });
         }
     }
 }

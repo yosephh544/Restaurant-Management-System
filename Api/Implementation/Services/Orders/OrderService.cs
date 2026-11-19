@@ -23,6 +23,16 @@ public class OrderService : IOrderService
         _currentUserService = currentUserService;
     }
 
+    /// <summary>Waiters only ever see and act on their own orders; other floor roles see all.</summary>
+    private bool IsWaiter =>
+        string.Equals(_currentUserService.Role, Roles.Waiter, StringComparison.OrdinalIgnoreCase);
+
+    private void EnsureWaiterOwns(Order order)
+    {
+        if (IsWaiter && order.WaiterId != _currentUserService.UserId)
+            throw new ForbiddenException("You can only access your own orders.");
+    }
+
     public async Task<OrderResponse> CreateOrderAsync(CreateOrderRequest request, CancellationToken ct = default)
     {
         var waiterId = _currentUserService.UserId
@@ -135,6 +145,14 @@ public class OrderService : IOrderService
             query = query.Where(o => o.OrderNumber.ToLower().Contains(search) || o.TableNumber.ToLower().Contains(search));
         }
 
+        // Server-side scoping: a waiter cannot browse other waiters' tickets,
+        // regardless of what they pass in the query string.
+        if (IsWaiter)
+        {
+            var currentUserId = _currentUserService.UserId;
+            query = query.Where(o => o.WaiterId == currentUserId);
+        }
+
         query = request.SortDesc
             ? query.OrderByDescending(o => o.CreatedAt)
             : query.OrderBy(o => o.CreatedAt);
@@ -155,6 +173,8 @@ public class OrderService : IOrderService
             .FirstOrDefaultAsync(o => o.Id == orderId, ct)
             ?? throw new NotFoundException("Order", orderId);
 
+        EnsureWaiterOwns(order);
+
         return MapOrderToResponse(order);
     }
 
@@ -165,11 +185,17 @@ public class OrderService : IOrderService
             .FirstOrDefaultAsync(o => o.Id == orderId, ct)
             ?? throw new NotFoundException("Order", orderId);
 
-        if (order.PaymentStatus == PaymentStatus.Paid)
-            throw new ConflictException(ErrorMessages.OrderAlreadyPaid);
+        EnsureWaiterOwns(order);
+
+        if (order.PaymentStatus is PaymentStatus.Paid or PaymentStatus.PaymentInitiated
+            or PaymentStatus.RefundPending or PaymentStatus.Refunded)
+            throw new ConflictException("Items cannot be added once payment has been initiated or settled.");
 
         if (order.OrderStatus == OrderStatus.CancelledByKitchen)
             throw new ConflictException("Cannot add items to a kitchen-cancelled order.");
+
+        if (order.OrderStatus == OrderStatus.Served)
+            throw new ConflictException("Cannot add items to an order that has already been served.");
 
         var menuItemIds = request.Items.Select(i => i.MenuItemId).Distinct().ToList();
         var menuItems = await _dbContext.MenuItems
@@ -214,8 +240,16 @@ public class OrderService : IOrderService
 
     public async Task<OrderResponse> ReorderAsync(Guid orderId, ReorderRequest request, CancellationToken ct = default)
     {
+        if (request.ParentOrderId != Guid.Empty && request.ParentOrderId != orderId)
+            throw new ValidationException("ParentOrderId", "ParentOrderId must match the cancelled order being replaced.");
+
         var originalOrder = await _dbContext.Orders.FindAsync(new object[] { orderId }, ct)
             ?? throw new NotFoundException("Order", orderId);
+
+        EnsureWaiterOwns(originalOrder);
+
+        if (originalOrder.OrderStatus != OrderStatus.CancelledByKitchen)
+            throw new ConflictException("Only kitchen-cancelled orders can be replaced with a reorder.");
 
         var createReq = new CreateOrderRequest
         {
@@ -231,6 +265,23 @@ public class OrderService : IOrderService
         if (newOrder != null)
         {
             newOrder.ParentOrderId = originalOrder.Id;
+            // Keep tip attribution with the waiter who owned the cancelled order,
+            // even when a manager/cashier creates the replacement.
+            newOrder.WaiterId = originalOrder.WaiterId;
+
+            // Link the recovery so the cancellation report can measure reorder rate.
+            var cancellation = await _dbContext.OrderCancellations
+                .Where(c => c.OrderId == originalOrder.Id && c.ReplacementOrderId == null)
+                .OrderByDescending(c => c.CreatedAt)
+                .FirstOrDefaultAsync(ct);
+
+            if (cancellation != null)
+            {
+                cancellation.ReplacementOrderId = newOrder.Id;
+                cancellation.ResolvedByWaiterId = _currentUserService.UserId;
+                cancellation.ResolvedAt = DateTime.UtcNow;
+            }
+
             await _dbContext.SaveChangesAsync(ct);
         }
 
@@ -241,6 +292,8 @@ public class OrderService : IOrderService
     {
         var order = await _dbContext.Orders.FindAsync(new object[] { orderId }, ct)
             ?? throw new NotFoundException("Order", orderId);
+
+        EnsureWaiterOwns(order);
 
         if (order.OrderStatus != OrderStatus.Ready)
             throw new ConflictException($"Order cannot be marked as SERVED from '{order.OrderStatus}' status. It must be in READY status.");
@@ -255,8 +308,9 @@ public class OrderService : IOrderService
 
     private static string GenerateOrderNumber()
     {
-        var random = Random.Shared.Next(1000, 9999);
-        return $"ORD-{random}";
+        // Date prefix keeps kitchen/cashier tickets readable; the GUID suffix makes
+        // the value unique under concurrent order creation (max 20 chars).
+        return $"ORD-{DateTime.UtcNow:yyMMdd}-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
     }
 
     private static OrderResponse MapOrderToResponse(Order order) => new()
