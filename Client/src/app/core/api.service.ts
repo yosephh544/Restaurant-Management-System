@@ -62,6 +62,18 @@ export class ApiService {
     return response.data;
   }
 
+  async delete<T>(path: string): Promise<T> {
+    const response = await firstValueFrom(this.http.delete<ApiEnvelope<T>>(`${API_BASE_URL}${path}`));
+    return response.data;
+  }
+
+  async upload<T>(path: string, file: File, field = 'file'): Promise<T> {
+    const form = new FormData();
+    form.append(field, file, file.name);
+    const response = await firstValueFrom(this.http.post<ApiEnvelope<T>>(`${API_BASE_URL}${path}`, form));
+    return response.data;
+  }
+
   async getPaged<T>(path: string, params?: Record<string, unknown>): Promise<PagedEnvelope<T>> {
     return firstValueFrom(this.http.get<PagedEnvelope<T>>(`${API_BASE_URL}${path}`, { params: this.params(params) }));
   }

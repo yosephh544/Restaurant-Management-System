@@ -59,6 +59,7 @@ export interface Order {
   tax: number;
   tip: number;
   total: number;
+  pricesIncludeTax: boolean;
   notes?: string;
   createdAt: string;
   preparingAt?: string;
@@ -257,6 +258,7 @@ export interface Settings {
   phone: string;
   address: string;
   taxRate: number;
+  pricesIncludeTax: boolean;
   serviceCharge: number;
   tipPresets: number[];
   cash: boolean;
@@ -271,6 +273,7 @@ export const DEFAULT_SETTINGS: Settings = {
   phone: '',
   address: '',
   taxRate: 0,
+  pricesIncludeTax: false,
   serviceCharge: 0,
   tipPresets: [],
   cash: true,

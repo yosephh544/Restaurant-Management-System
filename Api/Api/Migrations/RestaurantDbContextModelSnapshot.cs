@@ -397,6 +397,9 @@ namespace RestaurantManagement.Api.Migrations
                     b.Property<bool>("PhonePayEnabled")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("PricesIncludeTax")
+                        .HasColumnType("bit");
+
                     b.Property<bool>("QrEnabled")
                         .HasColumnType("bit");
 
@@ -737,6 +740,9 @@ namespace RestaurantManagement.Api.Migrations
 
                     b.Property<DateTime?>("PreparingAt")
                         .HasColumnType("datetime2");
+
+                    b.Property<bool>("PricesIncludeTax")
+                        .HasColumnType("bit");
 
                     b.Property<DateTime?>("ReadyAt")
                         .HasColumnType("datetime2");

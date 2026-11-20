@@ -343,23 +343,9 @@ export class OrderDetailPage implements OnInit {
     return order ? this.store.orders().find((o) => o.parentOrderId === order.id) : undefined;
   });
 
-  protected readonly subtotal = computed(() => {
-    const order = this.order();
-    if (!order) return 0;
-    return Math.round(
-      order.lines.filter((l) => l.status !== 'CANCELLED').reduce((sum, l) => sum + l.unitPrice * l.qty, 0) * 100,
-    ) / 100;
-  });
+  protected readonly subtotal = computed(() => this.order()?.subtotal ?? 0);
 
-  protected readonly tax = computed(() => {
-    const order = this.order();
-    if (!order) return 0;
-    return Math.round(
-      order.lines
-        .filter((l) => l.status !== 'CANCELLED')
-        .reduce((sum, l) => sum + (l.unitPrice * l.qty * l.taxRate) / 100, 0) * 100,
-    ) / 100;
-  });
+  protected readonly tax = computed(() => this.order()?.tax ?? 0);
 
   protected readonly canPay = computed(() => {
     const order = this.order();

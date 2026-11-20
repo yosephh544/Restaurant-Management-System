@@ -165,13 +165,13 @@ USING (
 ) AS source
 ON target.Number = source.Number
 WHEN NOT MATCHED THEN
-    INSERT (Id, Number, Name, Capacity, Status, IsActive)
-    VALUES (NEWSEQUENTIALID(), source.Number, NULL, 1, 'Available', 1);
+    INSERT (Number, Name, Capacity, Status, IsActive)
+    VALUES (source.Number, NULL, 1, 'Available', 1);
 ");
 
             migrationBuilder.Sql(@"
-INSERT INTO dining_sessions (Id, TableId, WaiterId, Status, OpenedAt, BillRequestedAt, ClosedAt)
-SELECT NEWSEQUENTIALID(), rt.Id, firstOrder.WaiterId, 'Closed', x.OpenedAt, NULL, x.ClosedAt
+INSERT INTO dining_sessions (TableId, WaiterId, Status, OpenedAt, BillRequestedAt, ClosedAt)
+SELECT rt.Id, firstOrder.WaiterId, 'Closed', x.OpenedAt, NULL, x.ClosedAt
 FROM (
     SELECT MIN(CreatedAt) AS OpenedAt, MAX(CreatedAt) AS ClosedAt,
            LTRIM(RTRIM(TableNumber)) AS Number

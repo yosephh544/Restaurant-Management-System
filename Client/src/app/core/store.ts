@@ -33,7 +33,7 @@ import {
 } from './models';
 import { SessionService } from './session.service';
 
-export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string };
+export type Result<T = void> = { ok: true; data: T } | { ok: false, error: string };
 
 export interface DraftLine {
   menuItemId: string;
@@ -109,6 +109,7 @@ interface OrderDto {
   taxTotal: number;
   tipAmount: number;
   grandTotal: number;
+  pricesIncludeTax: boolean;
   customerNotes?: string | null;
   createdAt: string;
   preparingAt?: string | null;
@@ -270,6 +271,7 @@ interface SettingsDto {
   phone?: string | null;
   address?: string | null;
   taxRate: number;
+  pricesIncludeTax: boolean;
   serviceCharge: number;
   tipPresets: number[];
   cash: boolean;
@@ -363,6 +365,7 @@ export class Store {
         phone: dto.phone ?? '',
         address: dto.address ?? '',
         taxRate: dto.taxRate,
+        pricesIncludeTax: dto.pricesIncludeTax,
         serviceCharge: dto.serviceCharge,
         tipPresets: dto.tipPresets ?? [],
         cash: dto.cash,
@@ -794,7 +797,7 @@ export class Store {
   /* Menu                                                                */
   /* ------------------------------------------------------------------ */
 
-  async saveMenuItem(input: MenuItemInput): Promise<Result> {
+  async saveMenuItem(input: MenuItemInput): Promise<Result<MenuItem>> {
     return await this.guard(async () => {
       const body = {
         categoryId: input.categoryId,
@@ -804,11 +807,24 @@ export class Store {
         taxRate: input.taxRate,
         isAvailable: input.available,
       };
-      if (input.id) {
-        await this.api.patch(`/menu/items/${input.id}`, body);
-      } else {
-        await this.api.post('/menu/items', body);
-      }
+      const dto = input.id
+        ? await this.api.patch<MenuItemDto>(`/menu/items/${input.id}`, body)
+        : await this.api.post<MenuItemDto>('/menu/items', body);
+      await this.loadMenu();
+      return this.mapMenuItem(dto);
+    });
+  }
+
+  async uploadMenuItemImage(itemId: string, file: File): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.upload<MenuItemDto>(`/menu/items/${itemId}/image`, file);
+      await this.loadMenu();
+    });
+  }
+
+  async removeMenuItemImage(itemId: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.delete<MenuItemDto>(`/menu/items/${itemId}/image`);
       await this.loadMenu();
     });
   }
@@ -879,6 +895,7 @@ export class Store {
         phone: settings.phone || null,
         address: settings.address || null,
         taxRate: settings.taxRate,
+        pricesIncludeTax: settings.pricesIncludeTax,
         serviceCharge: settings.serviceCharge,
         tipPresets: settings.tipPresets,
         cash: settings.cash,
@@ -892,6 +909,7 @@ export class Store {
         phone: saved.phone ?? '',
         address: saved.address ?? '',
         taxRate: saved.taxRate,
+        pricesIncludeTax: saved.pricesIncludeTax,
         serviceCharge: saved.serviceCharge,
         tipPresets: saved.tipPresets ?? [],
         cash: saved.cash,
@@ -969,6 +987,7 @@ export class Store {
       tax: o.taxTotal,
       tip: o.tipAmount,
       total: o.grandTotal,
+      pricesIncludeTax: o.pricesIncludeTax,
       notes: o.customerNotes ?? undefined,
       createdAt: o.createdAt,
       preparingAt: o.preparingAt ?? undefined,

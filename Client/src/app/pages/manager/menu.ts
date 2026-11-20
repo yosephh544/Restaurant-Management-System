@@ -1,5 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { assetUrl } from '../../core/api.config';
 import { MenuItem, money } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
@@ -13,6 +14,9 @@ interface MenuDraft {
   price: number;
   taxRate: number;
   available: boolean;
+  imageUrl: string;
+  imageFile: File | null;
+  imagePreview: string;
 }
 
 @Component({
@@ -76,6 +80,7 @@ interface MenuDraft {
           <table class="table">
             <thead>
               <tr>
+                <th></th>
                 <th>Item</th>
                 <th>Category</th>
                 <th class="t-right">Price</th>
@@ -87,6 +92,15 @@ interface MenuDraft {
             <tbody>
               @for (item of filtered(); track item.id) {
                 <tr>
+                  <td>
+                    <span class="menu-thumb-sm">
+                      @if (item.imageUrl) {
+                        <img [src]="assetUrl(item.imageUrl)" [alt]="item.name" />
+                      } @else {
+                        <app-icon name="utensils" />
+                      }
+                    </span>
+                  </td>
                   <td>
                     <strong>{{ item.name }}</strong><br />
                     @if (item.description) {
@@ -174,6 +188,32 @@ interface MenuDraft {
               <label class="label" for="item-desc">Description</label>
               <input id="item-desc" class="input" [(ngModel)]="draft.description" />
             </div>
+            <div class="field mt-3">
+              <label class="label">Photo</label>
+              <div class="menu-image-upload">
+                <span class="menu-image-preview">
+                  @if (previewUrl()) {
+                    <img [src]="previewUrl()" alt="Menu item photo preview" />
+                  } @else {
+                    <app-icon name="utensils" />
+                  }
+                </span>
+                <div class="stack" style="gap: 6px">
+                  <div class="row" style="gap: 8px">
+                    <button class="btn btn-sm btn-secondary" type="button" (click)="imageInput.click()">
+                      <app-icon name="edit" /> {{ previewUrl() ? 'Replace photo' : 'Upload photo' }}
+                    </button>
+                    @if (previewUrl()) {
+                      <button class="btn btn-sm btn-ghost" type="button" (click)="clearImage()">
+                        <app-icon name="trash" /> Remove
+                      </button>
+                    }
+                  </div>
+                  <span class="hint">JPG, PNG or WEBP · up to 5 MB. Shows on the waiter and customer menu.</span>
+                </div>
+              </div>
+              <input #imageInput type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden (change)="onImagePicked($event)" />
+            </div>
             @if (error()) {
               <div class="auth-error mt-3">{{ error() }}</div>
             }
@@ -223,6 +263,7 @@ export class MenuPage {
   private readonly toast = inject(ToastService);
 
   protected readonly money = money;
+  protected readonly assetUrl = assetUrl;
   protected readonly query = signal('');
   protected readonly active = signal('all');
   protected readonly modalOpen = signal(false);
@@ -233,6 +274,9 @@ export class MenuPage {
   protected categoryName = '';
 
   protected draft: MenuDraft = this.blank();
+  private originalImageUrl = '';
+
+  private static readonly MaxImageBytes = 5 * 1024 * 1024;
 
   protected readonly availableCount = computed(() => this.store.menu().filter((m) => m.available).length);
 
@@ -256,6 +300,7 @@ export class MenuPage {
   protected openNew(): void {
     this.draft = this.blank();
     this.draft.categoryId = this.active() === 'all' ? this.store.menuCategories()[0]?.id ?? '' : this.active();
+    this.originalImageUrl = '';
     this.editingId.set(null);
     this.error.set('');
     this.modalOpen.set(true);
@@ -270,10 +315,46 @@ export class MenuPage {
       price: item.price,
       taxRate: item.taxRate,
       available: item.available,
+      imageUrl: item.imageUrl ?? '',
+      imageFile: null,
+      imagePreview: '',
     };
+    this.originalImageUrl = item.imageUrl ?? '';
     this.editingId.set(item.id);
     this.error.set('');
     this.modalOpen.set(true);
+  }
+
+  protected previewUrl(): string {
+    return this.draft.imagePreview || assetUrl(this.draft.imageUrl) || '';
+  }
+
+  protected onImagePicked(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      this.error.set('Choose an image file.');
+      return;
+    }
+    if (file.size > MenuPage.MaxImageBytes) {
+      this.error.set('Image must be 5 MB or smaller.');
+      return;
+    }
+    this.error.set('');
+    const reader = new FileReader();
+    reader.onload = () => {
+      this.draft.imageFile = file;
+      this.draft.imagePreview = String(reader.result ?? '');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  protected clearImage(): void {
+    this.draft.imageFile = null;
+    this.draft.imagePreview = '';
+    this.draft.imageUrl = '';
   }
 
   protected openCategory(): void {
@@ -322,9 +403,24 @@ export class MenuPage {
       description: this.draft.description.trim(),
       available: this.draft.available,
     });
-    this.busy.set(false);
     if (!result.ok) {
+      this.busy.set(false);
       this.error.set(result.error);
+      return;
+    }
+
+    const itemId = result.data.id;
+    const imageResult = this.draft.imageFile
+      ? await this.store.uploadMenuItemImage(itemId, this.draft.imageFile)
+      : !this.draft.imageUrl && this.originalImageUrl
+        ? await this.store.removeMenuItemImage(itemId)
+        : { ok: true as const };
+
+    this.busy.set(false);
+    if (!imageResult.ok) {
+      this.draft.id = itemId;
+      this.editingId.set(itemId);
+      this.error.set(imageResult.error);
       return;
     }
     this.modalOpen.set(false);
@@ -339,6 +435,9 @@ export class MenuPage {
       price: 0,
       taxRate: this.store.settings().taxRate,
       available: true,
+      imageUrl: '',
+      imageFile: null,
+      imagePreview: '',
     };
   }
 }

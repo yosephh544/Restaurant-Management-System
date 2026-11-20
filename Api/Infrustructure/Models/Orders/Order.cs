@@ -31,7 +31,10 @@ public class Order
 
     public PaymentStatus PaymentStatus { get; set; } = PaymentStatus.Unpaid;
 
-    /// <summary>Sum of (UnitPrice × Quantity) for all OrderItems.</summary>
+    /// <summary>Whether MenuItem.UnitPrice was tax-inclusive when this order was created.</summary>
+    public bool PricesIncludeTax { get; set; }
+
+    /// <summary>Sum of net (or gross if prices are tax-exclusive) item amounts.</summary>
     public decimal Subtotal { get; set; }
 
     /// <summary>Computed from each MenuItem.TaxRate at order creation time.</summary>

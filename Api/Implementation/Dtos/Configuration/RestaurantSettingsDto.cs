@@ -9,6 +9,7 @@ public class RestaurantSettingsDto
     public string? Phone { get; init; }
     public string? Address { get; init; }
     public decimal TaxRate { get; init; }
+    public bool PricesIncludeTax { get; init; }
     public decimal ServiceCharge { get; init; }
     public List<decimal> TipPresets { get; init; } = new();
     public bool Cash { get; init; }
@@ -33,6 +34,8 @@ public class UpdateRestaurantSettingsRequest
 
     [Range(0, 100)]
     public decimal TaxRate { get; set; }
+
+    public bool PricesIncludeTax { get; set; }
 
     [Range(0, 100)]
     public decimal ServiceCharge { get; set; }

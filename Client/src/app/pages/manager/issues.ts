@@ -135,10 +135,16 @@ export class ManagerIssuesPage {
       const order = this.store.order(issue.orderId);
       if (!order) return;
       if (order.status === 'CANCELLEDBYKITCHEN' && issue.item === 'Whole ticket') {
-        total += order.lines.reduce((sum, l) => sum + l.qty * l.unitPrice * (1 + l.taxRate / 100), 0);
+        total += order.lines.reduce((sum, l) => {
+          const net = l.qty * l.unitPrice;
+          return sum + (order.pricesIncludeTax ? net : net * (1 + l.taxRate / 100));
+        }, 0);
       } else {
         const line = order.lines.find((l) => l.name === issue.item && l.status === 'CANCELLED');
-        if (line) total += line.qty * line.unitPrice * (1 + line.taxRate / 100);
+        if (line) {
+          const net = line.qty * line.unitPrice;
+          total += order.pricesIncludeTax ? net : net * (1 + line.taxRate / 100);
+        }
       }
     });
     return Math.round(total * 100) / 100;

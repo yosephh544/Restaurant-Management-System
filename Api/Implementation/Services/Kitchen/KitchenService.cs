@@ -157,8 +157,11 @@ public class KitchenService : IKitchenService
                 throw new ConflictException("Order item is already cancelled.");
 
             // Reverse the cancelled line (and its snapshotted tax) from the bill.
-            var lineSubtotal = item.UnitPrice * item.Quantity;
-            var lineTax = lineSubtotal * (item.TaxRate / 100m);
+            var (lineSubtotal, lineTax, _) = TaxPricing.Split(
+                item.UnitPrice,
+                item.Quantity,
+                item.TaxRate,
+                order.PricesIncludeTax);
 
             item.ItemStatus = OrderItemStatus.Cancelled;
             item.UpdatedAt = DateTime.UtcNow;
@@ -211,6 +214,10 @@ public class KitchenService : IKitchenService
     private static void ApplyFullOrderCancellation(Order order)
     {
         order.OrderStatus = OrderStatus.CancelledByKitchen;
+        order.Subtotal = 0m;
+        order.TaxTotal = 0m;
+        order.TipAmount = 0m;
+        order.GrandTotal = 0m;
         order.UpdatedAt = DateTime.UtcNow;
 
         foreach (var item in order.OrderItems)

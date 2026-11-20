@@ -46,7 +46,6 @@ export class SessionService {
 
   set(session: Session): void {
     this.session.set(session);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   }
 
   updateProfile(profile: ApiProfile): void {
@@ -63,7 +62,6 @@ export class SessionService {
 
   clear(): void {
     this.session.set(null);
-    localStorage.removeItem(SESSION_KEY);
   }
 
   hasPermission(permission: string): boolean {
@@ -75,11 +73,9 @@ export class SessionService {
   }
 
   private restore(): Session | null {
-    try {
-      const raw = localStorage.getItem(SESSION_KEY);
-      return raw ? (JSON.parse(raw) as Session) : null;
-    } catch {
-      return null;
-    }
+    // Sessions are intentionally kept only in memory. Opening or refreshing
+    // the client must always start from the login page, not a previous user's dashboard.
+    localStorage.removeItem(SESSION_KEY);
+    return null;
   }
 }

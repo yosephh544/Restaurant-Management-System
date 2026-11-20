@@ -3,6 +3,7 @@ using RestaurantManagement.Implementation.Dtos.Billing;
 using RestaurantManagement.Implementation.Interfaces.Billing;
 using RestaurantManagement.Implementation.Interfaces.Common;
 using RestaurantManagement.Infrustructure.Common.Exceptions;
+using RestaurantManagement.Infrustructure.Common.Extensions;
 using RestaurantManagement.Infrustructure.Data;
 using RestaurantManagement.Infrustructure.Enums.Billing;
 using RestaurantManagement.Infrustructure.Enums.Orders;
@@ -91,8 +92,12 @@ public class BillingService : IBillingService
         {
             foreach (var item in order.OrderItems.Where(i => i.ItemStatus != OrderItemStatus.Cancelled))
             {
-                var lineSubtotal = Math.Round(item.UnitPrice * item.Quantity, 2);
-                var lineTax = Math.Round(lineSubtotal * (item.TaxRate / 100m), 2);
+                var (lineSubtotal, lineTax, lineTotal) = TaxPricing.Split(
+                    item.UnitPrice,
+                    item.Quantity,
+                    item.TaxRate,
+                    order.PricesIncludeTax);
+
                 subtotal += lineSubtotal;
                 taxTotal += lineTax;
 
@@ -107,7 +112,7 @@ public class BillingService : IBillingService
                     TaxRate = item.TaxRate,
                     LineSubtotal = lineSubtotal,
                     LineTax = lineTax,
-                    LineTotal = lineSubtotal + lineTax
+                    LineTotal = lineTotal
                 });
             }
         }

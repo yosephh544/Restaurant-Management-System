@@ -14,6 +14,7 @@ public class OrderResponse
     public decimal TaxTotal { get; init; }
     public decimal TipAmount { get; init; }
     public decimal GrandTotal { get; init; }
+    public bool PricesIncludeTax { get; init; }
     public string? CustomerNotes { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }

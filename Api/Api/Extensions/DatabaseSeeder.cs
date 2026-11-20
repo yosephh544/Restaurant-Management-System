@@ -88,6 +88,7 @@ public static class DatabaseSeeder
                 RestaurantName = "Majete Corner",
                 BranchName = "Main Branch",
                 TaxRate = 15m,
+                PricesIncludeTax = false,
                 ServiceCharge = 0m,
                 TipPresetsCsv = "0,10,15,20",
                 CashEnabled = true,

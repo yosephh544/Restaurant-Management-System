@@ -25,6 +25,9 @@ await DatabaseSeeder.SeedOwnerAsync(app.Services);
 // Must be first to catch unhandled exceptions across all subsequent middleware
 app.UseGlobalExceptionHandler();
 
+// Menu photos are written to wwwroot/uploads/menu at runtime.
+app.UseStaticFiles();
+
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();

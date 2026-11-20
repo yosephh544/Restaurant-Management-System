@@ -184,7 +184,7 @@ public class MenuService : IMenuService
             item.IsAvailable = request.IsAvailable.Value;
 
         if (request.ImageUrl != null)
-            item.ImageUrl = request.ImageUrl;
+            item.ImageUrl = string.IsNullOrWhiteSpace(request.ImageUrl) ? null : request.ImageUrl.Trim();
 
         item.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync(ct);

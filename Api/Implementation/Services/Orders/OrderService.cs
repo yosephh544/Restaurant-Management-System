@@ -60,6 +60,8 @@ public class OrderService : IOrderService
 
         var orderId = Guid.NewGuid();
         var orderNumber = GenerateOrderNumber();
+        var settings = await _dbContext.RestaurantSettings.AsNoTracking().FirstOrDefaultAsync(ct);
+        var pricesIncludeTax = settings?.PricesIncludeTax ?? false;
 
         var order = new Order
         {
@@ -69,6 +71,7 @@ public class OrderService : IOrderService
             WaiterId = waiterId,
             OrderStatus = OrderStatus.Pending,
             PaymentStatus = PaymentStatus.Unpaid,
+            PricesIncludeTax = pricesIncludeTax,
             CustomerNotes = request.CustomerNotes,
             CreatedAt = DateTime.UtcNow
         };
@@ -79,10 +82,13 @@ public class OrderService : IOrderService
         foreach (var reqItem in request.Items)
         {
             var menuItem = menuItems[reqItem.MenuItemId];
-            var itemTotal = menuItem.UnitPrice * reqItem.Quantity;
-            var itemTax = itemTotal * (menuItem.TaxRate / 100m);
+            var (net, itemTax, _) = TaxPricing.Split(
+                menuItem.UnitPrice,
+                reqItem.Quantity,
+                menuItem.TaxRate,
+                pricesIncludeTax);
 
-            subtotal += itemTotal;
+            subtotal += net;
             taxTotal += itemTax;
 
             order.OrderItems.Add(new OrderItem
@@ -243,10 +249,13 @@ public class OrderService : IOrderService
             if (!menuItem.IsAvailable)
                 throw new ConflictException($"Menu item '{menuItem.Name}' is currently out of stock.");
 
-            var itemTotal = menuItem.UnitPrice * reqItem.Quantity;
-            var itemTax = itemTotal * (menuItem.TaxRate / 100m);
+            var (net, itemTax, _) = TaxPricing.Split(
+                menuItem.UnitPrice,
+                reqItem.Quantity,
+                menuItem.TaxRate,
+                order.PricesIncludeTax);
 
-            order.Subtotal += itemTotal;
+            order.Subtotal += net;
             order.TaxTotal += itemTax;
 
             order.OrderItems.Add(new OrderItem
@@ -378,6 +387,7 @@ public class OrderService : IOrderService
         TaxTotal = order.TaxTotal,
         TipAmount = order.TipAmount,
         GrandTotal = order.GrandTotal,
+        PricesIncludeTax = order.PricesIncludeTax,
         CustomerNotes = order.CustomerNotes,
         CreatedAt = order.CreatedAt,
         UpdatedAt = order.UpdatedAt,
