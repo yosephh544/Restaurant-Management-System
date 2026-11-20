@@ -5,6 +5,7 @@ using Microsoft.Extensions.Configuration;
 using RestaurantManagement.Implementation.Dtos.Authentication;
 using RestaurantManagement.Implementation.Interfaces.Authentication;
 using RestaurantManagement.Implementation.Interfaces.Common;
+using RestaurantManagement.Implementation.Interfaces.Shifts;
 using RestaurantManagement.Infrustructure.Common.Constants;
 using RestaurantManagement.Infrustructure.Common.Exceptions;
 using RestaurantManagement.Infrustructure.Data;
@@ -17,17 +18,20 @@ public class AuthService : IAuthService
     private readonly RestaurantDbContext _dbContext;
     private readonly IJwtTokenService _jwtTokenService;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IShiftService _shiftService;
     private readonly IConfiguration _configuration;
 
     public AuthService(
         RestaurantDbContext dbContext,
         IJwtTokenService jwtTokenService,
         ICurrentUserService currentUserService,
+        IShiftService shiftService,
         IConfiguration configuration)
     {
         _dbContext = dbContext;
         _jwtTokenService = jwtTokenService;
         _currentUserService = currentUserService;
+        _shiftService = shiftService;
         _configuration = configuration;
     }
 
@@ -44,6 +48,8 @@ public class AuthService : IAuthService
 
         if (string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedException(ErrorMessages.InvalidCredentials);
+
+        await _shiftService.EnsureCanSignInAsync(user, ct);
 
         return await GenerateAuthResponseAsync(user, request.DeviceToken, ct);
     }
@@ -65,6 +71,8 @@ public class AuthService : IAuthService
         if (string.IsNullOrEmpty(user.PinHash) || !BCrypt.Net.BCrypt.Verify(request.Pin, user.PinHash))
             throw new UnauthorizedException(ErrorMessages.InvalidCredentials);
 
+        await _shiftService.EnsureCanSignInAsync(user, ct);
+
         return await GenerateAuthResponseAsync(user, request.DeviceToken, ct);
     }
 
@@ -85,6 +93,8 @@ public class AuthService : IAuthService
 
         if (!existingToken.User.IsActive)
             throw new ForbiddenException(ErrorMessages.UserDeactivated);
+
+        await _shiftService.EnsureCanSignInAsync(existingToken.User, ct);
 
         // Rotate token: revoke old token
         existingToken.IsRevoked = true;

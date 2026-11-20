@@ -28,4 +28,7 @@ public class CreateUserRequest
     /// <summary>Password for Manager / Owner / Cashier roles. Minimum 6 characters.</summary>
     [MinLength(6, ErrorMessage = "Password must be at least 6 characters.")]
     public string? Password { get; set; }
+
+    /// <summary>Default shift for the staff member. Required for floor/kitchen roles, optional for Managers.</summary>
+    public Guid? DefaultShiftId { get; set; }
 }

@@ -50,6 +50,7 @@ public static class DatabaseSeeder
         await EnsureRolePermissionsAsync(roles["Manager"], new[]
         {
             Permissions.UsersView, Permissions.UsersCreate, Permissions.UsersUpdate, Permissions.UsersManageStatus,
+            Permissions.ShiftsView, Permissions.ShiftsManage,
             Permissions.MenuView, Permissions.CategoriesManage, Permissions.ItemsManage, Permissions.AvailabilityManage,
             Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems, Permissions.OrdersReorder, Permissions.OrdersServe,
             Permissions.KitchenView, Permissions.KitchenUpdate, Permissions.KitchenCancel,
@@ -84,6 +85,10 @@ public static class DatabaseSeeder
         }, permissions, db, ct);
 
         await db.SaveChangesAsync(ct);
+
+        var morningShift = await EnsureShiftAsync(db, "Morning", 7 * 60, 15 * 60, ct);
+        await EnsureShiftAsync(db, "Afternoon", 15 * 60, 21 * 60, ct);
+        await EnsureShiftAsync(db, "Late Night", 21 * 60, 3 * 60, ct);
 
         if (!await db.RestaurantSettings.AnyAsync(ct))
         {
@@ -134,6 +139,51 @@ public static class DatabaseSeeder
         }
 
         await db.SaveChangesAsync(ct);
+
+        // Existing floor staff predate shift gating. Give them the Morning shift
+        // so nobody is locked out; the Owner corrects afternoon staff afterwards.
+        var unassigned = await db.Users
+            .Include(u => u.RoleEntity)
+            .Where(u => u.DefaultShiftId == null)
+            .ToListAsync(ct);
+
+        foreach (var user in unassigned)
+        {
+            var roleName = user.RoleEntity?.Name ?? user.Role.ToString();
+            if (string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(roleName, Roles.Manager, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            user.DefaultShiftId = morningShift.Id;
+            user.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    private static async Task<Shift> EnsureShiftAsync(
+        RestaurantDbContext db,
+        string name,
+        int startMinutes,
+        int endMinutes,
+        CancellationToken ct)
+    {
+        var shift = await db.Shifts.FirstOrDefaultAsync(s => s.Name == name, ct);
+        if (shift is not null)
+            return shift;
+
+        shift = new Shift
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            StartMinutes = startMinutes,
+            EndMinutes = endMinutes,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Shifts.Add(shift);
+        await db.SaveChangesAsync(ct);
+        return shift;
     }
 
     private static async Task EnsureRolePermissionsAsync(

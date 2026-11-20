@@ -14,6 +14,7 @@ using RestaurantManagement.Implementation.Interfaces.Stations;
 using RestaurantManagement.Implementation.Interfaces.Menu;
 using RestaurantManagement.Implementation.Interfaces.Orders;
 using RestaurantManagement.Implementation.Interfaces.Payment;
+using RestaurantManagement.Implementation.Interfaces.Shifts;
 using RestaurantManagement.Implementation.Services.Audit;
 using RestaurantManagement.Implementation.Services.Authentication;
 using RestaurantManagement.Implementation.Services.Authorization;
@@ -25,6 +26,7 @@ using RestaurantManagement.Implementation.Services.Stations;
 using RestaurantManagement.Implementation.Services.Menu;
 using RestaurantManagement.Implementation.Services.Orders;
 using RestaurantManagement.Implementation.Services.Payment;
+using RestaurantManagement.Implementation.Services.Shifts;
 using RestaurantManagement.Infrustructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using RestaurantManagement.Api.Authorization;
@@ -165,6 +167,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<ISettingsService, SettingsService>();
         services.AddScoped<IIssueService, IssueService>();
         services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<IShiftService, ShiftService>();
 
         return services;
     }

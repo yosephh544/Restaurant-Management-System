@@ -1,7 +1,7 @@
 import { Component, computed, HostListener, inject, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService, ROLE_HOME } from '../core/auth.service';
-import { initials, ROLE_LABEL, Role } from '../core/models';
+import { initials, MyShift, ROLE_LABEL, Role } from '../core/models';
 import { Store } from '../core/store';
 import { Icon, IconName } from '../shared/icon';
 
@@ -82,6 +82,17 @@ interface NavGroup {
           </div>
 
           <div class="top-right">
+            @if (store.myShift(); as shift) {
+              <span
+                class="shift-badge"
+                [class.on]="shift.canSignInNow"
+                [class.free]="shift.unrestricted"
+                [title]="shift.message ?? ''"
+              >
+                <app-icon name="clock" />
+                {{ shiftBadge(shift) }}
+              </span>
+            }
             <span class="top-date">{{ today }}</span>
             <a class="icon-btn" [routerLink]="notifyLink()" aria-label="Notifications">
               <app-icon name="bell" />
@@ -207,6 +218,7 @@ export class Shell {
       { label: 'Overview', path: '/manager', icon: 'home' },
       { label: 'Reports', path: '/manager/reports', icon: 'chart' },
       { label: 'Staff', path: '/manager/staff', icon: 'users' },
+      { label: 'Shifts', path: '/manager/shifts', icon: 'clock' },
       { label: 'Kitchen & Bar Issues', path: '/manager/issues', icon: 'alert', count: issues },
       { label: 'Audit Log', path: '/manager/audit', icon: 'clock' },
       { label: 'Menu', path: '/manager/menu', icon: 'utensils' },
@@ -226,8 +238,21 @@ export class Shell {
     return [{ label: 'Workspace', items }];
   });
 
-  protected notifyLink(): string {
-    switch (this.user()?.role) {
+  protected shiftBadge(shift: MyShift): string {
+    if (shift.unrestricted) return 'Any time';
+
+    const now = Date.now();
+    const upcoming = shift.shifts
+      .filter((window) => new Date(window.endsAt).getTime() >= now)
+      .sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
+
+    const active = upcoming.find((window) => new Date(window.startsAt).getTime() <= now);
+    if (active) return `${active.name} · now`;
+    if (upcoming[0]) return `${upcoming[0].name} · ${this.clockTime(upcoming[0].startsAt)}`;
+    return shift.shiftRequired ? 'Off shift' : '—';
+  }
+
+  protected notifyLink(): string {    switch (this.user()?.role) {
       case 'WAITER':
         return '/waiter/issues';
       case 'KITCHEN':
@@ -260,6 +285,10 @@ export class Shell {
     await this.auth.logout();
     this.store.reset();
     await this.router.navigate(['/login']);
+  }
+
+  private clockTime(iso: string): string {
+    return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
   }
 
   @HostListener('document:click', ['$event'])

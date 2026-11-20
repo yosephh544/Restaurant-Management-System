@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/auth.service';
-import { initials, ROLE_LABEL, Role, StaffUser } from '../../core/models';
+import { initials, ROLE_LABEL, Role, shiftRange, StaffUser } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -21,6 +21,7 @@ interface UserDraft {
   role: Role;
   password: string;
   pin: string;
+  defaultShiftId: string;
 }
 
 @Component({
@@ -89,6 +90,7 @@ interface UserDraft {
               <tr>
                 <th>Staff</th>
                 <th>Role</th>
+                <th>Shift</th>
                 <th>Username</th>
                 <th>Status</th>
                 <th>Created</th>
@@ -108,6 +110,18 @@ interface UserDraft {
                     </span>
                   </td>
                   <td><span class="pill pill-grey no-dot">{{ roleLabel(member.role) }}</span></td>
+                  <td>
+                    @if (member.role === 'OWNER') {
+                      <span class="muted">—</span>
+                    } @else if (member.defaultShift) {
+                      <span class="pill pill-blue no-dot">{{ member.defaultShift.name }}</span><br />
+                      <span class="tiny muted">{{ shiftRange(member.defaultShift.startMinutes, member.defaultShift.endMinutes) }}</span>
+                    } @else if (member.role === 'MANAGER') {
+                      <span class="pill pill-blue no-dot">Any time</span>
+                    } @else {
+                      <span class="pill pill-amber">Not assigned</span>
+                    }
+                  </td>
                   <td class="muted num">&#64;{{ member.username }}</td>
                   <td>
                     <span [class]="'pill ' + (member.active ? 'pill-green' : 'pill-grey')">
@@ -217,6 +231,30 @@ interface UserDraft {
                   }
                 </select>
               </div>
+              @if (draft.role !== 'OWNER') {
+                <div class="field" style="grid-column: 1 / -1">
+                  <label class="label" for="user-shift">
+                    Default shift {{ draft.role === 'MANAGER' ? '(optional)' : '' }}
+                  </label>
+                  <select id="user-shift" class="select" [(ngModel)]="draft.defaultShiftId">
+                    @if (draft.role === 'MANAGER') {
+                      <option value="">Any time — no fixed shift</option>
+                    } @else {
+                      <option value="" disabled>Select a shift</option>
+                    }
+                    @for (shift of activeShifts(); track shift.id) {
+                      <option [value]="shift.id">{{ shift.name }} · {{ shiftRange(shift.startMinutes, shift.endMinutes) }}</option>
+                    }
+                  </select>
+                  <p class="tiny muted" style="margin: 6px 0 0">
+                    @if (draft.role === 'MANAGER') {
+                      Leave blank so this manager can sign in at any time. Assign a shift to restrict their sign-in window.
+                    } @else {
+                      This staff member can only sign in within this shift window (15 minutes early to 60 minutes late).
+                    }
+                  </p>
+                </div>
+              }
               <div class="field">
                 <label class="label" for="user-password">Password</label>
                 <input id="user-password" class="input" [(ngModel)]="draft.password" autocomplete="new-password" />
@@ -251,6 +289,7 @@ export class UsersPage {
   private readonly toast = inject(ToastService);
 
   protected readonly initials = initials;
+  protected readonly shiftRange = shiftRange;
   protected readonly query = signal('');
   protected readonly roleFilter = signal<Role | 'ALL'>('ALL');
   protected readonly modalOpen = signal(false);
@@ -258,6 +297,7 @@ export class UsersPage {
   protected readonly error = signal('');
   protected readonly busy = signal(false);
   protected readonly currentUserId = this.auth.user()?.id ?? '';
+  protected readonly activeShifts = computed(() => this.store.shifts().filter((shift) => shift.isActive));
 
   protected readonly roleOptions: Role[] = ['OWNER', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN', 'BARTENDER'];
 
@@ -334,6 +374,7 @@ export class UsersPage {
       role: member.role,
       password: '',
       pin: '',
+      defaultShiftId: member.defaultShift?.id ?? '',
     };
     this.editingId.set(member.id);
     this.error.set('');
@@ -341,7 +382,12 @@ export class UsersPage {
   }
 
   protected setRole(role: Role): void {
-    this.draft = { ...this.draft, role };
+    const fallbackShift = this.draft.defaultShiftId || this.activeShifts()[0]?.id || '';
+    this.draft = {
+      ...this.draft,
+      role,
+      defaultShiftId: role === 'OWNER' ? '' : fallbackShift,
+    };
   }
 
   protected async save(): Promise<void> {
@@ -382,6 +428,10 @@ export class UsersPage {
       this.error.set('The PIN must be 4–6 digits.');
       return;
     }
+    if (this.draft.role !== 'OWNER' && this.draft.role !== 'MANAGER' && !this.draft.defaultShiftId) {
+      this.error.set('Choose a default shift for this staff member.');
+      return;
+    }
 
     this.busy.set(true);
     const result = await this.store.saveUser({
@@ -392,6 +442,8 @@ export class UsersPage {
       role: this.draft.role,
       password: password || undefined,
       pin: pin || undefined,
+      defaultShiftId: this.draft.role === 'OWNER' ? undefined : this.draft.defaultShiftId || undefined,
+      clearDefaultShift: this.draft.role === 'MANAGER' && !this.draft.defaultShiftId,
     });
     this.busy.set(false);
     if (!result.ok) {
@@ -423,6 +475,7 @@ export class UsersPage {
       role: 'WAITER',
       password: '',
       pin: '',
+      defaultShiftId: this.activeShifts()[0]?.id ?? '',
     };
   }
 }

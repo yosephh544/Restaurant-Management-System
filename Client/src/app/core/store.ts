@@ -17,6 +17,7 @@ import {
   MenuItem,
   MenuItemAlcoholType,
   MenuItemFastingType,
+  MyShift,
   Order,
   OrderLine,
   OrderStatus,
@@ -29,6 +30,8 @@ import {
   roleFrom,
   SalesSummary,
   Settings,
+  ShiftDay,
+  ShiftDefinition,
   StaffUser,
   Table,
   TipEntry,
@@ -90,6 +93,24 @@ export interface UserInput {
   role: string;
   pin?: string;
   password?: string;
+  defaultShiftId?: string;
+  clearDefaultShift?: boolean;
+}
+
+export interface ShiftInput {
+  id?: string;
+  name: string;
+  startMinutes: number;
+  endMinutes: number;
+  isActive: boolean;
+}
+
+interface UserDefaultShiftDto {
+  id: string;
+  name: string;
+  startMinutes: number;
+  endMinutes: number;
+  crossesMidnight: boolean;
 }
 
 interface UserDto {
@@ -100,7 +121,25 @@ interface UserDto {
   role: string;
   isActive: boolean;
   createdAt: string;
+  defaultShift?: UserDefaultShiftDto | null;
 }
+
+interface ShiftDto {
+  id: string;
+  name: string;
+  startMinutes: number;
+  endMinutes: number;
+  isActive: boolean;
+  crossesMidnight: boolean;
+}
+
+interface ShiftDayDto {
+  date: string;
+  shifts: ShiftDay['shifts'];
+  exceptions: ShiftDay['exceptions'];
+}
+
+interface MyShiftDto extends MyShift {}
 
 interface OrderItemDto {
   id: string;
@@ -326,6 +365,9 @@ export class Store {
   readonly issues = signal<Issue[]>([]);
   readonly audit = signal<AuditEvent[]>([]);
   readonly users = signal<StaffUser[]>([]);
+  readonly shifts = signal<ShiftDefinition[]>([]);
+  readonly shiftSchedule = signal<ShiftDay[]>([]);
+  readonly myShift = signal<MyShift | null>(null);
   readonly reports = signal<Reports>({
     summary: null,
     waiters: [],
@@ -334,6 +376,7 @@ export class Store {
   });
   readonly loaded = signal(false);
   readonly refreshing = signal(false);
+  private scheduleRange: { from: string; to: string } | null = null;
 
   readonly menu = computed<MenuItem[]>(() => this.menuCategories().flatMap((c) => c.items));
 
@@ -376,7 +419,7 @@ export class Store {
   async refreshAll(): Promise<void> {
     if (this.refreshing()) return;
     this.refreshing.set(true);
-    const jobs: Promise<unknown>[] = [this.loadSettings()];
+    const jobs: Promise<unknown>[] = [this.loadSettings(), this.loadMyShift()];
     if (this.can('tables.view')) jobs.push(this.loadTables());
     if (this.can('menu.view')) jobs.push(this.loadMenu());
     if (this.can('orders.view')) jobs.push(this.loadOrders(), this.loadIssues());
@@ -386,6 +429,7 @@ export class Store {
     if (this.can('tips.view')) jobs.push(this.loadTips());
     if (this.can('reports.view')) jobs.push(this.loadAudit());
     if (this.can('users.view')) jobs.push(this.loadUsers());
+    if (this.can('shifts.view')) jobs.push(this.loadShifts());
     await Promise.allSettled(jobs);
     this.loaded.set(true);
     this.refreshing.set(false);
@@ -578,6 +622,106 @@ export class Store {
     await this.guard(async () => {
       const data = await this.api.getAll<UserDto>('/users');
       this.users.set(data.map((u) => this.mapUser(u)));
+    });
+  }
+
+  async loadShifts(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.get<ShiftDto[]>('/shifts');
+      this.shifts.set(
+        data.map((s) => ({
+          id: s.id,
+          name: s.name,
+          startMinutes: s.startMinutes,
+          endMinutes: s.endMinutes,
+          isActive: s.isActive,
+          crossesMidnight: s.crossesMidnight,
+        })),
+      );
+    });
+  }
+
+  async loadShiftSchedule(from: string, to: string): Promise<void> {
+    this.scheduleRange = { from, to };
+    await this.guard(async () => {
+      const data = await this.api.get<ShiftDayDto[]>('/shifts/schedule', { from, to });
+      this.shiftSchedule.set(data);
+    });
+  }
+
+  async loadMyShift(): Promise<void> {
+    await this.guard(async () => {
+      this.myShift.set(await this.api.get<MyShiftDto>('/shifts/me'));
+    });
+  }
+
+  async saveShift(input: ShiftInput): Promise<Result> {
+    return await this.guard(async () => {
+      const body = {
+        name: input.name,
+        startMinutes: input.startMinutes,
+        endMinutes: input.endMinutes,
+        isActive: input.isActive,
+      };
+      if (input.id) await this.api.put(`/shifts/${input.id}`, body);
+      else await this.api.post('/shifts', body);
+      await this.loadShifts();
+      await this.reloadShiftSchedule();
+    });
+  }
+
+  async deleteShift(shiftId: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.delete(`/shifts/${shiftId}`);
+      await this.loadShifts();
+      await this.reloadShiftSchedule();
+    });
+  }
+
+  async markShiftOff(date: string, userId: string, shiftId: string, note = ''): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch('/shifts/off', { date, userId, shiftId, note: note || null });
+      await this.reloadShiftSchedule();
+    });
+  }
+
+  async coverShift(
+    date: string,
+    absentUserId: string,
+    coverUserId: string,
+    shiftId?: string,
+    note = '',
+  ): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch('/shifts/cover', {
+        date,
+        absentUserId,
+        coverUserId,
+        shiftId: shiftId ?? null,
+        note: note || null,
+      });
+      await this.reloadShiftSchedule();
+    });
+  }
+
+  async swapShifts(date: string, userAId: string, userBId: string, note = ''): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch('/shifts/swap', { date, userAId, userBId, note: note || null });
+      await this.reloadShiftSchedule();
+    });
+  }
+
+  async resetShiftDay(date: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch('/shifts/reset', { date });
+      await this.reloadShiftSchedule();
+    });
+  }
+
+  async deleteShiftException(exceptionId: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.delete(`/shifts/exceptions/${exceptionId}`);
+      await this.reloadShiftSchedule();
     });
   }
 
@@ -949,6 +1093,8 @@ export class Store {
           role: input.role,
           pin: input.pin || undefined,
           password: input.password || undefined,
+          defaultShiftId: input.defaultShiftId || undefined,
+          clearDefaultShift: input.clearDefaultShift ?? false,
         });
       } else {
         await this.api.post('/users', {
@@ -958,9 +1104,10 @@ export class Store {
           role: input.role,
           pin: input.pin || null,
           password: input.password || null,
+          defaultShiftId: input.defaultShiftId || null,
         });
       }
-      await this.loadUsers();
+      await Promise.all([this.loadUsers(), this.reloadShiftSchedule()]);
     });
   }
 
@@ -1017,6 +1164,10 @@ export class Store {
     this.issues.set([]);
     this.audit.set([]);
     this.users.set([]);
+    this.shifts.set([]);
+    this.shiftSchedule.set([]);
+    this.myShift.set(null);
+    this.scheduleRange = null;
     this.reports.set({ summary: null, waiters: [], cancellations: null, turnaround: null });
     this.loaded.set(false);
   }
@@ -1027,6 +1178,11 @@ export class Store {
 
   private async reloadBilling(): Promise<void> {
     await Promise.all([this.loadPayments(), this.loadBills(), this.loadOrders(), this.loadTips()]);
+  }
+
+  private async reloadShiftSchedule(): Promise<void> {
+    const range = this.scheduleRange;
+    if (range) await this.loadShiftSchedule(range.from, range.to);
   }
 
   private async guard<T>(work: () => Promise<T>): Promise<Result<T>> {
@@ -1055,6 +1211,15 @@ export class Store {
       role: roleFrom(u.role),
       active: u.isActive,
       createdAt: u.createdAt,
+      defaultShift: u.defaultShift
+        ? {
+            id: u.defaultShift.id,
+            name: u.defaultShift.name,
+            startMinutes: u.defaultShift.startMinutes,
+            endMinutes: u.defaultShift.endMinutes,
+            crossesMidnight: u.defaultShift.crossesMidnight,
+          }
+        : null,
     };
   }
 

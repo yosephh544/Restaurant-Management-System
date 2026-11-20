@@ -38,10 +38,18 @@ public class User
     /// <summary>Soft-disables terminated staff while preserving historical records.</summary>
     public bool IsActive { get; set; } = true;
 
+    /// <summary>
+    /// Recurring shift used for sign-in gating. Owners have none; Managers may
+    /// have none, which keeps them unrestricted. Other roles must have one.
+    /// </summary>
+    public Guid? DefaultShiftId { get; set; }
+    public Shift? DefaultShift { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
     // Navigation properties
+    public ICollection<ShiftException> ShiftExceptions { get; set; } = new List<ShiftException>();
     public ICollection<Order> Orders { get; set; } = new List<Order>();
     public ICollection<OrderCancellation> CancellationsExecuted { get; set; } = new List<OrderCancellation>();
     public ICollection<OrderCancellation> CancellationsResolved { get; set; } = new List<OrderCancellation>();

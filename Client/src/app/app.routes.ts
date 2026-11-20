@@ -132,6 +132,11 @@ export const routes: Routes = [
             loadComponent: () => import('./pages/manager/staff').then((m) => m.StaffPage),
           },
           {
+            path: 'shifts',
+            title: 'Shifts · Majete Corner',
+            loadComponent: () => import('./pages/manager/shifts').then((m) => m.ShiftsPage),
+          },
+          {
             path: 'issues',
             title: 'Kitchen & bar issues · Majete Corner',
             loadComponent: () => import('./pages/manager/issues').then((m) => m.ManagerIssuesPage),

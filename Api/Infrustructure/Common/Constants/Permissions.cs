@@ -8,6 +8,10 @@ public static class Permissions
     public const string UsersManageStatus = "users.status.manage";
     public const string RolesManage = "roles.manage";
 
+    public const string ShiftsView = "shifts.view";
+    public const string ShiftsManage = "shifts.manage";
+    public const string ShiftsConfigure = "shifts.configure";
+
     public const string MenuView = "menu.view";
     public const string CategoriesManage = "menu.categories.manage";
     public const string ItemsManage = "menu.items.manage";

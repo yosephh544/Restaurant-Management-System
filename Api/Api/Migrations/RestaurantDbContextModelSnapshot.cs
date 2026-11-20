@@ -548,6 +548,90 @@ namespace RestaurantManagement.Api.Migrations
                     b.ToTable("role_permissions", (string)null);
                 });
 
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.Shift", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<int>("EndMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("nvarchar(80)");
+
+                    b.Property<int>("StartMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.ToTable("shifts", (string)null);
+                });
+
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.ShiftException", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<Guid?>("CreatedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<string>("Note")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateOnly>("ShiftDate")
+                        .HasColumnType("date");
+
+                    b.Property<Guid>("ShiftId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShiftDate");
+
+                    b.HasIndex("ShiftId");
+
+                    b.HasIndex("UserId", "ShiftDate", "ShiftId", "Kind")
+                        .IsUnique();
+
+                    b.ToTable("shift_exceptions", (string)null);
+                });
+
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.User", b =>
                 {
                     b.Property<Guid>("Id")
@@ -559,6 +643,9 @@ namespace RestaurantManagement.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<Guid?>("DefaultShiftId")
+                        .HasColumnType("uniqueidentifier");
 
                     b.Property<string>("FullName")
                         .IsRequired()
@@ -599,6 +686,8 @@ namespace RestaurantManagement.Api.Migrations
                         .HasColumnType("nvarchar(30)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("DefaultShiftId");
 
                     b.HasIndex("RoleId");
 
@@ -1097,12 +1186,38 @@ namespace RestaurantManagement.Api.Migrations
                     b.Navigation("Role");
                 });
 
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.ShiftException", b =>
+                {
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.Shift", "Shift")
+                        .WithMany("Exceptions")
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.User", "User")
+                        .WithMany("ShiftExceptions")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Shift");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.User", b =>
                 {
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.Shift", "DefaultShift")
+                        .WithMany("DefaultStaff")
+                        .HasForeignKey("DefaultShiftId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.Role", "RoleEntity")
                         .WithMany("Users")
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("DefaultShift");
 
                     b.Navigation("RoleEntity");
                 });
@@ -1248,6 +1363,13 @@ namespace RestaurantManagement.Api.Migrations
                     b.Navigation("Users");
                 });
 
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.Shift", b =>
+                {
+                    b.Navigation("DefaultStaff");
+
+                    b.Navigation("Exceptions");
+                });
+
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.User", b =>
                 {
                     b.Navigation("CancellationsExecuted");
@@ -1259,6 +1381,8 @@ namespace RestaurantManagement.Api.Migrations
                     b.Navigation("PaymentsInitiated");
 
                     b.Navigation("RefreshTokens");
+
+                    b.Navigation("ShiftExceptions");
 
                     b.Navigation("WaiterTips");
                 });
