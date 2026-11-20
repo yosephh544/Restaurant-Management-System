@@ -13,7 +13,10 @@ import {
   KitchenTicket,
   KitchenTurnaround,
   MenuCategory,
+  MenuCategoryType,
   MenuItem,
+  MenuItemAlcoholType,
+  MenuItemFastingType,
   Order,
   OrderLine,
   OrderStatus,
@@ -63,6 +66,20 @@ export interface MenuItemInput {
   price: number;
   taxRate: number;
   available: boolean;
+  fastingType?: MenuItemFastingType;
+  alcoholType?: MenuItemAlcoholType;
+  displayOrder?: number;
+  featured?: boolean;
+  preparationTimeMinutes?: number;
+  sku?: string;
+}
+
+export interface MenuCategoryInput {
+  name: string;
+  description?: string;
+  parentCategoryId?: string | null;
+  type: MenuCategoryType;
+  displayOrder?: number;
 }
 
 export interface UserInput {
@@ -199,12 +216,22 @@ interface MenuItemDto {
   taxRate: number;
   isAvailable: boolean;
   imageUrl?: string | null;
+  fastingType: MenuItemFastingType;
+  alcoholType: MenuItemAlcoholType;
+  displayOrder: number;
+  isFeatured: boolean;
+  preparationTimeMinutes?: number | null;
+  sku?: string | null;
 }
 
 interface MenuCategoryDto {
   id: string;
+  parentCategoryId?: string | null;
+  parentCategoryName?: string | null;
   name: string;
   description?: string | null;
+  type: MenuCategoryType;
+  allowsAlcoholClassification: boolean;
   displayOrder: number;
   isActive: boolean;
   items: MenuItemDto[];
@@ -398,8 +425,12 @@ export class Store {
       this.menuCategories.set(
         data.map((c) => ({
           id: c.id,
+          parentCategoryId: c.parentCategoryId ?? undefined,
+          parentCategoryName: c.parentCategoryName ?? undefined,
           name: c.name,
           description: c.description ?? undefined,
+          type: c.type,
+          allowsAlcoholClassification: c.allowsAlcoholClassification,
           displayOrder: c.displayOrder,
           active: c.isActive,
           items: c.items.map((i) => this.mapMenuItem(i)),
@@ -806,6 +837,12 @@ export class Store {
         unitPrice: input.price,
         taxRate: input.taxRate,
         isAvailable: input.available,
+        fastingType: input.fastingType ?? MenuItemFastingType.NotApplicable,
+        alcoholType: input.alcoholType ?? MenuItemAlcoholType.NotApplicable,
+        displayOrder: input.displayOrder ?? 0,
+        isFeatured: input.featured ?? false,
+        preparationTimeMinutes: input.preparationTimeMinutes ?? null,
+        sku: input.sku?.trim() || null,
       };
       const dto = input.id
         ? await this.api.patch<MenuItemDto>(`/menu/items/${input.id}`, body)
@@ -829,10 +866,17 @@ export class Store {
     });
   }
 
-  async createCategory(name: string, description = ''): Promise<Result> {
+  async createCategory(input: MenuCategoryInput): Promise<Result> {
     return await this.guard(async () => {
-      const nextOrder = this.menuCategories().reduce((max, c) => Math.max(max, c.displayOrder), 0) + 1;
-      await this.api.post('/menu/categories', { name, description: description || null, displayOrder: nextOrder });
+      const nextOrder = input.displayOrder ??
+        this.menuCategories().reduce((max, c) => Math.max(max, c.displayOrder), 0) + 1;
+      await this.api.post('/menu/categories', {
+        name: input.name,
+        description: input.description || null,
+        parentCategoryId: input.parentCategoryId ?? null,
+        type: input.type,
+        displayOrder: nextOrder,
+      });
       await this.loadMenu();
     });
   }
@@ -1074,6 +1118,12 @@ export class Store {
       taxRate: i.taxRate,
       available: i.isAvailable,
       imageUrl: i.imageUrl ?? undefined,
+      fastingType: i.fastingType,
+      alcoholType: i.alcoholType,
+      displayOrder: i.displayOrder,
+      featured: i.isFeatured,
+      preparationTimeMinutes: i.preparationTimeMinutes ?? undefined,
+      sku: i.sku ?? undefined,
     };
   }
 }

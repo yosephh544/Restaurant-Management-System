@@ -211,7 +211,15 @@ export class NewOrderPage implements OnInit {
 
   protected readonly canManageTables = computed(() => this.store.can('tables.manage'));
 
-  protected readonly categories = computed(() => ['All', ...this.store.menuCategories().map((c) => c.name)]);
+  protected readonly categories = computed(() => {
+    const used = new Set(this.menu().map((item) => item.category));
+    return [
+      'All',
+      ...this.store.menuCategories()
+        .filter((category) => used.has(category.name))
+        .map((category) => category.name),
+    ];
+  });
 
   protected readonly filteredMenu = computed(() => {
     const query = this.query().trim().toLowerCase();

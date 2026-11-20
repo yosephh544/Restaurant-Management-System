@@ -7,6 +7,7 @@ using RestaurantManagement.Infrustructure.Models.Configuration;
 using RestaurantManagement.Infrustructure.Enums.Identity;
 using RestaurantManagement.Infrustructure.Enums.Orders;
 using RestaurantManagement.Infrustructure.Enums.Billing;
+using RestaurantManagement.Infrustructure.Enums.Menu;
 
 namespace RestaurantManagement.Infrustructure.Data;
 
@@ -197,8 +198,20 @@ public class RestaurantDbContext : DbContext
 
             entity.Property(c => c.Name).IsRequired().HasMaxLength(100);
             entity.Property(c => c.Description).HasMaxLength(500);
+            entity.Property(c => c.Type)
+                  .HasConversion<int>()
+                  .HasDefaultValue(MenuCategoryType.Food)
+                  .HasSentinel(MenuCategoryType.Food);
             entity.Property(c => c.IsActive).HasDefaultValue(true);
             entity.Property(c => c.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasIndex(c => c.ParentCategoryId);
+            entity.HasIndex(c => c.Type);
+
+            entity.HasOne(c => c.ParentCategory)
+                  .WithMany(c => c.Children)
+                  .HasForeignKey(c => c.ParentCategoryId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -214,7 +227,17 @@ public class RestaurantDbContext : DbContext
             entity.Property(m => m.TaxRate).HasPrecision(5, 2);
             entity.Property(m => m.IsAvailable).HasDefaultValue(true);
             entity.Property(m => m.ImageUrl).HasMaxLength(500);
+            entity.Property(m => m.FastingType).HasConversion<int>().HasDefaultValue(MenuItemFastingType.NotApplicable);
+            entity.Property(m => m.AlcoholType).HasConversion<int>().HasDefaultValue(MenuItemAlcoholType.NotApplicable);
+            entity.Property(m => m.DisplayOrder).HasDefaultValue(0);
+            entity.Property(m => m.IsFeatured).HasDefaultValue(false);
+            entity.Property(m => m.SKU).HasMaxLength(64);
             entity.Property(m => m.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasIndex(m => m.SKU).IsUnique().HasFilter("[SKU] IS NOT NULL");
+            entity.HasIndex(m => m.FastingType);
+            entity.HasIndex(m => m.AlcoholType);
+            entity.HasIndex(m => new { m.CategoryId, m.DisplayOrder });
 
             entity.HasOne(m => m.Category)
                   .WithMany(c => c.MenuItems)

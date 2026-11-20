@@ -160,6 +160,45 @@ export interface TipEntry {
   paidOutAt?: string;
 }
 
+/** Mirrors RestaurantManagement.Infrustructure.Enums.Menu.MenuCategoryType. */
+export enum MenuCategoryType {
+  Food = 1,
+  Beverage = 2,
+  Extra = 3,
+}
+
+export const MENU_CATEGORY_TYPE_LABEL: Record<MenuCategoryType, string> = {
+  [MenuCategoryType.Food]: 'Food',
+  [MenuCategoryType.Beverage]: 'Beverage',
+  [MenuCategoryType.Extra]: 'Extra',
+};
+
+/** Mirrors RestaurantManagement.Infrustructure.Enums.Menu.MenuItemFastingType. */
+export enum MenuItemFastingType {
+  NotApplicable = 0,
+  Fasting = 1,
+  NonFasting = 2,
+}
+
+export const FASTING_TYPE_LABEL: Record<MenuItemFastingType, string> = {
+  [MenuItemFastingType.NotApplicable]: 'Not applicable',
+  [MenuItemFastingType.Fasting]: 'Fasting',
+  [MenuItemFastingType.NonFasting]: 'Non-fasting',
+};
+
+/** Mirrors RestaurantManagement.Infrustructure.Enums.Menu.MenuItemAlcoholType. */
+export enum MenuItemAlcoholType {
+  NotApplicable = 0,
+  NonAlcoholic = 1,
+  Alcoholic = 2,
+}
+
+export const ALCOHOL_TYPE_LABEL: Record<MenuItemAlcoholType, string> = {
+  [MenuItemAlcoholType.NotApplicable]: 'Not applicable',
+  [MenuItemAlcoholType.NonAlcoholic]: 'Non-alcoholic',
+  [MenuItemAlcoholType.Alcoholic]: 'Alcoholic',
+};
+
 export interface MenuItem {
   id: string;
   categoryId: string;
@@ -170,12 +209,22 @@ export interface MenuItem {
   taxRate: number;
   available: boolean;
   imageUrl?: string;
+  fastingType: MenuItemFastingType;
+  alcoholType: MenuItemAlcoholType;
+  displayOrder: number;
+  featured: boolean;
+  preparationTimeMinutes?: number;
+  sku?: string;
 }
 
 export interface MenuCategory {
   id: string;
+  parentCategoryId?: string;
+  parentCategoryName?: string;
   name: string;
   description?: string;
+  type: MenuCategoryType;
+  allowsAlcoholClassification: boolean;
   displayOrder: number;
   active: boolean;
   items: MenuItem[];

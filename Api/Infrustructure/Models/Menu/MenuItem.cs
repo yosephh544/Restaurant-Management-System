@@ -1,3 +1,4 @@
+using RestaurantManagement.Infrustructure.Enums.Menu;
 using RestaurantManagement.Infrustructure.Models.Orders;
 
 namespace RestaurantManagement.Infrustructure.Models.Menu;
@@ -27,6 +28,24 @@ public class MenuItem
     public bool IsAvailable { get; set; } = true;
 
     public string? ImageUrl { get; set; }
+
+    /// <summary>Fasting suitability; required (non-default) for food items.</summary>
+    public MenuItemFastingType FastingType { get; set; } = MenuItemFastingType.NotApplicable;
+
+    /// <summary>Alcoholic classification; only valid for Cold Drinks items.</summary>
+    public MenuItemAlcoholType AlcoholType { get; set; } = MenuItemAlcoholType.NotApplicable;
+
+    /// <summary>Manual ordering within the category and on the public menu.</summary>
+    public int DisplayOrder { get; set; }
+
+    /// <summary>Highlights the item on customer-facing menus.</summary>
+    public bool IsFeatured { get; set; }
+
+    /// <summary>Expected kitchen preparation time in minutes.</summary>
+    public int? PreparationTimeMinutes { get; set; }
+
+    /// <summary>Stock keeping unit; unique when supplied.</summary>
+    public string? SKU { get; set; }
 
     /// <summary>v2.0 Hook: Will link to an ingredient Bill of Materials for auto-stock deduction.</summary>
     public Guid? V2RecipeId { get; set; }

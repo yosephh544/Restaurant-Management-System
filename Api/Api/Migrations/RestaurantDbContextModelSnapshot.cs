@@ -637,10 +637,22 @@ namespace RestaurantManagement.Api.Migrations
                         .HasMaxLength(100)
                         .HasColumnType("nvarchar(100)");
 
+                    b.Property<Guid?>("ParentCategoryId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Type")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("ParentCategoryId");
+
+                    b.HasIndex("Type");
 
                     b.ToTable("menu_categories", (string)null);
                 });
@@ -651,6 +663,11 @@ namespace RestaurantManagement.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<int>("AlcoholType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
 
                     b.Property<Guid>("CategoryId")
                         .HasColumnType("uniqueidentifier");
@@ -663,6 +680,16 @@ namespace RestaurantManagement.Api.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("nvarchar(max)");
 
+                    b.Property<int>("DisplayOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
+                    b.Property<int>("FastingType")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<string>("ImageUrl")
                         .HasMaxLength(500)
                         .HasColumnType("nvarchar(500)");
@@ -672,10 +699,22 @@ namespace RestaurantManagement.Api.Migrations
                         .HasColumnType("bit")
                         .HasDefaultValue(true);
 
+                    b.Property<bool>("IsFeatured")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("PreparationTimeMinutes")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SKU")
+                        .HasMaxLength(64)
+                        .HasColumnType("nvarchar(64)");
 
                     b.Property<decimal>("TaxRate")
                         .HasPrecision(5, 2)
@@ -693,7 +732,15 @@ namespace RestaurantManagement.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("CategoryId");
+                    b.HasIndex("AlcoholType");
+
+                    b.HasIndex("FastingType");
+
+                    b.HasIndex("SKU")
+                        .IsUnique()
+                        .HasFilter("[SKU] IS NOT NULL");
+
+                    b.HasIndex("CategoryId", "DisplayOrder");
 
                     b.ToTable("menu_items", (string)null);
                 });
@@ -1047,6 +1094,16 @@ namespace RestaurantManagement.Api.Migrations
                     b.Navigation("RoleEntity");
                 });
 
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Menu.MenuCategory", b =>
+                {
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Menu.MenuCategory", "ParentCategory")
+                        .WithMany("Children")
+                        .HasForeignKey("ParentCategoryId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ParentCategory");
+                });
+
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Menu.MenuItem", b =>
                 {
                     b.HasOne("RestaurantManagement.Infrustructure.Models.Menu.MenuCategory", "Category")
@@ -1195,6 +1252,8 @@ namespace RestaurantManagement.Api.Migrations
 
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Menu.MenuCategory", b =>
                 {
+                    b.Navigation("Children");
+
                     b.Navigation("MenuItems");
                 });
 

@@ -45,7 +45,8 @@ public class MenuController : ApiControllerBase
         => OkResponse(await _menuService.GetPublicMenuAsync(ct), "Public digital menu retrieved successfully.");
 
     /// <summary>
-    /// Lists all menu categories with their items.
+    /// Lists all menu categories with their items, including parent category and
+    /// food/beverage type so clients can render the hierarchy.
     /// </summary>
     [HttpGet("categories")]
     [Permission(Permissions.MenuView)]
@@ -54,7 +55,8 @@ public class MenuController : ApiControllerBase
         => OkResponse(await _menuService.GetCategoriesAsync(ct));
 
     /// <summary>
-    /// Adds a new menu category (e.g. Starters, Mains, Drinks).
+    /// Adds a new menu category. Omit ParentCategoryId for a top-level category, or nest it
+    /// under a parent of the same type (Food = 1, Beverage = 2).
     /// </summary>
     [HttpPost("categories")]
     [Permission(Permissions.CategoriesManage)]
@@ -63,7 +65,8 @@ public class MenuController : ApiControllerBase
         => CreatedResponse(await _menuService.CreateCategoryAsync(request, ct), "Category created successfully.");
 
     /// <summary>
-    /// Updates category details, order, or active state.
+    /// Updates category details, order, active state, type, or parent. Type changes are only
+    /// allowed while the category has no child categories or menu items.
     /// </summary>
     [HttpPatch("categories/{id:guid}")]
     [Permission(Permissions.CategoriesManage)]
@@ -72,7 +75,19 @@ public class MenuController : ApiControllerBase
         => OkResponse(await _menuService.UpdateCategoryAsync(id, request, ct));
 
     /// <summary>
-    /// Adds a new dish or beverage to the menu with category, price, tax rate, and availability flag.
+    /// Lists menu items with optional category, fasting type, alcohol type, availability,
+    /// and text filters. Filtering by a parent category includes its descendants by default.
+    /// </summary>
+    [HttpGet("items")]
+    [Permission(Permissions.MenuView)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<List<MenuItemResponse>>), 200)]
+    public async Task<IActionResult> GetMenuItems([FromQuery] MenuItemsQuery query, CancellationToken ct)
+        => OkResponse(await _menuService.GetMenuItemsAsync(query, ct));
+
+    /// <summary>
+    /// Adds a new dish or beverage to the menu with category, price, tax rate, availability,
+    /// and classification. Food items require a fasting classification; beverage items require
+    /// NotApplicable. Alcohol classification is only valid for items in Cold Drinks.
     /// </summary>
     [HttpPost("items")]
     [Permission(Permissions.ItemsManage)]
@@ -90,7 +105,8 @@ public class MenuController : ApiControllerBase
         => OkResponse(await _menuService.GetMenuItemByIdAsync(itemId, ct));
 
     /// <summary>
-    /// Edits menu item pricing, descriptions, or tax rates; updates menu catalog.
+    /// Edits menu item pricing, descriptions, tax rate, classification, ordering, or SKU.
+    /// Changing an item's category re-validates its fasting and alcohol classification.
     /// </summary>
     [HttpPatch("items/{itemId:guid}")]
     [Permission(Permissions.ItemsManage)]
