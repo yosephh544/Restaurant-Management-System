@@ -174,7 +174,10 @@ export class LoginPage {
         return;
       }
       const redirect = this.route.snapshot.queryParamMap.get('redirect');
-      await this.router.navigateByUrl(redirect && redirect.startsWith('/') ? redirect : this.auth.home());
+      await this.router.navigateByUrl(
+        redirect && redirect.startsWith('/') ? redirect : this.auth.home(),
+        { replaceUrl: true },
+      );
     } finally {
       this.busy.set(false);
     }

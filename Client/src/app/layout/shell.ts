@@ -61,7 +61,6 @@ interface NavGroup {
             <span class="avatar">{{ initials(user()?.name ?? '') }}</span>
             <div>
               <strong>{{ user()?.name }}</strong>
-              <span>{{ roleLabel() }}</span>
             </div>
           </div>
           <button class="side-logout" type="button" (click)="logout()">
@@ -94,7 +93,6 @@ interface NavGroup {
               <span class="avatar">{{ initials(user()?.name ?? '') }}</span>
               <span class="user-meta">
                 <strong>{{ user()?.name }}</strong>
-                <span>{{ roleLabel() }}</span>
               </span>
               <app-icon name="chevron-down" />
             </button>

@@ -2,12 +2,13 @@ import { Routes } from '@angular/router';
 import { authGuard, roleGuard } from './core/guards';
 import { Shell } from './layout/shell';
 import { Home } from './pages/home';
+import { LoginPage } from './pages/auth/login';
 
 export const routes: Routes = [
   {
     path: 'login',
     title: 'Sign in · Majete Corner',
-    loadComponent: () => import('./pages/auth/login').then((m) => m.LoginPage),
+    component: LoginPage,
   },
   {
     path: '',

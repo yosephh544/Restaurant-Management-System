@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using RestaurantManagement.Implementation.Dtos.Authentication;
@@ -40,9 +42,6 @@ public class AuthService : IAuthService
             .FirstOrDefaultAsync(u => u.Username == username, ct)
             ?? throw new UnauthorizedException(ErrorMessages.InvalidCredentials);
 
-        if (!user.IsActive)
-            throw new ForbiddenException(ErrorMessages.UserDeactivated);
-
         if (string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedException(ErrorMessages.InvalidCredentials);
 
@@ -58,13 +57,13 @@ public class AuthService : IAuthService
                 .ThenInclude(r => r!.RolePermissions)
                 .ThenInclude(rp => rp.Permission)
             .FirstOrDefaultAsync(u => u.Username == username, ct)
-            ?? throw new UnauthorizedException(ErrorMessages.InvalidPin);
+            ?? throw new UnauthorizedException(ErrorMessages.InvalidCredentials);
 
         if (!user.IsActive)
-            throw new ForbiddenException(ErrorMessages.UserDeactivated);
+            throw new UnauthorizedException(ErrorMessages.InvalidCredentials);
 
         if (string.IsNullOrEmpty(user.PinHash) || !BCrypt.Net.BCrypt.Verify(request.Pin, user.PinHash))
-            throw new UnauthorizedException(ErrorMessages.InvalidPin);
+            throw new UnauthorizedException(ErrorMessages.InvalidCredentials);
 
         return await GenerateAuthResponseAsync(user, request.DeviceToken, ct);
     }
@@ -115,7 +114,7 @@ public class AuthService : IAuthService
         }
     }
 
-    public async Task<StaffProfileDto> GetCurrentUserProfileAsync(CancellationToken ct = default)
+    public async Task<EncryptedStaffProfileDto> GetCurrentUserProfileAsync(CancellationToken ct = default)
     {
         var userId = _currentUserService.UserId
             ?? throw new UnauthorizedException();
@@ -130,21 +129,41 @@ public class AuthService : IAuthService
         if (!user.IsActive)
             throw new ForbiddenException(ErrorMessages.UserDeactivated);
 
-        return new StaffProfileDto
+        var permissions = user.RoleEntity?.RolePermissions
+            .Select(rp => rp.Permission.Name)
+            .Distinct()
+            .OrderBy(name => name)
+            .ToList() ?? new List<string>();
+
+        return new EncryptedStaffProfileDto
         {
-            Id = user.Id,
-            FullName = user.FullName,
-            Username = user.Username,
-            Phone = user.Phone,
-            Role = user.RoleEntity?.Name ?? user.Role.ToString(),
-            IsActive = user.IsActive,
-            CreatedAt = user.CreatedAt,
-            Permissions = user.RoleEntity?.RolePermissions
-                .Select(rp => rp.Permission.Name)
-                .Distinct()
-                .OrderBy(name => name)
-                .ToList() ?? new List<string>()
+            Id = Encrypt(user.Id.ToString()),
+            FullName = Encrypt(user.FullName),
+            Role = Encrypt(user.RoleEntity?.Name ?? user.Role.ToString()),
+            Permissions = Encrypt(System.Text.Json.JsonSerializer.Serialize(permissions))
         };
+    }
+
+    private string Encrypt(string plainText)
+    {
+        var secret = _configuration["ResponseEncryption:Key"]?.Trim();
+        if (string.IsNullOrWhiteSpace(secret))
+            throw new InvalidOperationException("ResponseEncryption:Key must be configured.");
+
+        var key = SHA256.HashData(Encoding.UTF8.GetBytes(secret));
+        var nonce = RandomNumberGenerator.GetBytes(12);
+        var plaintext = Encoding.UTF8.GetBytes(plainText);
+        var ciphertext = new byte[plaintext.Length];
+        var tag = new byte[16];
+
+        using var aes = new AesGcm(key, 16);
+        aes.Encrypt(nonce, plaintext, ciphertext, tag);
+
+        var payload = new byte[nonce.Length + ciphertext.Length + tag.Length];
+        Buffer.BlockCopy(nonce, 0, payload, 0, nonce.Length);
+        Buffer.BlockCopy(ciphertext, 0, payload, nonce.Length, ciphertext.Length);
+        Buffer.BlockCopy(tag, 0, payload, nonce.Length + ciphertext.Length, tag.Length);
+        return Convert.ToBase64String(payload);
     }
 
     private async Task<AuthResponse> GenerateAuthResponseAsync(User user, string? deviceToken, CancellationToken ct)

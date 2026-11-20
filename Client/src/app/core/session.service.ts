@@ -1,14 +1,17 @@
 import { computed, Injectable, signal } from '@angular/core';
 import { Role, roleFrom, StaffUser } from './models';
 
+export interface EncryptedApiProfile {
+  id: string;
+  fullName: string;
+  role: string;
+  permissions: string;
+}
+
 export interface ApiProfile {
   id: string;
   fullName: string;
-  username: string;
-  phone?: string | null;
   role: string;
-  isActive: boolean;
-  createdAt: string;
   permissions: string[];
 }
 
@@ -36,11 +39,11 @@ export class SessionService {
     return {
       id: profile.id,
       name: profile.fullName,
-      username: profile.username,
-      phone: profile.phone ?? undefined,
+      username: '',
+      phone: undefined,
       role: roleFrom(profile.role),
-      active: profile.isActive,
-      createdAt: profile.createdAt,
+      active: true,
+      createdAt: '',
     };
   });
 

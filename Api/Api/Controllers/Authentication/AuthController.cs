@@ -70,7 +70,7 @@ public class AuthController : ApiControllerBase
     /// </summary>
     [HttpGet("me")]
     [Authorize]
-    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<StaffProfileDto>), 200)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<EncryptedStaffProfileDto>), 200)]
     public async Task<IActionResult> Me(CancellationToken ct)
     {
         var profile = await _authService.GetCurrentUserProfileAsync(ct);

@@ -1,7 +1,8 @@
 import { computed, inject, Injectable } from '@angular/core';
 import { ApiService } from './api.service';
 import { Role } from './models';
-import { ApiProfile, SessionService } from './session.service';
+import { RESPONSE_ENCRYPTION_KEY } from './api.config';
+import { ApiProfile, EncryptedApiProfile, SessionService } from './session.service';
 
 export const ROLE_HOME: Record<Role, string> = {
   OWNER: '/manager',
@@ -48,10 +49,10 @@ export class AuthService {
   async reloadProfile(): Promise<void> {
     if (!this.session.accessToken()) return;
     try {
-      const profile = await this.api.get<ApiProfile>('/auth/me');
-      this.session.updateProfile(profile);
+      const encrypted = await this.api.get<EncryptedApiProfile>('/auth/me');
+      this.session.updateProfile(await this.decryptProfile(encrypted));
     } catch {
-      this.session.clear();
+      // Keep the valid token session; /auth/me is non-critical for routing.
     }
   }
 
@@ -63,21 +64,86 @@ export class AuthService {
     return ROLE_HOME[role];
   }
 
+  private async decryptProfile(encrypted: EncryptedApiProfile): Promise<ApiProfile> {
+    const [id, fullName, role, permissionsJson] = await Promise.all([
+      this.decryptString(encrypted.id),
+      this.decryptString(encrypted.fullName),
+      this.decryptString(encrypted.role),
+      this.decryptString(encrypted.permissions),
+    ]);
+
+    let permissions: string[] = [];
+    try {
+      const parsed = JSON.parse(permissionsJson);
+      if (Array.isArray(parsed)) permissions = parsed.filter((value): value is string => typeof value === 'string');
+    } catch {
+      permissions = [];
+    }
+
+    return { id, fullName, role, permissions };
+  }
+
+  private async decryptString(cipherText: string): Promise<string> {
+    const payload = Uint8Array.from(atob(cipherText), (character) => character.charCodeAt(0));
+    if (payload.length < 28) throw new Error('Invalid encrypted profile response.');
+
+    const nonce = payload.slice(0, 12);
+    const ciphertext = payload.slice(12, payload.length - 16);
+    const tag = payload.slice(payload.length - 16);
+    const combined = new Uint8Array(ciphertext.length + tag.length);
+    combined.set(ciphertext, 0);
+    combined.set(tag, ciphertext.length);
+
+    const keyMaterial = await crypto.subtle.digest(
+      'SHA-256',
+      new TextEncoder().encode(RESPONSE_ENCRYPTION_KEY),
+    );
+    const key = await crypto.subtle.importKey('raw', keyMaterial, 'AES-GCM', false, ['decrypt']);
+    const decrypted = await crypto.subtle.decrypt(
+      { name: 'AES-GCM', iv: nonce, tagLength: 128 },
+      key,
+      combined,
+    );
+
+    return new TextDecoder().decode(decrypted);
+  }
+
   private async signIn(path: string, body: unknown): Promise<string | null> {
     try {
       const tokens = await this.api.post<TokenResponse>(path, body);
-      const profile = await this.api.getWithToken<ApiProfile>('/auth/me', tokens.accessToken);
+      const claims = this.readJwtClaims(tokens.accessToken);
+      const profile: ApiProfile = {
+        id: String(claims['userId'] ?? claims['nameidentifier'] ?? claims['sub'] ?? ''),
+        fullName: String(claims['name'] ?? claims['unique_name'] ?? claims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] ?? ''),
+        role: String(claims['role'] ?? claims['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ?? 'WAITER'),
+        permissions: Array.isArray(claims['permission'])
+          ? claims['permission'].filter((value): value is string => typeof value === 'string')
+          : [],
+      };
+
       this.session.set({
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         accessTokenExpiry: tokens.accessTokenExpiry,
         profile,
       });
+
+      void this.reloadProfile();
       return null;
     } catch (error) {
-      const token = this.session.accessToken();
-      if (token && !this.session.profile()) this.session.clear();
       return this.api.message(error);
+    }
+  }
+
+  private readJwtClaims(token: string): Record<string, unknown> {
+    try {
+      const segment = token.split('.')[1];
+      if (!segment) return {};
+      const base64 = segment.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = base64.padEnd(base64.length + ((4 - base64.length % 4) % 4), '=');
+      return JSON.parse(atob(padded)) as Record<string, unknown>;
+    } catch {
+      return {};
     }
   }
 }

@@ -74,7 +74,10 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var secret = configuration["Jwt:Key"] ?? "super_secret_restaurant_management_jwt_key_2026_@!";
+        var secret = configuration["Jwt:Key"]?.Trim();
+        if (string.IsNullOrWhiteSpace(secret) || secret.Length < 32)
+            throw new InvalidOperationException("Jwt:Key must be configured with at least 32 characters.");
+
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
 
         services.AddAuthentication(options =>
