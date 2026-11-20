@@ -13,7 +13,12 @@ builder.Services.AddAuthorizationPolicies();
 builder.Services.AddControllers()
     .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter()));
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerWithJwt();
+
+// Swagger is a development-only tool; it is never registered or served in production.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddSwaggerWithJwt();
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 

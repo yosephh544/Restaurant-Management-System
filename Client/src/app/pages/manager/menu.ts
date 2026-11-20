@@ -18,21 +18,18 @@ import { Icon } from '../../shared/icon';
 
 interface MenuDraft {
   id?: string;
+  type: MenuCategoryType;
   categoryId: string;
   name: string;
   description: string;
   price: number;
-  taxRate: number;
   available: boolean;
   imageUrl: string;
   imageFile: File | null;
   imagePreview: string;
   fastingType: MenuItemFastingType;
   alcoholType: MenuItemAlcoholType;
-  displayOrder: number;
-  featured: boolean;
   preparationTimeMinutes: number | null;
-  sku: string;
 }
 
 @Component({
@@ -49,7 +46,7 @@ interface MenuDraft {
         <div class="head-actions">
           <div class="search">
             <app-icon name="search" />
-            <input type="search" placeholder="Search name or SKU" [ngModel]="query()" (ngModelChange)="query.set($event)" />
+            <input type="search" placeholder="Search items" [ngModel]="query()" (ngModelChange)="query.set($event)" />
           </div>
           <select class="select" style="width: auto" [ngModel]="fastingFilter()" (ngModelChange)="fastingFilter.set($event)" aria-label="Filter by fasting classification">
             <option [ngValue]="'all'">All fasting</option>
@@ -104,7 +101,7 @@ interface MenuDraft {
               </button>
             }
           </div>
-          <span class="tiny muted">Toggle a switch to mark an item sold out instantly</span>
+          <span class="tiny muted">Click the stock badge to mark an item out of stock instantly</span>
         </div>
 
         <div class="table-wrap">
@@ -116,8 +113,7 @@ interface MenuDraft {
                 <th>Category</th>
                 <th>Classification</th>
                 <th class="t-right">Price</th>
-                <th class="t-right">Tax</th>
-                <th>Available</th>
+                <th>Stock</th>
                 <th></th>
               </tr>
             </thead>
@@ -135,15 +131,9 @@ interface MenuDraft {
                   </td>
                   <td>
                     <strong>{{ item.name }}</strong>
-                    @if (item.featured) {
-                      <span class="pill pill-amber no-dot" style="margin-left: 6px">Featured</span>
-                    }
                     <br />
                     @if (item.description) {
                       <span class="tiny muted">{{ item.description }}</span>
-                    }
-                    @if (item.sku) {
-                      <span class="tiny muted"> · {{ item.sku }}</span>
                     }
                   </td>
                   <td class="muted">{{ item.category }}</td>
@@ -165,10 +155,17 @@ interface MenuDraft {
                     </div>
                   </td>
                   <td class="t-right strong num">{{ money(item.price) }}</td>
-                  <td class="t-right muted num">{{ item.taxRate }}%</td>
                   <td>
-                    <button class="switch" type="button" [class.on]="item.available" (click)="toggle(item)" [attr.aria-label]="'Toggle ' + item.name">
-                      <span></span>
+                    <button
+                      class="stock-toggle"
+                      type="button"
+                      [class.out]="!item.available"
+                      (click)="toggle(item)"
+                      [attr.title]="item.available ? 'Mark out of stock' : 'Mark in stock'"
+                      [attr.aria-label]="(item.available ? 'Mark ' : 'Restock ') + item.name"
+                    >
+                      <app-icon [name]="item.available ? 'check-circle' : 'alert-circle'" />
+                      {{ item.available ? 'In stock' : 'Out of stock' }}
                     </button>
                   </td>
                   <td>
@@ -216,74 +213,55 @@ interface MenuDraft {
               </div>
               <div class="field">
                 <label class="label" for="item-category">Category</label>
-                <select id="item-category" class="select" [(ngModel)]="draft.categoryId" (ngModelChange)="onCategoryChange()">
-                  @for (entry of orderedCategories(); track entry.category.id) {
-                    <option [ngValue]="entry.category.id">{{ entry.depth ? '— ' : '' }}{{ entry.category.name }}</option>
+                <select id="item-category" class="select" [(ngModel)]="draft.type" (ngModelChange)="onTypeChange()">
+                  @for (option of categoryTypes; track option.value) {
+                    <option [ngValue]="option.value">{{ option.label }}</option>
                   }
                 </select>
+              </div>
+              <div class="field">
+                <label class="label" for="item-section">Section</label>
+                @if (draftSections().length) {
+                  <select id="item-section" class="select" [(ngModel)]="draft.categoryId" (ngModelChange)="onSectionChange()">
+                    @for (section of draftSections(); track section.id) {
+                      <option [ngValue]="section.id">{{ section.name }}</option>
+                    }
+                  </select>
+                } @else {
+                  <select class="select" disabled><option>No sections yet</option></select>
+                  <span class="hint">No {{ typeLabel() }} sections yet. Add one with the Category button first.</span>
+                }
               </div>
               <div class="field">
                 <label class="label" for="item-price">Price (ETB)</label>
                 <input id="item-price" class="input" type="number" min="0" step="1" [(ngModel)]="draft.price" />
               </div>
-              <div class="field">
-                <label class="label" for="item-tax">Tax rate (%)</label>
-                <input id="item-tax" class="input" type="number" min="0" step="1" [(ngModel)]="draft.taxRate" />
-              </div>
-              <div class="field">
-                <label class="label" for="item-fasting">Fasting</label>
-                <select id="item-fasting" class="select" [(ngModel)]="draft.fastingType" [disabled]="!draftIsFood()">
-                  @for (option of fastingOptions; track option.value) {
-                    <option [ngValue]="option.value">{{ option.label }}</option>
-                  }
-                </select>
-                <span class="hint">
-                  @if (draftIsFood()) {
-                    Food items must be fasting or non-fasting.
-                  } @else {
-                    Only food items use a fasting classification.
-                  }
-                </span>
-              </div>
-              <div class="field">
-                <label class="label" for="item-alcohol">Alcohol</label>
-                <select id="item-alcohol" class="select" [(ngModel)]="draft.alcoholType" [disabled]="!draftAllowsAlcohol()">
-                  @for (option of alcoholOptions; track option.value) {
-                    <option [ngValue]="option.value">{{ option.label }}</option>
-                  }
-                </select>
-                <span class="hint">Only Cold Drinks items can be alcoholic or non-alcoholic.</span>
-              </div>
-              <div class="field">
-                <label class="label" for="item-order">Display order</label>
-                <input id="item-order" class="input" type="number" min="0" step="1" [(ngModel)]="draft.displayOrder" />
-              </div>
+              @if (draftIsFood()) {
+                <div class="field">
+                  <label class="label" for="item-fasting">Fasting</label>
+                  <select id="item-fasting" class="select" [(ngModel)]="draft.fastingType">
+                    @for (option of foodFastingOptions; track option.value) {
+                      <option [ngValue]="option.value">{{ option.label }}</option>
+                    }
+                  </select>
+                </div>
+              }
+              @if (draftAllowsAlcohol()) {
+                <div class="field">
+                  <label class="label" for="item-alcohol">Alcohol</label>
+                  <select id="item-alcohol" class="select" [(ngModel)]="draft.alcoholType">
+                    @for (option of alcoholOptions; track option.value) {
+                      <option [ngValue]="option.value">{{ option.label }}</option>
+                    }
+                  </select>
+                </div>
+              }
+              <!-- Preparation time (hidden for now)
               <div class="field">
                 <label class="label" for="item-prep">Preparation time (minutes)</label>
                 <input id="item-prep" class="input" type="number" min="1" step="1" [(ngModel)]="draft.preparationTimeMinutes" placeholder="Optional" />
               </div>
-              <div class="field">
-                <label class="label" for="item-sku">SKU</label>
-                <input id="item-sku" class="input" [(ngModel)]="draft.sku" placeholder="e.g. FD-BRK-01" />
-              </div>
-              <div class="field">
-                <label class="label">Featured</label>
-                <div class="row" style="height: 38px">
-                  <button class="switch" type="button" [class.on]="draft.featured" (click)="draft.featured = !draft.featured">
-                    <span></span>
-                  </button>
-                  <span class="small muted">{{ draft.featured ? 'Highlighted on menus' : 'Standard listing' }}</span>
-                </div>
-              </div>
-              <div class="field">
-                <label class="label">Available</label>
-                <div class="row" style="height: 38px">
-                  <button class="switch" type="button" [class.on]="draft.available" (click)="draft.available = !draft.available">
-                    <span></span>
-                  </button>
-                  <span class="small muted">{{ draft.available ? 'Orderable' : 'Sold out' }}</span>
-                </div>
-              </div>
+              -->
             </div>
             <div class="field mt-3">
               <label class="label" for="item-desc">Description</label>
@@ -396,6 +374,11 @@ export class MenuPage {
   protected readonly fastingLabel = FASTING_TYPE_LABEL;
   protected readonly alcoholLabel = ALCOHOL_TYPE_LABEL;
 
+  protected readonly categoryTypes = [
+    { value: MenuCategoryType.Food, label: 'Food' },
+    { value: MenuCategoryType.Beverage, label: 'Drinks' },
+    { value: MenuCategoryType.Extra, label: 'Extras' },
+  ];
   protected readonly categoryTypeOptions = [
     { value: MenuCategoryType.Food, label: MENU_CATEGORY_TYPE_LABEL[MenuCategoryType.Food] },
     { value: MenuCategoryType.Beverage, label: MENU_CATEGORY_TYPE_LABEL[MenuCategoryType.Beverage] },
@@ -403,6 +386,10 @@ export class MenuPage {
   ];
   protected readonly fastingOptions = [
     MenuItemFastingType.NotApplicable,
+    MenuItemFastingType.Fasting,
+    MenuItemFastingType.NonFasting,
+  ].map((value) => ({ value, label: FASTING_TYPE_LABEL[value] }));
+  protected readonly foodFastingOptions = [
     MenuItemFastingType.Fasting,
     MenuItemFastingType.NonFasting,
   ].map((value) => ({ value, label: FASTING_TYPE_LABEL[value] }));
@@ -427,7 +414,7 @@ export class MenuPage {
   protected categoryParentId = '';
   protected categoryType = MenuCategoryType.Food;
 
-  protected draft: MenuDraft = this.blank();
+  protected draft: MenuDraft = this.blank(MenuCategoryType.Food);
   private originalImageUrl = '';
 
   private static readonly MaxImageBytes = 5 * 1024 * 1024;
@@ -489,7 +476,7 @@ export class MenuPage {
       .filter((m) => !categoryIds || categoryIds.has(m.categoryId))
       .filter((m) => fasting === 'all' || m.fastingType === fasting)
       .filter((m) => alcohol === 'all' || m.alcoholType === alcohol)
-      .filter((m) => !query || `${m.name} ${m.description ?? ''} ${m.sku ?? ''}`.toLowerCase().includes(query));
+      .filter((m) => !query || `${m.name} ${m.description ?? ''}`.toLowerCase().includes(query));
   });
 
   protected async toggle(item: MenuItem): Promise<void> {
@@ -502,9 +489,9 @@ export class MenuPage {
   }
 
   protected openNew(): void {
-    this.draft = this.blank();
-    if (this.active() !== 'all') this.draft.categoryId = this.active();
-    this.onCategoryChange();
+    const activeCategory = this.active() === 'all' ? undefined : this.categoryById(this.active());
+    this.draft = this.blank(activeCategory?.type ?? MenuCategoryType.Food, activeCategory?.id);
+    this.applyClassificationRules();
     this.originalImageUrl = '';
     this.editingId.set(null);
     this.error.set('');
@@ -512,35 +499,48 @@ export class MenuPage {
   }
 
   protected openEdit(item: MenuItem): void {
+    const category = this.categoryById(item.categoryId);
     this.draft = {
       id: item.id,
+      type: category?.type ?? MenuCategoryType.Food,
       categoryId: item.categoryId,
       name: item.name,
       description: item.description ?? '',
       price: item.price,
-      taxRate: item.taxRate,
       available: item.available,
       imageUrl: item.imageUrl ?? '',
       imageFile: null,
       imagePreview: '',
       fastingType: item.fastingType,
       alcoholType: item.alcoholType,
-      displayOrder: item.displayOrder,
-      featured: item.featured,
       preparationTimeMinutes: item.preparationTimeMinutes ?? null,
-      sku: item.sku ?? '',
     };
+    this.applyClassificationRules();
     this.originalImageUrl = item.imageUrl ?? '';
     this.editingId.set(item.id);
     this.error.set('');
     this.modalOpen.set(true);
   }
 
-  protected onCategoryChange(): void {
-    const category = this.categoryById(this.draft.categoryId);
-    if (!category) return;
+  protected draftSections(): MenuCategory[] {
+    return this.sectionsFor(this.draft.type, this.draft.categoryId);
+  }
 
-    if (category.type === MenuCategoryType.Food) {
+  protected typeLabel(): string {
+    return this.categoryTypes.find((option) => option.value === this.draft.type)?.label ?? '';
+  }
+
+  protected onTypeChange(): void {
+    this.draft.categoryId = this.sectionsFor(this.draft.type)[0]?.id ?? '';
+    this.applyClassificationRules();
+  }
+
+  protected onSectionChange(): void {
+    this.applyClassificationRules();
+  }
+
+  private applyClassificationRules(): void {
+    if (this.draft.type === MenuCategoryType.Food) {
       if (this.draft.fastingType === MenuItemFastingType.NotApplicable) {
         this.draft.fastingType = MenuItemFastingType.Fasting;
       }
@@ -548,13 +548,13 @@ export class MenuPage {
       this.draft.fastingType = MenuItemFastingType.NotApplicable;
     }
 
-    if (!category.allowsAlcoholClassification) {
+    if (!this.draftAllowsAlcohol()) {
       this.draft.alcoholType = MenuItemAlcoholType.NotApplicable;
     }
   }
 
   protected draftIsFood(): boolean {
-    return this.categoryById(this.draft.categoryId)?.type === MenuCategoryType.Food;
+    return this.draft.type === MenuCategoryType.Food;
   }
 
   protected draftAllowsAlcohol(): boolean {
@@ -638,7 +638,7 @@ export class MenuPage {
       return;
     }
     if (!this.draft.categoryId) {
-      this.error.set('Choose a category.');
+      this.error.set(`Add a section for ${this.typeLabel()} first.`);
       return;
     }
     if (!this.draft.price || this.draft.price <= 0) {
@@ -666,15 +666,12 @@ export class MenuPage {
       categoryId: this.draft.categoryId,
       name: this.draft.name.trim(),
       price: Math.round(+this.draft.price * 100) / 100,
-      taxRate: +this.draft.taxRate || 0,
+      taxRate: this.store.settings().taxRate || 15,
       description: this.draft.description.trim(),
       available: this.draft.available,
       fastingType: this.draft.fastingType,
       alcoholType: this.draft.alcoholType,
-      displayOrder: +this.draft.displayOrder || 0,
-      featured: this.draft.featured,
       preparationTimeMinutes: this.draft.preparationTimeMinutes || undefined,
-      sku: this.draft.sku.trim() || undefined,
     });
     if (!result.ok) {
       this.busy.set(false);
@@ -704,27 +701,29 @@ export class MenuPage {
     return this.store.menuCategories().find((category) => category.id === id);
   }
 
-  private blank(): MenuDraft {
-    const categoryId = this.store.menuCategories()[0]?.id ?? '';
-    const category = this.categoryById(categoryId);
+  private sectionsFor(type: MenuCategoryType, includeId?: string): MenuCategory[] {
+    const categories = this.store.menuCategories();
+    const parentIds = new Set(categories.map((category) => category.parentCategoryId).filter((id): id is string => !!id));
+    return categories
+      .filter((category) => category.type === type && category.active && (!parentIds.has(category.id) || category.id === includeId))
+      .sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name));
+  }
+
+  private blank(type: MenuCategoryType, categoryId?: string): MenuDraft {
+    const sections = this.sectionsFor(type);
     return {
-      categoryId,
+      type,
+      categoryId: categoryId && sections.some((section) => section.id === categoryId) ? categoryId : sections[0]?.id ?? '',
       name: '',
       description: '',
       price: 0,
-      taxRate: this.store.settings().taxRate,
       available: true,
       imageUrl: '',
       imageFile: null,
       imagePreview: '',
-      fastingType: category?.type === MenuCategoryType.Food
-        ? MenuItemFastingType.Fasting
-        : MenuItemFastingType.NotApplicable,
+      fastingType: type === MenuCategoryType.Food ? MenuItemFastingType.Fasting : MenuItemFastingType.NotApplicable,
       alcoholType: MenuItemAlcoholType.NotApplicable,
-      displayOrder: 0,
-      featured: false,
       preparationTimeMinutes: null,
-      sku: '',
     };
   }
 }
