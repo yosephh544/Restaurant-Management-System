@@ -14,7 +14,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
       <div class="page">
         <div class="detail-head">
           <div>
-            <a class="back-link" routerLink="/kitchen"><app-icon name="arrow-left" /> Back to board</a>
+            <a class="back-link" [routerLink]="stationPath"><app-icon name="arrow-left" /> Back to board</a>
             <div class="row" style="gap: 10px; flex-wrap: wrap">
               <h1 class="page-title">#{{ t.number }}</h1>
               <span class="ticket-table">Table {{ t.table }}</span>
@@ -43,7 +43,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
             <div class="row">
               <app-icon name="check-circle" style="color: var(--green)" />
               <div>
-                <strong style="color: var(--green)">Plated and at the pass</strong>
+                <strong style="color: var(--green)">{{ isBar ? 'Poured and at the bar' : 'Plated and at the pass' }}</strong>
                 <p style="color: var(--green)">The waiter has been notified on their board.</p>
               </div>
             </div>
@@ -55,7 +55,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
             <div class="card-head">
               <div>
                 <div class="card-title">Ticket items</div>
-                <div class="card-sub">{{ t.items.length }} lines · no prices shown in the kitchen</div>
+                <div class="card-sub">{{ t.items.length }} lines · no prices shown in the {{ isBar ? 'bar' : 'kitchen' }}</div>
               </div>
               <span class="ticket-time" [class.warn]="elapsed() >= 12" [class.late]="elapsed() >= 20">
                 <app-icon name="clock" /> {{ elapsed() }} min
@@ -75,7 +75,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
                       }
                     </div>
                   </div>
-                  <span class="tiny muted">{{ item.status === 'CANCELLED' ? 'Removed' : item.status === 'PREPARED' ? 'Prepared' : 'To cook' }}</span>
+                  <span class="tiny muted">{{ item.status === 'CANCELLED' ? 'Removed' : item.status === 'PREPARED' ? 'Prepared' : isBar ? 'To prepare' : 'To cook' }}</span>
                 </div>
               }
             </div>
@@ -104,7 +104,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
       </div>
 
       @if (showIssue()) {
-        <app-issue-dialog [ticket]="t" (closed)="showIssue.set(false)" />
+        <app-issue-dialog [ticket]="t" [station]="isBar ? 'BAR' : 'KITCHEN'" (closed)="showIssue.set(false)" />
       }
     } @else {
       <div class="page">
@@ -112,7 +112,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
           <app-icon name="alert-circle" />
           <strong>Ticket not found</strong>
           <p>It may already be served or cancelled.</p>
-          <a class="btn btn-primary btn-sm mt-3" routerLink="/kitchen">Back to board</a>
+          <a class="btn btn-primary btn-sm mt-3" [routerLink]="stationPath">Back to board</a>
         </div>
       </div>
     }
@@ -124,18 +124,21 @@ export class KitchenTicketPage implements OnInit, OnDestroy {
   private readonly toast = inject(ToastService);
 
   protected readonly id = this.route.snapshot.paramMap.get('id') ?? '';
+  protected readonly isBar = this.route.snapshot.data['station'] === 'BAR';
+  protected readonly stationPath = this.isBar ? '/bar' : '/kitchen';
   protected readonly clock = clock;
   protected readonly showIssue = signal(false);
   protected readonly busy = signal(false);
   protected readonly now = signal(Date.now());
   private readonly timer = window.setInterval(() => this.now.set(Date.now()), 20000);
 
-  protected readonly ticket = computed(() =>
-    this.store.kitchenTickets().find((t) => t.id === this.id),
-  );
+  protected readonly ticket = computed(() => {
+    const tickets = this.isBar ? this.store.barTickets() : this.store.kitchenTickets();
+    return tickets.find((t) => t.id === this.id);
+  });
 
   async ngOnInit(): Promise<void> {
-    await this.store.loadKitchen();
+    await (this.isBar ? this.store.loadBar() : this.store.loadKitchen());
   }
 
   ngOnDestroy(): void {
@@ -156,7 +159,10 @@ export class KitchenTicketPage implements OnInit, OnDestroy {
     const ticket = this.ticket();
     if (!ticket || this.busy()) return;
     this.busy.set(true);
-    const result = await this.store.kitchenStatus(ticket.id, ticket.status === 'PENDING' ? 'PREPARING' : 'READY');
+    const next = ticket.status === 'PENDING' ? 'PREPARING' : 'READY';
+    const result = this.isBar
+      ? await this.store.barStatus(ticket.id, next)
+      : await this.store.kitchenStatus(ticket.id, next);
     this.busy.set(false);
     if (!result.ok) this.toast.show(result.error, 'error');
   }

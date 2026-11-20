@@ -914,8 +914,19 @@ namespace RestaurantManagement.Api.Migrations
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<int>("PreparationStation")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(1);
+
+                    b.Property<DateTime?>("PreparingAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<int>("Quantity")
                         .HasColumnType("int");
+
+                    b.Property<DateTime?>("ReadyAt")
+                        .HasColumnType("datetime2");
 
                     b.Property<decimal>("TaxRate")
                         .HasPrecision(5, 2)
@@ -933,6 +944,8 @@ namespace RestaurantManagement.Api.Migrations
                     b.HasIndex("MenuItemId");
 
                     b.HasIndex("OrderId");
+
+                    b.HasIndex("PreparationStation");
 
                     b.ToTable("order_items", (string)null);
                 });

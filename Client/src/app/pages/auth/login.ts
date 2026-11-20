@@ -113,7 +113,7 @@ import { Icon } from '../../shared/icon';
               @if (mode() === 'PIN') {
                 <span>Use your password if you have not set a PIN.</span>
               } @else {
-                <span>Waiters and kitchen staff can switch to Device PIN.</span>
+                <span>Waiter, kitchen and bar staff can switch to Device PIN.</span>
               }
             </div>
 

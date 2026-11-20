@@ -174,7 +174,7 @@ export class StaffPage {
     return this.store
       .users()
       .filter((u) => this.filter() !== 'INACTIVE' || !u.active)
-      .filter((u) => this.filter() !== 'FLOOR' || u.role === 'WAITER' || u.role === 'KITCHEN')
+      .filter((u) => this.filter() !== 'FLOOR' || u.role === 'WAITER' || u.role === 'KITCHEN' || u.role === 'BARTENDER')
       .filter((u) => !query || `${u.name} ${u.username} ${u.phone ?? ''}`.toLowerCase().includes(query));
   });
 

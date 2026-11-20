@@ -167,7 +167,7 @@ export class Shell {
           items: [
             { label: 'New Order', path: '/waiter/new', icon: 'plus' },
             { label: 'My Orders', path: '/waiter/orders', icon: 'receipt' },
-            { label: 'Kitchen Issues', path: '/waiter/issues', icon: 'alert', count: issues },
+            { label: 'Kitchen & Bar Issues', path: '/waiter/issues', icon: 'alert', count: issues },
           ],
         },
       ];
@@ -178,6 +178,15 @@ export class Shell {
         {
           label: 'Workspace',
           items: [{ label: 'Kitchen Board', path: '/kitchen', icon: 'table', count: queue }],
+        },
+      ];
+    }
+
+    if (role === 'BARTENDER') {
+      return [
+        {
+          label: 'Workspace',
+          items: [{ label: 'Bar Board', path: '/bar', icon: 'glass', count: this.store.barQueue().length }],
         },
       ];
     }
@@ -198,7 +207,7 @@ export class Shell {
       { label: 'Overview', path: '/manager', icon: 'home' },
       { label: 'Reports', path: '/manager/reports', icon: 'chart' },
       { label: 'Staff', path: '/manager/staff', icon: 'users' },
-      { label: 'Kitchen Issues', path: '/manager/issues', icon: 'alert', count: issues },
+      { label: 'Kitchen & Bar Issues', path: '/manager/issues', icon: 'alert', count: issues },
       { label: 'Audit Log', path: '/manager/audit', icon: 'clock' },
       { label: 'Menu', path: '/manager/menu', icon: 'utensils' },
     ];
@@ -223,6 +232,8 @@ export class Shell {
         return '/waiter/issues';
       case 'KITCHEN':
         return '/kitchen';
+      case 'BARTENDER':
+        return '/bar';
       case 'CASHIER':
         return '/cashier/bills';
       default:
@@ -236,6 +247,8 @@ export class Shell {
         return this.store.openIssues().filter((i) => this.store.order(i.orderId)?.waiterId === this.user()?.id).length;
       case 'KITCHEN':
         return this.store.kitchenQueue().length;
+      case 'BARTENDER':
+        return this.store.barQueue().length;
       case 'CASHIER':
         return this.store.openBills().length;
       default:

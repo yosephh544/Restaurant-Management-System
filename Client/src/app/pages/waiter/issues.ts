@@ -14,7 +14,7 @@ import { Icon } from '../../shared/icon';
       <div class="page-head">
         <div>
           <div class="eyebrow">Waiter workspace</div>
-          <h1 class="page-title">Kitchen issues</h1>
+          <h1 class="page-title">Kitchen &amp; bar issues</h1>
           <p class="page-sub">Tickets the kitchen could not finish, and items they flagged.</p>
         </div>
         <div class="head-actions">

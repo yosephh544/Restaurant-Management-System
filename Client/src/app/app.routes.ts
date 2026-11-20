@@ -43,7 +43,7 @@ export const routes: Routes = [
           },
           {
             path: 'issues',
-            title: 'Kitchen issues · Majete Corner',
+            title: 'Kitchen & bar issues · Majete Corner',
             loadComponent: () => import('./pages/waiter/issues').then((m) => m.WaiterIssuesPage),
           },
           { path: '', pathMatch: 'full', redirectTo: 'new' },
@@ -52,7 +52,7 @@ export const routes: Routes = [
       {
         path: 'kitchen',
         canActivate: [roleGuard],
-        data: { roles: ['KITCHEN'] },
+        data: { roles: ['KITCHEN'], station: 'KITCHEN' },
         children: [
           {
             path: '',
@@ -62,6 +62,23 @@ export const routes: Routes = [
           {
             path: ':id',
             title: 'Ticket · Majete Corner',
+            loadComponent: () => import('./pages/kitchen/ticket').then((m) => m.KitchenTicketPage),
+          },
+        ],
+      },
+      {
+        path: 'bar',
+        canActivate: [roleGuard],
+        data: { roles: ['BARTENDER'], station: 'BAR' },
+        children: [
+          {
+            path: '',
+            title: 'Bar board · Majete Corner',
+            loadComponent: () => import('./pages/kitchen/board').then((m) => m.KitchenBoardPage),
+          },
+          {
+            path: ':id',
+            title: 'Bar ticket · Majete Corner',
             loadComponent: () => import('./pages/kitchen/ticket').then((m) => m.KitchenTicketPage),
           },
         ],
@@ -116,7 +133,7 @@ export const routes: Routes = [
           },
           {
             path: 'issues',
-            title: 'Kitchen issues · Majete Corner',
+            title: 'Kitchen & bar issues · Majete Corner',
             loadComponent: () => import('./pages/manager/issues').then((m) => m.ManagerIssuesPage),
           },
           {

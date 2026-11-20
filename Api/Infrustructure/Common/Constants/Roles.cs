@@ -12,6 +12,7 @@ public static class Roles
     public const string Cashier = "Cashier";
     public const string Waiter = "Waiter";
     public const string Kitchen = "Kitchen";
+    public const string Bartender = "Bartender";
 
     /// <summary>All roles that can access management-level operations.</summary>
     public const string ManagerOrAbove = $"{Owner},{Manager}";
@@ -20,5 +21,5 @@ public static class Roles
     public const string FloorStaff = $"{Owner},{Manager},{Waiter},{Cashier}";
 
     /// <summary>All authenticated roles.</summary>
-    public const string AllStaff = $"{Owner},{Manager},{Cashier},{Waiter},{Kitchen}";
+    public const string AllStaff = $"{Owner},{Manager},{Cashier},{Waiter},{Kitchen},{Bartender}";
 }

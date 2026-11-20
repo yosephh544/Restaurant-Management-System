@@ -37,6 +37,7 @@ export type IconName =
   | 'lock'
   | 'user'
   | 'utensils'
+  | 'glass'
   | 'check-circle'
   | 'alert-circle';
 
@@ -86,6 +87,8 @@ const PATHS: Record<IconName, string> = {
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   utensils:
     '<path d="M4 2v7a3 3 0 0 0 6 0V2"/><path d="M7 2v20"/><path d="M17 2c-2 2-2 5-2 7 0 2 1 3 2 3s2-1 2-3c0-2 0-5-2-7Z"/><path d="M17 12v10"/>',
+  glass:
+    '<path d="M5 4h14l-7 8-7-8Z"/><path d="M12 12v7"/><path d="M8 21h8"/><path d="M9 4l3 3"/>',
   'check-circle': '<circle cx="12" cy="12" r="9"/><path d="m8 12 2.5 2.5L16 9"/>',
   'alert-circle': '<circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/>',
 };

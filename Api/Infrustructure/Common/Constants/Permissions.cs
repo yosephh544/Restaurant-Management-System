@@ -23,6 +23,10 @@ public static class Permissions
     public const string KitchenUpdate = "kitchen.update";
     public const string KitchenCancel = "kitchen.cancel";
 
+    public const string BarView = "bar.view";
+    public const string BarUpdate = "bar.update";
+    public const string BarCancel = "bar.cancel";
+
     public const string PaymentsInitiate = "payments.initiate";
     public const string PaymentsView = "payments.view";
     public const string PaymentsRetract = "payments.retract";

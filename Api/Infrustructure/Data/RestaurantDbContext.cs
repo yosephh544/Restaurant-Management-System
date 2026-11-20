@@ -311,6 +311,13 @@ public class RestaurantDbContext : DbContext
                   .HasConversion<string>()
                   .HasMaxLength(20);
 
+            entity.Property(oi => oi.PreparationStation)
+                  .HasConversion<int>()
+                  .HasDefaultValue(PreparationStation.Kitchen)
+                  .HasSentinel(PreparationStation.Kitchen);
+
+            entity.HasIndex(oi => oi.PreparationStation);
+
             entity.Property(oi => oi.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
 
             entity.HasOne(oi => oi.Order)

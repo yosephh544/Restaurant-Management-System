@@ -260,8 +260,10 @@ interface KitchenTicketDto {
   orderNumber: string;
   tableNumber: string;
   waiterName: string;
+  station: string;
   orderStatus: OrderStatus;
   paymentStatus: PaymentStatus;
+  stationStatus: OrderStatus;
   createdAt: string;
   elapsedMinutes: number;
   items: KitchenItemDto[];
@@ -317,6 +319,7 @@ export class Store {
   readonly menuCategories = signal<MenuCategory[]>([]);
   readonly orders = signal<Order[]>([]);
   readonly kitchenTickets = signal<KitchenTicket[]>([]);
+  readonly barTickets = signal<KitchenTicket[]>([]);
   readonly bills = signal<Bill[]>([]);
   readonly payments = signal<Payment[]>([]);
   readonly tips = signal<TipEntry[]>([]);
@@ -336,6 +339,10 @@ export class Store {
 
   readonly kitchenQueue = computed(() =>
     this.kitchenTickets().filter((t) => t.status === 'PENDING' || t.status === 'PREPARING'),
+  );
+
+  readonly barQueue = computed(() =>
+    this.barTickets().filter((t) => t.status === 'PENDING' || t.status === 'PREPARING'),
   );
 
   readonly readyOrders = computed(() => this.orders().filter((o) => o.status === 'READY'));
@@ -374,6 +381,7 @@ export class Store {
     if (this.can('menu.view')) jobs.push(this.loadMenu());
     if (this.can('orders.view')) jobs.push(this.loadOrders(), this.loadIssues());
     if (this.can('kitchen.view')) jobs.push(this.loadKitchen());
+    if (this.can('bar.view')) jobs.push(this.loadBar());
     if (this.can('payments.view')) jobs.push(this.loadBills(), this.loadPayments());
     if (this.can('tips.view')) jobs.push(this.loadTips());
     if (this.can('reports.view')) jobs.push(this.loadAudit());
@@ -449,29 +457,38 @@ export class Store {
   async loadKitchen(): Promise<void> {
     await this.guard(async () => {
       const data = await this.api.getAll<KitchenTicketDto>('/kitchen/queue');
-      this.kitchenTickets.set(
-        data
-          .map((t) => ({
-            id: t.orderId,
-            number: t.orderNumber,
-            table: t.tableNumber,
-            waiterName: t.waiterName,
-            status: t.orderStatus,
-            paymentStatus: t.paymentStatus,
-            createdAt: t.createdAt,
-            elapsedMinutes: t.elapsedMinutes,
-            items: t.items.map((i) => ({
-              id: i.id,
-              menuItemId: i.menuItemId,
-              name: i.menuItemName,
-              qty: i.quantity,
-              notes: i.customerNotes ?? undefined,
-              status: i.itemStatus,
-            })),
-          }))
-          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
-      );
+      this.kitchenTickets.set(this.mapStationTickets(data));
     });
+  }
+
+  async loadBar(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.getAll<KitchenTicketDto>('/bar/queue');
+      this.barTickets.set(this.mapStationTickets(data));
+    });
+  }
+
+  private mapStationTickets(data: KitchenTicketDto[]): KitchenTicket[] {
+    return data
+      .map((t) => ({
+        id: t.orderId,
+        number: t.orderNumber,
+        table: t.tableNumber,
+        waiterName: t.waiterName,
+        status: t.stationStatus,
+        paymentStatus: t.paymentStatus,
+        createdAt: t.createdAt,
+        elapsedMinutes: t.elapsedMinutes,
+        items: t.items.map((i) => ({
+          id: i.id,
+          menuItemId: i.menuItemId,
+          name: i.menuItemName,
+          qty: i.quantity,
+          notes: i.customerNotes ?? undefined,
+          status: i.itemStatus,
+        })),
+      }))
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }
 
   async loadBills(): Promise<void> {
@@ -693,7 +710,7 @@ export class Store {
   }
 
   /* ------------------------------------------------------------------ */
-  /* Kitchen                                                             */
+  /* Stations (kitchen + bar)                                            */
   /* ------------------------------------------------------------------ */
 
   async kitchenStatus(orderId: string, status: 'PREPARING' | 'READY'): Promise<Result> {
@@ -716,6 +733,29 @@ export class Store {
         orderItemId: orderItemId ?? null,
       });
       await Promise.all([this.loadKitchen(), this.loadOrders(), this.loadIssues()]);
+    });
+  }
+
+  async barStatus(orderId: string, status: 'PREPARING' | 'READY'): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch(`/bar/orders/${orderId}/status`, { status });
+      await Promise.all([this.loadBar(), this.loadOrders()]);
+    });
+  }
+
+  async cancelBar(
+    orderId: string,
+    reason: IssueReason,
+    note: string,
+    orderItemId?: string,
+  ): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.post(`/bar/orders/${orderId}/cancel`, {
+        reasonCode: reason,
+        reasonNote: note || null,
+        orderItemId: orderItemId ?? null,
+      });
+      await Promise.all([this.loadBar(), this.loadOrders(), this.loadIssues()]);
     });
   }
 
@@ -970,6 +1010,7 @@ export class Store {
     this.menuCategories.set([]);
     this.orders.set([]);
     this.kitchenTickets.set([]);
+    this.barTickets.set([]);
     this.bills.set([]);
     this.payments.set([]);
     this.tips.set([]);

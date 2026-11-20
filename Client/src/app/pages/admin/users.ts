@@ -8,7 +8,7 @@ import { Icon } from '../../shared/icon';
 
 interface RoleCard {
   role: Role;
-  icon: 'utensils' | 'table' | 'bill' | 'chart' | 'shield';
+  icon: 'utensils' | 'table' | 'glass' | 'bill' | 'chart' | 'shield';
   blurb: string;
   can: string[];
 }
@@ -259,7 +259,7 @@ export class UsersPage {
   protected readonly busy = signal(false);
   protected readonly currentUserId = this.auth.user()?.id ?? '';
 
-  protected readonly roleOptions: Role[] = ['OWNER', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN'];
+  protected readonly roleOptions: Role[] = ['OWNER', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN', 'BARTENDER'];
 
   protected readonly roleCards: RoleCard[] = [
     {
@@ -291,6 +291,12 @@ export class UsersPage {
       icon: 'table',
       blurb: 'Preparation',
       can: ['Kitchen board and ticket details', 'Accept and mark ready', 'Report unavailable items'],
+    },
+    {
+      role: 'BARTENDER',
+      icon: 'glass',
+      blurb: 'Drinks and bar',
+      can: ['Bar board and drink tickets', 'Accept and mark drinks ready', 'Report unavailable drinks'],
     },
   ];
 

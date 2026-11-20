@@ -10,6 +10,7 @@ export const ROLE_HOME: Record<Role, string> = {
   CASHIER: '/cashier/bills',
   WAITER: '/waiter/new',
   KITCHEN: '/kitchen',
+  BARTENDER: '/bar',
 };
 
 interface TokenResponse {

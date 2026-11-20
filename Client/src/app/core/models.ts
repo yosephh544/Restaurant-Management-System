@@ -1,4 +1,4 @@
-export type Role = 'OWNER' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'KITCHEN';
+export type Role = 'OWNER' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'BARTENDER';
 
 export const ROLE_LABEL: Record<Role, string> = {
   OWNER: 'Owner',
@@ -6,6 +6,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   CASHIER: 'Cashier',
   WAITER: 'Waiter',
   KITCHEN: 'Kitchen',
+  BARTENDER: 'Bartender',
 };
 
 export function roleFrom(value: string | null | undefined): Role {

@@ -33,7 +33,7 @@ public static class DatabaseSeeder
 
         var permissions = await db.Permissions.ToDictionaryAsync(p => p.Name, p => p.Id, ct);
 
-        foreach (var roleName in new[] { "Owner", "Manager", "Cashier", "Waiter", "Kitchen" })
+        foreach (var roleName in new[] { "Owner", "Manager", "Cashier", "Waiter", "Kitchen", Roles.Bartender })
         {
             if (!await db.Roles.AnyAsync(r => r.Name == roleName, ct))
                 db.Roles.Add(new Role { Id = Guid.NewGuid(), Name = roleName, Description = $"{roleName} role", IsActive = true });
@@ -76,6 +76,11 @@ public static class DatabaseSeeder
         await EnsureRolePermissionsAsync(roles["Kitchen"], new[]
         {
             Permissions.MenuView, Permissions.AvailabilityManage, Permissions.KitchenView, Permissions.KitchenUpdate, Permissions.KitchenCancel
+        }, permissions, db, ct);
+
+        await EnsureRolePermissionsAsync(roles[Roles.Bartender], new[]
+        {
+            Permissions.MenuView, Permissions.AvailabilityManage, Permissions.BarView, Permissions.BarUpdate, Permissions.BarCancel
         }, permissions, db, ct);
 
         await db.SaveChangesAsync(ct);

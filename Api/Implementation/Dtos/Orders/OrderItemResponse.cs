@@ -11,4 +11,5 @@ public class OrderItemResponse
     public decimal TotalPrice => UnitPrice * Quantity;
     public string? CustomerNotes { get; init; }
     public string ItemStatus { get; init; } = default!;
+    public string Station { get; init; } = default!;
 }

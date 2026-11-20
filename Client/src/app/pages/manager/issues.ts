@@ -13,7 +13,7 @@ import { Icon } from '../../shared/icon';
       <div class="page-head">
         <div>
           <div class="eyebrow">Manager</div>
-          <h1 class="page-title">Kitchen issues</h1>
+          <h1 class="page-title">Kitchen &amp; bar issues</h1>
           <p class="page-sub">Every item the kitchen removed or flagged, and whether it was recovered.</p>
         </div>
         <div class="head-actions">

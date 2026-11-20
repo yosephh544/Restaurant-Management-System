@@ -89,6 +89,7 @@ export class IssueDialog {
   private readonly toast = inject(ToastService);
 
   readonly ticket = input.required<KitchenTicket>();
+  readonly station = input<'KITCHEN' | 'BAR'>('KITCHEN');
   readonly closed = output<void>();
 
   protected readonly reasons: { value: IssueReason; label: string }[] = [
@@ -120,7 +121,9 @@ export class IssueDialog {
     }
 
     this.busy.set(true);
-    const result = await this.store.cancelKitchen(ticket.id, this.reason(), this.note().trim(), orderItemId);
+    const result = this.station() === 'BAR'
+      ? await this.store.cancelBar(ticket.id, this.reason(), this.note().trim(), orderItemId)
+      : await this.store.cancelKitchen(ticket.id, this.reason(), this.note().trim(), orderItemId);
     this.busy.set(false);
 
     if (!result.ok) {
