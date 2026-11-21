@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { locale, TranslatePipe, translate } from '../../core/i18n';
 import { RouterLink } from '@angular/router';
 import { ageLabel, dayKey, Issue, issueLabel, money } from '../../core/models';
 import { Store } from '../../core/store';
@@ -7,57 +8,57 @@ import { Icon, IconName } from '../../shared/icon';
 
 @Component({
   selector: 'app-manager-dashboard',
-  imports: [RouterLink, Icon],
+  imports: [RouterLink, Icon, TranslatePipe],
   template: `
     <div class="page">
       <div class="page-head">
         <div>
-          <div class="eyebrow">Manager overview</div>
-          <h1 class="page-title">Dashboard</h1>
-          <p class="page-sub">{{ today }} · live floor, sales and kitchen health.</p>
+          <div class="eyebrow">{{ 'Manager overview' | t }}</div>
+          <h1 class="page-title">{{ 'Dashboard' | t }}</h1>
+          <p class="page-sub">{{ today }} {{ '· live floor, sales and kitchen health.' | t }}</p>
         </div>
         <div class="head-actions">
-          <a class="btn btn-secondary" routerLink="/manager/reports"><app-icon name="chart" /> Full reports</a>
-          <a class="btn btn-primary" routerLink="/manager/issues"><app-icon name="alert" /> Issues ({{ metrics().activeIssues }})</a>
+          <a class="btn btn-secondary" routerLink="/manager/reports"><app-icon name="chart" /> {{ 'Full reports' | t }}</a>
+          <a class="btn btn-primary" routerLink="/manager/issues"><app-icon name="alert" /> {{ 'Issues (' | t }}{{ metrics().activeIssues }})</a>
         </div>
       </div>
 
       <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: 18px">
         <div class="stat-card">
           <div class="stat-icon"><app-icon name="receipt" /></div>
-          <div class="stat-label">Today's orders</div>
+          <div class="stat-label">{{ "Today's orders" | t }}</div>
           <div class="stat-value">{{ metrics().orders }}</div>
-          <div class="stat-foot">Across all waiters</div>
+          <div class="stat-foot">{{ 'Across all waiters' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="chart" /></div>
-          <div class="stat-label">Gross sales</div>
+          <div class="stat-label">{{ 'Gross sales' | t }}</div>
           <div class="stat-value">{{ money(metrics().gross) }}</div>
-          <div class="stat-foot">Paid today, ETB</div>
+          <div class="stat-foot">{{ 'Paid today, ETB' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="check-circle" /></div>
-          <div class="stat-label">Collected</div>
+          <div class="stat-label">{{ 'Collected' | t }}</div>
           <div class="stat-value">{{ money(metrics().collected) }}</div>
-          <div class="stat-foot">Net of refunds</div>
+          <div class="stat-foot">{{ 'Net of refunds' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--red-soft); color: var(--red)"><app-icon name="wallet" /></div>
-          <div class="stat-label">Outstanding</div>
+          <div class="stat-label">{{ 'Outstanding' | t }}</div>
           <div class="stat-value">{{ money(metrics().outstanding) }}</div>
-          <div class="stat-foot">Open bills to collect</div>
+          <div class="stat-foot">{{ 'Open bills to collect' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--amber-soft); color: var(--amber)"><app-icon name="retract" /></div>
-          <div class="stat-label">Refunds</div>
+          <div class="stat-label">{{ 'Refunds' | t }}</div>
           <div class="stat-value">{{ money(metrics().refunds) }}</div>
-          <div class="stat-foot">Returned today</div>
+          <div class="stat-foot">{{ 'Returned today' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--brand-soft); color: var(--brand-dark)"><app-icon name="cash" /></div>
-          <div class="stat-label">Tips</div>
+          <div class="stat-label">{{ 'Tips' | t }}</div>
           <div class="stat-value">{{ money(metrics().tips) }}</div>
-          <div class="stat-foot">Credited to waiters</div>
+          <div class="stat-foot">{{ 'Credited to waiters' | t }}</div>
         </div>
       </div>
 
@@ -65,28 +66,28 @@ import { Icon, IconName } from '../../shared/icon';
         <div class="card">
           <div class="card-head">
             <div>
-              <div class="card-title">Sales overview</div>
-              <div class="card-sub">Settled payments in the selected window</div>
+              <div class="card-title">{{ 'Sales overview' | t }}</div>
+              <div class="card-sub">{{ 'Settled payments in the selected window' | t }}</div>
             </div>
             <div class="seg">
-              <button type="button" [class.active]="range() === 'today'" (click)="range.set('today')">Today</button>
-              <button type="button" [class.active]="range() === 'week'" (click)="range.set('week')">7 days</button>
+              <button type="button" [class.active]="range() === 'today'" (click)="range.set('today')">{{ 'Today' | t }}</button>
+              <button type="button" [class.active]="range() === 'week'" (click)="range.set('week')">{{ '7 days' | t }}</button>
             </div>
           </div>
           <div class="card-pad" style="padding-bottom: 4px">
             <div class="between">
               <div>
-                <div class="eyebrow" style="margin-bottom: 2px">Collected</div>
-                <div class="stat-value" style="font-size: 26px">{{ money(seriesTotal()) }} <small>ETB</small></div>
+                <div class="eyebrow" style="margin-bottom: 2px">{{ 'Collected' | t }}</div>
+                <div class="stat-value" style="font-size: 26px">{{ money(seriesTotal()) }} <small>{{ 'ETB' | t }}</small></div>
               </div>
               <div class="chart-legend">
-                <span><span class="legend-dot"></span> Collected</span>
-                <span class="muted">{{ paymentsCount() }} payments</span>
+                <span><span class="legend-dot"></span> {{ 'Collected' | t }}</span>
+                <span class="muted">{{ paymentsCount() }} {{ 'payments' | t }}</span>
               </div>
             </div>
           </div>
           <div class="chart-wrap">
-            <svg class="chart-svg" viewBox="0 0 640 200" role="img" aria-label="Sales chart">
+            <svg class="chart-svg" viewBox="0 0 640 200" role="img" [attr.aria-label]="'Sales chart' | t">
               <defs>
                 <linearGradient id="areaGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="0%" stop-color="#e4572e" stop-opacity="0.22" />
@@ -117,10 +118,10 @@ import { Icon, IconName } from '../../shared/icon';
         <div class="card">
           <div class="card-head">
             <div>
-              <div class="card-title">Active kitchen issues</div>
-              <div class="card-sub">Items removed or flagged by the line</div>
+              <div class="card-title">{{ 'Active kitchen issues' | t }}</div>
+              <div class="card-sub">{{ 'Items removed or flagged by the line' | t }}</div>
             </div>
-            <a class="link-btn" routerLink="/manager/issues">View all <app-icon name="chevron-right" /></a>
+            <a class="link-btn" routerLink="/manager/issues">{{ 'View all' | t }} <app-icon name="chevron-right" /></a>
           </div>
 
           @if (issues().length) {
@@ -130,22 +131,22 @@ import { Icon, IconName } from '../../shared/icon';
                   <span class="tl-dot" style="background: var(--red-soft); color: var(--red)"><app-icon name="alert" /></span>
                   <div class="list-main">
                     <strong>#{{ issue.orderNumber }} · {{ issue.item }}</strong>
-                    <span>{{ reasonLabel(issue.reason) }} · {{ ageLabel(issue.createdAt) }} ago</span>
+                    <span>{{ reasonLabel(issue.reason) }} · {{ ageLabel(issue.createdAt) }} {{ 'ago' | t }}</span>
                   </div>
-                  <button class="btn btn-sm btn-secondary" type="button" (click)="resolve(issue.id)">Resolve</button>
+                  <button class="btn btn-sm btn-secondary" type="button" (click)="resolve(issue.id)">{{ 'Resolve' | t }}</button>
                 </div>
               }
             </div>
           } @else {
             <div class="empty" style="padding: 32px 16px">
               <app-icon name="check-circle" style="color: var(--green)" />
-              <strong>No open issues</strong>
-              <p>The kitchen line is clear.</p>
+              <strong>{{ 'No open issues' | t }}</strong>
+              <p>{{ 'The kitchen line is clear.' | t }}</p>
             </div>
           }
 
           <div style="padding: 12px 16px; border-top: 1px solid var(--line); background: #fcfaf7">
-            <a class="btn btn-secondary btn-sm btn-block" routerLink="/manager/issues">Open issue management</a>
+            <a class="btn btn-secondary btn-sm btn-block" routerLink="/manager/issues">{{ 'Open issue management' | t }}</a>
           </div>
         </div>
       </div>
@@ -154,45 +155,45 @@ import { Icon, IconName } from '../../shared/icon';
         <div class="card">
           <div class="card-head">
             <div>
-              <div class="card-title">Service performance</div>
-              <div class="card-sub">Prep and pickup time across served tickets</div>
+              <div class="card-title">{{ 'Service performance' | t }}</div>
+              <div class="card-sub">{{ 'Prep and pickup time across served tickets' | t }}</div>
             </div>
-            <a class="link-btn" routerLink="/manager/reports">Reports <app-icon name="chevron-right" /></a>
+            <a class="link-btn" routerLink="/manager/reports">{{ 'Reports' | t }} <app-icon name="chevron-right" /></a>
           </div>
           <div class="card-pad">
             <div class="grid grid-3" style="margin-bottom: 16px">
               <div>
-                <div class="stat-label">Avg. preparation</div>
-                <div class="stat-value" style="font-size: 22px">{{ performance().prep }} <small>min</small></div>
+                <div class="stat-label">{{ 'Avg. preparation' | t }}</div>
+                <div class="stat-value" style="font-size: 22px">{{ performance().prep }} <small>{{ 'min' | t }}</small></div>
               </div>
               <div>
-                <div class="stat-label">Avg. pickup</div>
-                <div class="stat-value" style="font-size: 22px">{{ performance().pickup }} <small>min</small></div>
+                <div class="stat-label">{{ 'Avg. pickup' | t }}</div>
+                <div class="stat-value" style="font-size: 22px">{{ performance().pickup }} <small>{{ 'min' | t }}</small></div>
               </div>
               <div>
-                <div class="stat-label">On time</div>
+                <div class="stat-label">{{ 'On time' | t }}</div>
                 <div class="stat-value" style="font-size: 22px">{{ performance().onTime }}<small>%</small></div>
               </div>
             </div>
 
             <div class="bar-row">
-              <span class="muted">Prep vs 15 min</span>
+              <span class="muted">{{ 'Prep vs 15 min' | t }}</span>
               <span class="bar-track"><span class="bar-fill" [style.width.%]="performance().prepBar"></span></span>
-              <span class="bar-val">{{ performance().prep }} min</span>
+              <span class="bar-val">{{ performance().prep }} {{ 'min' | t }}</span>
             </div>
             <div class="bar-row">
-              <span class="muted">Pickup vs 8 min</span>
+              <span class="muted">{{ 'Pickup vs 8 min' | t }}</span>
               <span class="bar-track"><span class="bar-fill green" [style.width.%]="performance().pickupBar"></span></span>
-              <span class="bar-val">{{ performance().pickup }} min</span>
+              <span class="bar-val">{{ performance().pickup }} {{ 'min' | t }}</span>
             </div>
 
             <div class="divider"></div>
 
             <div class="between" style="gap: 8px">
-              <div><span class="stat-label">Waiting for kitchen</span><strong class="strong" style="font-size: 16px">{{ floor().pending }}</strong></div>
-              <div><span class="stat-label">Preparing</span><strong class="strong" style="font-size: 16px">{{ floor().preparing }}</strong></div>
-              <div><span class="stat-label">Ready at pass</span><strong class="strong" style="font-size: 16px">{{ floor().ready }}</strong></div>
-              <div><span class="stat-label">Open bills</span><strong class="strong" style="font-size: 16px">{{ floor().bills }}</strong></div>
+              <div><span class="stat-label">{{ 'Waiting for kitchen' | t }}</span><strong class="strong" style="font-size: 16px">{{ floor().pending }}</strong></div>
+              <div><span class="stat-label">{{ 'Preparing' | t }}</span><strong class="strong" style="font-size: 16px">{{ floor().preparing }}</strong></div>
+              <div><span class="stat-label">{{ 'Ready at pass' | t }}</span><strong class="strong" style="font-size: 16px">{{ floor().ready }}</strong></div>
+              <div><span class="stat-label">{{ 'Open bills' | t }}</span><strong class="strong" style="font-size: 16px">{{ floor().bills }}</strong></div>
             </div>
           </div>
         </div>
@@ -200,10 +201,10 @@ import { Icon, IconName } from '../../shared/icon';
         <div class="card">
           <div class="card-head">
             <div>
-              <div class="card-title">Staff activity</div>
-              <div class="card-sub">Latest floor events</div>
+              <div class="card-title">{{ 'Staff activity' | t }}</div>
+              <div class="card-sub">{{ 'Latest floor events' | t }}</div>
             </div>
-            <a class="link-btn" routerLink="/manager/audit">Audit log <app-icon name="chevron-right" /></a>
+            <a class="link-btn" routerLink="/manager/audit">{{ 'Audit log' | t }} <app-icon name="chevron-right" /></a>
           </div>
           <div class="timeline">
             @for (event of activity(); track event.id) {
@@ -212,7 +213,7 @@ import { Icon, IconName } from '../../shared/icon';
                 <div class="tl-main">
                   <strong>{{ event.action }}</strong>
                   <p>{{ event.detail }}</p>
-                  <span>{{ event.actor }} · {{ ageLabel(event.at) }} ago</span>
+                  <span>{{ event.actor }} · {{ ageLabel(event.at) }} {{ 'ago' | t }}</span>
                 </div>
               </div>
             }
@@ -231,7 +232,7 @@ export class ManagerDashboardPage {
   protected readonly range = signal<'today' | 'week'>('today');
   protected readonly gridLines = [30, 65, 100, 135, 170];
 
-  protected readonly today = new Date().toLocaleDateString('en-US', {
+  protected readonly today = new Date().toLocaleDateString(locale(), {
     weekday: 'short',
     day: 'numeric',
     month: 'short',
@@ -282,7 +283,7 @@ export class ManagerDashboardPage {
       day.setHours(0, 0, 0, 0);
       day.setDate(day.getDate() - i);
       days.push({
-        label: day.toLocaleDateString('en-US', { weekday: 'short' }),
+        label: day.toLocaleDateString(locale(), { weekday: 'short' }),
         value: 0,
         key: dayKey(day.toISOString()),
       });
@@ -403,6 +404,6 @@ export class ManagerDashboardPage {
   protected async resolve(issueId: string): Promise<void> {
     const result = await this.store.resolveIssue(issueId);
     if (!result.ok) this.toast.show(result.error, 'error');
-    else this.toast.show('Issue resolved');
+    else this.toast.show(translate('Issue resolved'));
   }
 }

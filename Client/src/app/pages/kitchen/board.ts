@@ -1,4 +1,5 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { locale, TranslatePipe, translate } from '../../core/i18n';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { KitchenTicket } from '../../core/models';
 import { Store } from '../../core/store';
@@ -8,21 +9,21 @@ import { IssueDialog } from '../../shared/issue-dialog';
 
 @Component({
   selector: 'app-kitchen-board',
-  imports: [RouterLink, Icon, IssueDialog],
+  imports: [RouterLink, Icon, IssueDialog, TranslatePipe],
   template: `
     <div class="page">
       <div class="page-head">
         <div>
-          <div class="eyebrow">{{ isBar ? 'Bar display' : 'Kitchen display' }} · {{ station() }}</div>
-          <h1 class="page-title">{{ isBar ? 'Bar board' : 'Kitchen board' }}</h1>
-          <p class="page-sub">{{ isBar ? 'Drink tickets appear the moment an order is sent. Keep the bar moving.' : 'Tickets appear the moment a waiter sends them. Work oldest first.' }}</p>
+          <div class="eyebrow">{{ isBar ? ('Bar display' | t) : ('Kitchen display' | t) }} · {{ station() }}</div>
+          <h1 class="page-title">{{ isBar ? ('Bar board' | t) : ('Kitchen board' | t) }}</h1>
+          <p class="page-sub">{{ isBar ? ('Drink tickets appear the moment an order is sent. Keep the bar moving.' | t) : ('Tickets appear the moment a waiter sends them. Work oldest first.' | t) }}</p>
         </div>
         <div class="head-actions">
           <div class="branch-btn" style="cursor: default">
             <app-icon name="clock" />
             <span class="num">{{ clockLabel() }}</span>
           </div>
-          <button class="icon-btn" type="button" (click)="refresh()" aria-label="Refresh board">
+          <button class="icon-btn" type="button" (click)="refresh()" [attr.aria-label]="'Refresh board' | t">
             <app-icon name="retract" />
           </button>
         </div>
@@ -31,27 +32,27 @@ import { IssueDialog } from '../../shared/issue-dialog';
       <div class="grid grid-4" style="margin-bottom: 18px">
         <div class="stat-card">
           <div class="stat-icon" style="background: #f1ede7; color: var(--muted)"><app-icon name="bell" /></div>
-          <div class="stat-label">New tickets</div>
+          <div class="stat-label">{{ 'New tickets' | t }}</div>
           <div class="stat-value">{{ counts().new }}</div>
-          <div class="stat-foot">Waiting for accept</div>
+          <div class="stat-foot">{{ 'Waiting for accept' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--orange-soft); color: var(--orange)"><app-icon [name]="isBar ? 'glass' : 'utensils'" /></div>
-          <div class="stat-label">Preparing</div>
+          <div class="stat-label">{{ 'Preparing' | t }}</div>
           <div class="stat-value">{{ counts().preparing }}</div>
-          <div class="stat-foot">{{ isBar ? 'On the bar' : 'On the line' }}</div>
+          <div class="stat-foot">{{ isBar ? ('On the bar' | t) : ('On the line' | t) }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="check-circle" /></div>
-          <div class="stat-label">{{ isBar ? 'At the bar' : 'At the pass' }}</div>
+          <div class="stat-label">{{ isBar ? ('At the bar' | t) : ('At the pass' | t) }}</div>
           <div class="stat-value">{{ counts().ready }}</div>
-          <div class="stat-foot">Waiting for waiter</div>
+          <div class="stat-foot">{{ 'Waiting for waiter' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--red-soft); color: var(--red)"><app-icon name="clock" /></div>
-          <div class="stat-label">Oldest ticket</div>
-          <div class="stat-value">{{ oldest() }} <small>min</small></div>
-          <div class="stat-foot">Target under 15 min</div>
+          <div class="stat-label">{{ 'Oldest ticket' | t }}</div>
+          <div class="stat-value">{{ oldest() }} <small>{{ 'min' | t }}</small></div>
+          <div class="stat-foot">{{ 'Target under 15 min' | t }}</div>
         </div>
       </div>
 
@@ -61,10 +62,9 @@ import { IssueDialog } from '../../shared/issue-dialog';
             <article [class]="'ticket ticket-' + ticket.status.toLowerCase()">
               <div class="ticket-head">
                 <a class="ticket-num" [routerLink]="[stationPath, ticket.id]">#{{ ticket.number }}</a>
-                <span class="ticket-table">Table {{ ticket.table }}</span>
+                <span class="ticket-table">{{ 'Table' | t }} {{ ticket.table }}</span>
                 <span [class]="'ticket-time ' + timerTone(ticket)">
-                  <app-icon name="clock" /> {{ elapsed(ticket) }} min
-                </span>
+                  <app-icon name="clock" /> {{ elapsed(ticket) }} {{ 'min' | t }} </span>
               </div>
 
               <div class="ticket-items">
@@ -86,18 +86,17 @@ import { IssueDialog } from '../../shared/issue-dialog';
               <div class="ticket-actions">
                 <button class="btn btn-primary btn-block" type="button" [disabled]="busy() === ticket.id" (click)="advance(ticket)">
                   <app-icon name="check" />
-                  {{ busy() === ticket.id ? 'Working…' : ticket.status === 'PENDING' ? 'Accept' : 'Mark ready' }}
+                  {{ busy() === ticket.id ? ('Working…' | t) : ticket.status === 'PENDING' ? ('Accept' | t) : ('Mark ready' | t) }}
                 </button>
                 <button class="btn btn-secondary btn-block" type="button" (click)="issueTicket.set(ticket)">
-                  <app-icon name="alert" /> Report issue
-                </button>
+                  <app-icon name="alert" /> {{ 'Report issue' | t }} </button>
               </div>
 
               <div class="ticket-foot">
                 <span [class]="'pill ' + (ticket.status === 'PENDING' ? 'pill-amber' : 'pill-orange')">
-                  {{ ticket.status === 'PENDING' ? 'New' : 'Preparing' }}
+                  {{ ticket.status === 'PENDING' ? ('New' | t) : ('Preparing' | t) }}
                 </span>
-                <span class="tiny muted">{{ ticket.waiterName }} · {{ ticket.items.length }} lines</span>
+                <span class="tiny muted">{{ ticket.waiterName }} · {{ ticket.items.length }} {{ 'lines' | t }}</span>
               </div>
             </article>
           }
@@ -105,8 +104,8 @@ import { IssueDialog } from '../../shared/issue-dialog';
       } @else {
         <div class="card empty" style="padding: 54px 20px">
           <app-icon name="check-circle" style="color: var(--green)" />
-          <strong>Line is clear</strong>
-          <p>No new or preparing {{ isBar ? 'drink' : '' }} tickets. New orders will appear here automatically.</p>
+          <strong>{{ 'Line is clear' | t }}</strong>
+          <p>{{ 'No new or preparing' | t }} {{ isBar ? ('drink' | t) : '' }} {{ 'tickets. New orders will appear here automatically.' | t }}</p>
         </div>
       }
 
@@ -114,20 +113,20 @@ import { IssueDialog } from '../../shared/issue-dialog';
         <div class="card mt-4">
           <div class="card-head">
             <div>
-              <div class="card-title">{{ isBar ? 'At the bar' : 'At the pass' }}</div>
-              <div class="card-sub">{{ isBar ? 'Poured and waiting for the waiter to pick up' : 'Plated and waiting for the waiter to pick up' }}</div>
+              <div class="card-title">{{ isBar ? ('At the bar' | t) : ('At the pass' | t) }}</div>
+              <div class="card-sub">{{ isBar ? ('Poured and waiting for the waiter to pick up' | t) : ('Plated and waiting for the waiter to pick up' | t) }}</div>
             </div>
-            <span class="pill pill-green no-dot">{{ ready().length }} waiting</span>
+            <span class="pill pill-green no-dot">{{ ready().length }} {{ 'waiting' | t }}</span>
           </div>
           <div class="list">
             @for (ticket of ready(); track ticket.id) {
               <a class="list-row" [routerLink]="[stationPath, ticket.id]">
                 <span class="ticket-num" style="font-size: 16px">#{{ ticket.number }}</span>
                 <div class="list-main">
-                  <strong>Table {{ ticket.table }}</strong>
-                  <span>{{ ticket.items.length }} lines · {{ elapsed(ticket) }} min on the board</span>
+                  <strong>{{ 'Table' | t }} {{ ticket.table }}</strong>
+                  <span>{{ ticket.items.length }} {{ 'lines ·' | t }} {{ elapsed(ticket) }} {{ 'min on the board' | t }}</span>
                 </div>
-                <span class="pill pill-green">Ready</span>
+                <span class="pill pill-green">{{ 'Ready' | t }}</span>
                 <app-icon name="chevron-right" style="color: var(--muted-2); font-size: 15px" />
               </a>
             }
@@ -151,7 +150,7 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
 
   protected readonly station = computed(() => {
     const branch = this.store.settings().branch;
-    const suffix = this.isBar ? 'bar' : 'kitchen';
+    const suffix = translate(this.isBar ? 'bar' : 'kitchen');
     return branch ? `${branch} ${suffix}` : suffix;
   });
   protected readonly issueTicket = signal<KitchenTicket | null>(null);
@@ -183,7 +182,7 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
   });
 
   protected readonly clockLabel = computed(() =>
-    new Date(this.now()).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+    new Date(this.now()).toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' }),
   );
 
   async ngOnInit(): Promise<void> {

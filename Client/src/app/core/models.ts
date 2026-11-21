@@ -1,3 +1,5 @@
+import { locale, translate } from './i18n';
+
 export type Role = 'OWNER' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'BARTENDER';
 
 export const ROLE_LABEL: Record<Role, string> = {
@@ -8,6 +10,10 @@ export const ROLE_LABEL: Record<Role, string> = {
   KITCHEN: 'Kitchen',
   BARTENDER: 'Bartender',
 };
+
+export function roleLabel(role: Role | string): string {
+  return translate(ROLE_LABEL[role as Role] ?? role);
+}
 
 export function roleFrom(value: string | null | undefined): Role {
   const normalized = (value ?? '').trim().toUpperCase();
@@ -98,10 +104,8 @@ export interface MyShift {
 
 export function minutesLabel(totalMinutes: number): string {
   const normalized = ((Math.round(totalMinutes) % 1440) + 1440) % 1440;
-  const hour24 = Math.floor(normalized / 60);
-  const hour = hour24 % 12 || 12;
-  const minute = String(normalized % 60).padStart(2, '0');
-  return `${hour}:${minute} ${hour24 >= 12 ? 'PM' : 'AM'}`;
+  const at = new Date(2000, 0, 1, Math.floor(normalized / 60), normalized % 60);
+  return at.toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' });
 }
 
 export function shiftRange(startMinutes: number, endMinutes: number): string {
@@ -120,7 +124,7 @@ export function dateFromKey(key: string): Date {
 }
 
 export function shiftDayLabel(key: string): string {
-  return dateFromKey(key).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+  return dateFromKey(key).toLocaleDateString(locale(), { weekday: 'short', day: 'numeric', month: 'short' });
 }
 
 
@@ -211,11 +215,28 @@ export interface Bill {
 export type PayMethod = 'CASH' | 'QR_SCAN' | 'PHONE_PUSH';
 export type PayState = 'INITIATED' | 'PAID' | 'FAILED' | 'RETRACTED' | 'TRANSFERRED' | 'REFUNDED';
 
+export const PAY_STATE_LABEL: Record<PayState, string> = {
+  INITIATED: 'Initiated',
+  PAID: 'Paid',
+  FAILED: 'Failed',
+  RETRACTED: 'Retracted',
+  TRANSFERRED: 'Transferred',
+  REFUNDED: 'Refunded',
+};
+
 export const METHOD_LABEL: Record<PayMethod, string> = {
   CASH: 'Cash',
   QR_SCAN: 'QR scan',
   PHONE_PUSH: 'Phone push',
 };
+
+export function payStateLabel(status: PayState): string {
+  return translate(PAY_STATE_LABEL[status] ?? status);
+}
+
+export function methodLabel(method: string): string {
+  return translate(METHOD_LABEL[method as PayMethod] ?? method);
+}
 
 export interface Payment {
   id: string;
@@ -372,7 +393,7 @@ export const ISSUE_LABEL: Record<IssueReason, string> = {
 
 export function issueLabel(reason: string): string {
   const normalized = reason === 'EQUIPMENT' ? 'EQUIPMENT_ISSUE' : reason === 'DELAY' ? 'PREP_DELAY' : reason;
-  return ISSUE_LABEL[normalized as IssueReason] ?? reason;
+  return translate(ISSUE_LABEL[normalized as IssueReason] ?? reason);
 }
 
 export interface Issue {
@@ -493,15 +514,15 @@ export function minutesSince(iso: string): number {
 
 export function ageLabel(iso: string): string {
   const m = minutesSince(iso);
-  if (m < 1) return 'just now';
-  if (m < 60) return `${m} min`;
+  if (m < 1) return translate('just now');
+  if (m < 60) return `${m} ${translate('min')}`;
   const h = Math.floor(m / 60);
-  return `${h}h ${m % 60}m`;
+  return `${h} ${translate('hr')} ${m % 60} ${translate('min')}`;
 }
 
 export function clock(iso?: string): string {
   if (!iso) return '—';
-  return new Date(iso).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return new Date(iso).toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' });
 }
 
 export function dayKey(iso: string): string {
@@ -509,7 +530,7 @@ export function dayKey(iso: string): string {
 }
 
 export function shortDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return new Date(iso).toLocaleDateString(locale(), { month: 'short', day: 'numeric' });
 }
 
 export function initials(name: string): string {
@@ -539,15 +560,15 @@ export function statusTone(status: OrderStatus): string {
 export function orderStatusLabel(status: OrderStatus): string {
   switch (status) {
     case 'PENDING':
-      return 'Pending';
+      return translate('Pending');
     case 'PREPARING':
-      return 'Preparing';
+      return translate('Preparing');
     case 'READY':
-      return 'Ready';
+      return translate('Ready');
     case 'SERVED':
-      return 'Served';
+      return translate('Served');
     case 'CANCELLEDBYKITCHEN':
-      return 'Cancelled';
+      return translate('Cancelled');
     default:
       return status;
   }
@@ -556,19 +577,19 @@ export function orderStatusLabel(status: OrderStatus): string {
 export function paymentStatusLabel(status: PaymentStatus): string {
   switch (status) {
     case 'UNPAID':
-      return 'Unpaid';
+      return translate('Unpaid');
     case 'PAYMENTINITIATED':
-      return 'Payment pending';
+      return translate('Payment pending');
     case 'PAID':
-      return 'Paid';
+      return translate('Paid');
     case 'RETRACTED':
-      return 'Retracted';
+      return translate('Retracted');
     case 'TRANSFERRED':
-      return 'Transferred';
+      return translate('Transferred');
     case 'REFUNDPENDING':
-      return 'Refund pending';
+      return translate('Refund pending');
     case 'REFUNDED':
-      return 'Refunded';
+      return translate('Refunded');
     default:
       return status;
   }

@@ -49,29 +49,6 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddCorsPolicy(
-        this IServiceCollection services,
-        IConfiguration configuration)
-    {
-        var origins = configuration
-            .GetSection("Cors:AllowedOrigins")
-            .Get<string[]>() ?? new[] { "http://localhost:4200", "https://localhost:4200" };
-
-        services.AddCors(options =>
-        {
-            options.AddPolicy("RmsPolicy", policy =>
-            {
-                policy
-                    .WithOrigins(origins)
-                    .AllowAnyHeader()
-                    .AllowAnyMethod()
-                    .AllowCredentials();
-            });
-        });
-
-        return services;
-    }
-
     public static IServiceCollection AddJwtAuthentication(
         this IServiceCollection services,
         IConfiguration configuration)

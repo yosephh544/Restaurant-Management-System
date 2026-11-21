@@ -1,4 +1,5 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
@@ -19,47 +20,42 @@ import { PaySheet } from '../../shared/pay-sheet';
 
 @Component({
   selector: 'app-order-detail',
-  imports: [FormsModule, RouterLink, Icon, PaySheet],
+  imports: [FormsModule, RouterLink, Icon, PaySheet, TranslatePipe],
   template: `
     @if (order(); as o) {
       <div class="page">
         <div class="detail-head">
           <div>
-            <a class="back-link" routerLink="/waiter/orders"><app-icon name="arrow-left" /> Back to orders</a>
+            <a class="back-link" routerLink="/waiter/orders"><app-icon name="arrow-left" /> {{ 'Back to orders' | t }}</a>
             <div class="row" style="gap: 10px; flex-wrap: wrap">
-              <h1 class="page-title">Order #{{ o.number }}</h1>
+              <h1 class="page-title">{{ 'Order #' | t }}{{ o.number }}</h1>
               <span [class]="'pill pill-' + tone(o.status)">{{ orderStatusLabel(o.status) }}</span>
               <span [class]="'pill ' + paymentPill()">{{ paymentStatusLabel(o.paymentStatus) }}</span>
             </div>
-            <p class="page-sub">
-              Table {{ o.table }} · {{ o.waiterName }} · opened {{ clock(o.createdAt) }} ({{ ageLabel(o.createdAt) }} ago)
-            </p>
+            <p class="page-sub"> {{ 'Table' | t }} {{ o.table }} · {{ o.waiterName }} {{ '· opened' | t }} {{ clock(o.createdAt) }} ({{ ageLabel(o.createdAt) }} {{ 'ago)' | t }} </p>
           </div>
           <div class="head-actions">
             @if (canEdit()) {
               <button class="btn btn-secondary" type="button" (click)="showAdd.set(true)">
-                <app-icon name="plus" /> Add items
-              </button>
+                <app-icon name="plus" /> {{ 'Add items' | t }} </button>
             }
             @if (o.status === 'READY') {
               <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="serve()">
-                <app-icon name="check" /> Mark served
-              </button>
+                <app-icon name="check" /> {{ 'Mark served' | t }} </button>
             }
             @if (canPay()) {
               <button class="btn btn-primary" type="button" (click)="showPay.set(true)">
-                <app-icon name="cash" /> {{ o.paymentStatus === 'PAYMENTINITIATED' ? 'Payment pending' : 'Take payment' }}
+                <app-icon name="cash" /> {{ o.paymentStatus === 'PAYMENTINITIATED' ? ('Payment pending' | t) : ('Take payment' | t) }}
               </button>
             }
             @if (o.status === 'CANCELLEDBYKITCHEN') {
               @if (replacement(); as r) {
                 <a class="btn btn-secondary" [routerLink]="['/waiter/orders', r.id]">
-                  <app-icon name="receipt" /> Replaced by #{{ r.number }}
+                  <app-icon name="receipt" /> {{ 'Replaced by #' | t }}{{ r.number }}
                 </a>
               } @else {
                 <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="reorder()">
-                  <app-icon name="retract" /> Reorder ticket
-                </button>
+                  <app-icon name="retract" /> {{ 'Reorder ticket' | t }} </button>
               }
             }
           </div>
@@ -70,11 +66,9 @@ import { PaySheet } from '../../shared/pay-sheet';
             <div class="row">
               <app-icon name="alert-circle" style="color: var(--red)" />
               <div>
-                <strong style="color: var(--red)">Kitchen cancelled this ticket</strong>
+                <strong style="color: var(--red)">{{ 'Kitchen cancelled this ticket' | t }}</strong>
                 <p style="color: var(--red)">
-                  {{ cancelSummary() || 'The kitchen cancelled this order.' }}
-                  Any pending payment is retracted automatically by the server.
-                </p>
+                  {{ cancelSummary() || ('The kitchen cancelled this order.' | t) }} {{ 'Any pending payment is retracted automatically by the server.' | t }} </p>
               </div>
             </div>
           </div>
@@ -99,7 +93,7 @@ import { PaySheet } from '../../shared/pay-sheet';
             <app-icon name="alert" />
             <span>
               <strong>{{ issue.item }}</strong> — {{ issueLabel(issue.reason) }}{{ issue.note ? ': ' + issue.note : '' }}
-              <span class="muted"> · kitchen update</span>
+              <span class="muted"> {{ '· kitchen update' | t }}</span>
             </span>
           </div>
         }
@@ -109,13 +103,12 @@ import { PaySheet } from '../../shared/pay-sheet';
             <div class="card">
               <div class="card-head">
                 <div>
-                  <div class="card-title">Order items</div>
-                  <div class="card-sub">{{ itemCount() }} items on this ticket</div>
+                  <div class="card-title">{{ 'Order items' | t }}</div>
+                  <div class="card-sub">{{ itemCount() }} {{ 'items on this ticket' | t }}</div>
                 </div>
                 @if (canEdit()) {
                   <button class="btn btn-sm btn-secondary" type="button" (click)="showAdd.set(true)">
-                    <app-icon name="plus" /> Add
-                  </button>
+                    <app-icon name="plus" /> {{ 'Add' | t }} </button>
                 }
               </div>
               <div class="bill-lines">
@@ -126,11 +119,11 @@ import { PaySheet } from '../../shared/pay-sheet';
                         {{ line.name }}
                       </strong>
                       <div class="tiny muted">
-                        {{ money(line.unitPrice) }} ETB each · tax {{ line.taxRate }}%
+                        {{ money(line.unitPrice) }} ETB {{ 'each' | t }} · {{ 'tax' | t }} {{ line.taxRate }}%
                         @if (line.status === 'CANCELLED') {
-                          · <span style="color: var(--red)">cancelled</span>
+                          · <span style="color: var(--red)">{{ 'cancelled' | t }}</span>
                         } @else if (line.status === 'PREPARED') {
-                          · <span style="color: var(--green)">prepared</span>
+                          · <span style="color: var(--green)">{{ 'prepared' | t }}</span>
                         }
                       </div>
                       @if (line.notes) {
@@ -143,18 +136,18 @@ import { PaySheet } from '../../shared/pay-sheet';
                 }
               </div>
               <div class="bill-totals">
-                <div class="bill-total-row"><span>Subtotal</span><span class="num">{{ money(subtotal()) }} ETB</span></div>
-                <div class="bill-total-row"><span>Tax</span><span class="num">{{ money(tax()) }} ETB</span></div>
+                <div class="bill-total-row"><span>{{ 'Subtotal' | t }}</span><span class="num">{{ money(subtotal()) }} ETB</span></div>
+                <div class="bill-total-row"><span>{{ 'Tax' | t }}</span><span class="num">{{ money(tax()) }} ETB</span></div>
                 @if (o.tip > 0) {
-                  <div class="bill-total-row"><span>Tip</span><span class="num">{{ money(o.tip) }} ETB</span></div>
+                  <div class="bill-total-row"><span>{{ 'Tip' | t }}</span><span class="num">{{ money(o.tip) }} ETB</span></div>
                 }
-                <div class="bill-total-row grand"><span>Total</span><span class="num">{{ money(o.total) }} ETB</span></div>
+                <div class="bill-total-row grand"><span>{{ 'Total' | t }}</span><span class="num">{{ money(o.total) }} ETB</span></div>
               </div>
             </div>
 
             @if (o.notes) {
               <div class="card card-pad">
-                <div class="eyebrow">Kitchen note</div>
+                <div class="eyebrow">{{ 'Kitchen note' | t }}</div>
                 <p style="font-size: 13px">{{ o.notes }}</p>
               </div>
             }
@@ -163,74 +156,69 @@ import { PaySheet } from '../../shared/pay-sheet';
           <aside class="stack">
             <div class="card card-pad">
               <div class="between" style="margin-bottom: 10px">
-                <div class="card-title">Payment</div>
+                <div class="card-title">{{ 'Payment' | t }}</div>
                 <span [class]="'pill ' + paymentPill()">{{ paymentStatusLabel(o.paymentStatus) }}</span>
               </div>
 
               @if (payment(); as p) {
                 @if (p.status === 'PAID') {
                   <div class="amount-cell" style="background: var(--green-soft); border-color: var(--green-line)">
-                    <span style="color: var(--green)">Collected</span>
+                    <span style="color: var(--green)">{{ 'Collected' | t }}</span>
                     <strong style="color: var(--green)">{{ money(p.total) }} ETB</strong>
                   </div>
                   <div class="stack mt-3">
-                    <div class="between small"><span class="muted">Method</span><span class="strong">{{ methodLabel(p.method) }}</span></div>
-                    <div class="between small"><span class="muted">Tip</span><span class="strong">{{ money(p.tip) }} ETB</span></div>
-                    <div class="between small"><span class="muted">Settled</span><span class="strong">{{ clock(p.settledAt) }}</span></div>
+                    <div class="between small"><span class="muted">{{ 'Method' | t }}</span><span class="strong">{{ methodLabel(p.method) }}</span></div>
+                    <div class="between small"><span class="muted">{{ 'Tip' | t }}</span><span class="strong">{{ money(p.tip) }} ETB</span></div>
+                    <div class="between small"><span class="muted">{{ 'Settled' | t }}</span><span class="strong">{{ clock(p.settledAt) }}</span></div>
                   </div>
                 } @else if (p.status === 'INITIATED') {
                   <div class="pending-box" style="margin-top: 0">
                     <div class="row">
                       <app-icon name="clock" />
                       <div>
-                        <strong>Waiting for {{ methodLabel(p.method) }}</strong>
-                        <p>{{ money(p.total) }} ETB · check or retract from the payment sheet.</p>
+                        <strong>{{ 'Waiting for' | t }} {{ methodLabel(p.method) }}</strong>
+                        <p>{{ money(p.total) }} {{ 'ETB · check or retract from the payment sheet.' | t }}</p>
                       </div>
                     </div>
                   </div>
-                  <button class="btn btn-secondary btn-block mt-3" type="button" (click)="showPay.set(true)">
-                    Open payment sheet
-                  </button>
+                  <button class="btn btn-secondary btn-block mt-3" type="button" (click)="showPay.set(true)"> {{ 'Open payment sheet' | t }} </button>
                 } @else if (p.status === 'REFUNDED') {
                   <div class="amount-cell" style="background: var(--red-soft); border-color: var(--red-line)">
-                    <span style="color: var(--red)">Refunded</span>
+                    <span style="color: var(--red)">{{ 'Refunded' | t }}</span>
                     <strong style="color: var(--red)">{{ money(p.total) }} ETB</strong>
                   </div>
                 } @else if (p.status === 'TRANSFERRED') {
                   <div class="amount-cell" style="background: var(--blue-soft); border-color: var(--blue-line)">
-                    <span style="color: var(--blue)">Transferred</span>
+                    <span style="color: var(--blue)">{{ 'Transferred' | t }}</span>
                     <strong style="color: var(--blue)">{{ money(p.total) }} ETB</strong>
                   </div>
                 }
               } @else if (canPay()) {
-                <p class="small muted" style="margin-bottom: 10px">
-                  The food is {{ o.status === 'READY' ? 'ready at the pass' : 'served' }}. Collect payment now.
-                </p>
+                <p class="small muted" style="margin-bottom: 10px"> {{ 'The food is' | t }} {{ o.status === 'READY' ? ('ready at the pass' | t) : ('served' | t) }}{{ '. Collect payment now.' | t }} </p>
                 <button class="btn btn-primary btn-block" type="button" (click)="showPay.set(true)">
-                  <app-icon name="cash" /> Take payment
-                </button>
+                  <app-icon name="cash" /> {{ 'Take payment' | t }} </button>
               } @else {
-                <p class="small muted">Payment opens when the kitchen marks this ticket ready.</p>
+                <p class="small muted">{{ 'Payment opens when the kitchen marks this ticket ready.' | t }}</p>
               }
             </div>
 
             <div class="card card-pad">
-              <div class="card-title" style="margin-bottom: 10px">Ticket details</div>
+              <div class="card-title" style="margin-bottom: 10px">{{ 'Ticket details' | t }}</div>
               <div class="stack">
-                <div class="between small"><span class="muted">Table</span><span class="strong">{{ o.table }}</span></div>
-                <div class="between small"><span class="muted">Waiter</span><span class="strong">{{ o.waiterName }}</span></div>
-                <div class="between small"><span class="muted">Opened</span><span class="strong">{{ clock(o.createdAt) }}</span></div>
+                <div class="between small"><span class="muted">{{ 'Table' | t }}</span><span class="strong">{{ o.table }}</span></div>
+                <div class="between small"><span class="muted">{{ 'Waiter' | t }}</span><span class="strong">{{ o.waiterName }}</span></div>
+                <div class="between small"><span class="muted">{{ 'Opened' | t }}</span><span class="strong">{{ clock(o.createdAt) }}</span></div>
                 @if (o.preparingAt) {
-                  <div class="between small"><span class="muted">Started</span><span class="strong">{{ clock(o.preparingAt) }}</span></div>
+                  <div class="between small"><span class="muted">{{ 'Started' | t }}</span><span class="strong">{{ clock(o.preparingAt) }}</span></div>
                 }
                 @if (o.readyAt) {
-                  <div class="between small"><span class="muted">Ready</span><span class="strong">{{ clock(o.readyAt) }}</span></div>
+                  <div class="between small"><span class="muted">{{ 'Ready' | t }}</span><span class="strong">{{ clock(o.readyAt) }}</span></div>
                 }
                 @if (o.servedAt) {
-                  <div class="between small"><span class="muted">Served</span><span class="strong">{{ clock(o.servedAt) }}</span></div>
+                  <div class="between small"><span class="muted">{{ 'Served' | t }}</span><span class="strong">{{ clock(o.servedAt) }}</span></div>
                 }
                 @if (replacement(); as r) {
-                  <div class="between small"><span class="muted">Replaced by</span><span class="strong">#{{ r.number }}</span></div>
+                  <div class="between small"><span class="muted">{{ 'Replaced by' | t }}</span><span class="strong">#{{ r.number }}</span></div>
                 }
               </div>
             </div>
@@ -254,15 +242,15 @@ import { PaySheet } from '../../shared/pay-sheet';
           <div class="modal" (click)="$event.stopPropagation()">
             <div class="modal-head">
               <div>
-                <h3>Add items</h3>
-                <p>Order #{{ o.number }} · Table {{ o.table }}</p>
+                <h3>{{ 'Add items' | t }}</h3>
+                <p>{{ 'Order #' | t }}{{ o.number }} {{ '· Table' | t }} {{ o.table }}</p>
               </div>
               <button class="modal-close" type="button" (click)="showAdd.set(false)"><app-icon name="x" /></button>
             </div>
             <div class="modal-body">
               <div class="search" style="margin-bottom: 10px">
                 <app-icon name="search" />
-                <input type="search" [ngModel]="addQuery()" (ngModelChange)="addQuery.set($event)" placeholder="Search available items" />
+                <input type="search" [ngModel]="addQuery()" (ngModelChange)="addQuery.set($event)" [placeholder]="'Search available items' | t" />
               </div>
               <div class="list" style="max-height: 320px; overflow: auto; border: 1px solid var(--line); border-radius: 10px">
                 @for (item of addOptions(); track item.id) {
@@ -270,21 +258,21 @@ import { PaySheet } from '../../shared/pay-sheet';
                     <span class="sum-emoji"><app-icon name="utensils" /></span>
                     <span class="list-main">
                       <strong>{{ item.name }}</strong>
-                      <span>{{ money(item.price) }} ETB · {{ item.category }}</span>
+                      <span>{{ money(item.price) }} {{ 'ETB ·' | t }} {{ item.category }}</span>
                     </span>
-                    <span class="btn btn-sm btn-soft"><app-icon name="plus" /> Add</span>
+                    <span class="btn btn-sm btn-soft"><app-icon name="plus" /> {{ 'Add' | t }}</span>
                   </button>
                 }
                 @if (!addOptions().length) {
                   <div class="empty" style="padding: 26px 10px">
-                    <strong>No available items</strong>
-                    <p>Everything matching is sold out.</p>
+                    <strong>{{ 'No available items' | t }}</strong>
+                    <p>{{ 'Everything matching is sold out.' | t }}</p>
                   </div>
                 }
               </div>
             </div>
             <div class="modal-foot">
-              <button class="btn btn-primary" type="button" (click)="showAdd.set(false)">Done</button>
+              <button class="btn btn-primary" type="button" (click)="showAdd.set(false)">{{ 'Done' | t }}</button>
             </div>
           </div>
         </div>
@@ -293,9 +281,9 @@ import { PaySheet } from '../../shared/pay-sheet';
       <div class="page">
         <div class="card empty">
           <app-icon name="alert-circle" />
-          <strong>Order not found</strong>
-          <p>It may have been removed or belongs to another waiter.</p>
-          <a class="btn btn-primary btn-sm mt-3" routerLink="/waiter/orders">Back to orders</a>
+          <strong>{{ 'Order not found' | t }}</strong>
+          <p>{{ 'It may have been removed or belongs to another waiter.' | t }}</p>
+          <a class="btn btn-primary btn-sm mt-3" routerLink="/waiter/orders">{{ 'Back to orders' | t }}</a>
         </div>
       </div>
     }
@@ -371,10 +359,10 @@ export class OrderDetailPage implements OnInit {
     const order = this.order();
     if (!order) return [];
     return [
-      { label: 'Sent', at: order.createdAt, done: true },
-      { label: 'Preparing', at: order.preparingAt, done: !!order.preparingAt },
-      { label: 'Ready', at: order.readyAt, done: !!order.readyAt },
-      { label: 'Served', at: order.servedAt, done: !!order.servedAt },
+      { label: translate('Sent'), at: order.createdAt, done: true },
+      { label: translate('Preparing'), at: order.preparingAt, done: !!order.preparingAt },
+      { label: translate('Ready'), at: order.readyAt, done: !!order.readyAt },
+      { label: translate('Served'), at: order.servedAt, done: !!order.servedAt },
     ];
   });
 
@@ -416,7 +404,7 @@ export class OrderDetailPage implements OnInit {
   }
 
   protected methodLabel(method: string): string {
-    return METHOD_LABEL[method as keyof typeof METHOD_LABEL] ?? method;
+    return translate(METHOD_LABEL[method as keyof typeof METHOD_LABEL] ?? method);
   }
 
   protected cancelSummary(): string {
@@ -436,7 +424,7 @@ export class OrderDetailPage implements OnInit {
     this.busy.set(true);
     const result = await this.store.serveOrder(this.id);
     this.busy.set(false);
-    this.toast.show(result.ok ? 'Order marked served' : result.error, result.ok ? 'success' : 'error');
+    this.toast.show(result.ok ? translate('Order marked served') : result.error, result.ok ? 'success' : 'error');
   }
 
   protected async addItem(menuId: string): Promise<void> {
@@ -444,7 +432,7 @@ export class OrderDetailPage implements OnInit {
     this.busy.set(true);
     const result = await this.store.addItems(this.id, [{ menuItemId: menuId, quantity: 1 }]);
     this.busy.set(false);
-    this.toast.show(result.ok ? 'Item added to the ticket' : result.error, result.ok ? 'success' : 'error');
+    this.toast.show(result.ok ? translate('Item added to the ticket') : result.error, result.ok ? 'success' : 'error');
   }
 
   protected async reorder(): Promise<void> {
@@ -453,7 +441,7 @@ export class OrderDetailPage implements OnInit {
     const live = order.lines.filter((l) => l.status !== 'CANCELLED');
     const source = live.length ? live : order.lines;
     if (!source.length) {
-      this.toast.show('This ticket has no items to reorder', 'error');
+      this.toast.show(translate('This ticket has no items to reorder'), 'error');
       return;
     }
     this.busy.set(true);
@@ -466,7 +454,7 @@ export class OrderDetailPage implements OnInit {
       this.toast.show(result.error, 'error');
       return;
     }
-    this.toast.show(`Replacement order #${result.data.number} sent`);
+    this.toast.show(translate('Replacement order #{number} sent', { number: result.data.number }));
     await this.router.navigate(['/waiter/orders', result.data.id]);
   }
 

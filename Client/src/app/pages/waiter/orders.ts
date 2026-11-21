@@ -1,4 +1,5 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
@@ -16,58 +17,57 @@ import { Icon } from '../../shared/icon';
 
 @Component({
   selector: 'app-waiter-orders',
-  imports: [FormsModule, RouterLink, Icon],
+  imports: [FormsModule, RouterLink, Icon, TranslatePipe],
   template: `
     <div class="page">
       <div class="page-head">
         <div>
-          <div class="eyebrow">Waiter workspace</div>
-          <h1 class="page-title">My orders</h1>
-          <p class="page-sub">Everything you sent to the kitchen, from ticket to payment.</p>
+          <div class="eyebrow">{{ 'Waiter workspace' | t }}</div>
+          <h1 class="page-title">{{ 'My orders' | t }}</h1>
+          <p class="page-sub">{{ 'Everything you sent to the kitchen, from ticket to payment.' | t }}</p>
         </div>
         <div class="head-actions">
-          <a class="btn btn-primary" routerLink="/waiter/new"><app-icon name="plus" /> New order</a>
+          <a class="btn btn-primary" routerLink="/waiter/new"><app-icon name="plus" /> {{ 'New order' | t }}</a>
         </div>
       </div>
 
       <div class="grid grid-4" style="margin-bottom: 18px">
         <div class="stat-card">
           <div class="stat-icon"><app-icon name="receipt" /></div>
-          <div class="stat-label">Active tickets</div>
+          <div class="stat-label">{{ 'Active tickets' | t }}</div>
           <div class="stat-value">{{ stats().active }}</div>
-          <div class="stat-foot">On the floor now</div>
+          <div class="stat-foot">{{ 'On the floor now' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="check-circle" /></div>
-          <div class="stat-label">Ready to serve</div>
+          <div class="stat-label">{{ 'Ready to serve' | t }}</div>
           <div class="stat-value">{{ stats().ready }}</div>
-          <div class="stat-foot">Pick up from the pass</div>
+          <div class="stat-foot">{{ 'Pick up from the pass' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--amber-soft); color: var(--amber)"><app-icon name="wallet" /></div>
-          <div class="stat-label">Awaiting payment</div>
-          <div class="stat-value">{{ money(stats().unpaid) }} <small>ETB</small></div>
-          <div class="stat-foot">Ready or served, unpaid</div>
+          <div class="stat-label">{{ 'Awaiting payment' | t }}</div>
+          <div class="stat-value">{{ money(stats().unpaid) }} <small>{{ 'ETB' | t }}</small></div>
+          <div class="stat-foot">{{ 'Ready or served, unpaid' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="cash" /></div>
-          <div class="stat-label">My tips today</div>
-          <div class="stat-value">{{ money(stats().tips) }} <small>ETB</small></div>
-          <div class="stat-foot">{{ stats().ordersToday }} orders opened today</div>
+          <div class="stat-label">{{ 'My tips today' | t }}</div>
+          <div class="stat-value">{{ money(stats().tips) }} <small>{{ 'ETB' | t }}</small></div>
+          <div class="stat-foot">{{ stats().ordersToday }} {{ 'orders opened today' | t }}</div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-head" style="flex-wrap: wrap">
           <div class="seg">
-            <button type="button" [class.active]="scope() === 'active'" (click)="scope.set('active')">
-              Active ({{ activeCount() }})
+            <button type="button" [class.active]="scope() === 'active'" (click)="scope.set('active')"> {{ 'Active (' | t }}{{ activeCount() }})
             </button>
-            <button type="button" [class.active]="scope() === 'all'" (click)="scope.set('all')">All orders</button>
+            <button type="button" [class.active]="scope() === 'all'" (click)="scope.set('all')">{{ 'All orders' | t }}</button>
           </div>
           <div class="search">
             <app-icon name="search" />
-            <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" placeholder="Search orders" />
+            <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" [placeholder]="'Search orders' | t" />
           </div>
         </div>
 
@@ -79,8 +79,8 @@ import { Icon } from '../../shared/icon';
                   #{{ order.number }}
                 </div>
                 <div class="list-main">
-                  <strong>Table {{ order.table }} <span class="muted tiny">· {{ countItems(order) }} items</span></strong>
-                  <span>{{ summary(order) }} · {{ ageLabel(order.createdAt) }} ago</span>
+                  <strong>{{ 'Table' | t }} {{ order.table }} <span class="muted tiny">· {{ countItems(order) }} {{ 'items' | t }}</span></strong>
+                  <span>{{ summary(order) }} · {{ ageLabel(order.createdAt) }} {{ 'ago' | t }}</span>
                 </div>
                 <div class="list-meta">
                   <strong>{{ money(order.total) }} ETB</strong>
@@ -94,12 +94,12 @@ import { Icon } from '../../shared/icon';
         } @else {
           <div class="empty">
             <app-icon name="receipt" />
-            <strong>{{ scope() === 'active' ? 'No active orders' : 'No orders found' }}</strong>
+            <strong>{{ scope() === 'active' ? ('No active orders' | t) : ('No orders found' | t) }}</strong>
             <p>
-              {{ scope() === 'active' ? 'Start a new order to send your first ticket to the kitchen.' : 'Try a different search.' }}
+              {{ scope() === 'active' ? ('Start a new order to send your first ticket to the kitchen.' | t) : ('Try a different search.' | t) }}
             </p>
             @if (scope() === 'active') {
-              <a class="btn btn-primary btn-sm mt-3" routerLink="/waiter/new">Start an order</a>
+              <a class="btn btn-primary btn-sm mt-3" routerLink="/waiter/new">{{ 'Start an order' | t }}</a>
             }
           </div>
         }
@@ -159,7 +159,7 @@ export class WaiterOrdersPage implements OnInit {
   protected summary(order: Order): string {
     const lines = order.lines.filter((l) => l.status !== 'CANCELLED');
     const names = lines.slice(0, 2).map((l) => `${l.name} ×${l.qty}`);
-    if (!names.length) return 'All items cancelled';
+    if (!names.length) return translate('All items cancelled');
     return names.join(', ') + (lines.length > 2 ? '…' : '');
   }
 

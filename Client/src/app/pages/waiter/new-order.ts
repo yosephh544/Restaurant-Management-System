@@ -1,4 +1,5 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MenuItem, money } from '../../core/models';
@@ -18,27 +19,27 @@ interface CartLine {
 
 @Component({
   selector: 'app-new-order',
-  imports: [FormsModule, RouterLink, Icon],
+  imports: [FormsModule, RouterLink, Icon, TranslatePipe],
   template: `
     <div class="page">
       <div class="page-head">
         <div>
-          <div class="eyebrow">Waiter workspace</div>
-          <h1 class="page-title">New order</h1>
-          <p class="page-sub">Pick a table, tap items and send the ticket to the kitchen.</p>
+          <div class="eyebrow">{{ 'Waiter workspace' | t }}</div>
+          <h1 class="page-title">{{ 'New order' | t }}</h1>
+          <p class="page-sub">{{ 'Pick a table, tap items and send the ticket to the kitchen.' | t }}</p>
         </div>
         <div class="head-actions">
-          <a class="btn btn-secondary" routerLink="/waiter/orders"><app-icon name="receipt" /> My orders</a>
+          <a class="btn btn-secondary" routerLink="/waiter/orders"><app-icon name="receipt" /> {{ 'My orders' | t }}</a>
         </div>
       </div>
 
       @if (!tables().length) {
         <div class="card empty" style="padding: 56px 20px">
           <app-icon name="table" />
-          <strong>No tables configured</strong>
-          <p>An owner or manager needs to add tables under Admin → Settings before orders can be taken.</p>
+          <strong>{{ 'No tables configured' | t }}</strong>
+          <p>{{ 'An owner or manager needs to add tables under Admin → Settings before orders can be taken.' | t }}</p>
           @if (canManageTables()) {
-            <a class="btn btn-primary btn-sm mt-3" routerLink="/admin/settings">Add tables</a>
+            <a class="btn btn-primary btn-sm mt-3" routerLink="/admin/settings">{{ 'Add tables' | t }}</a>
           }
         </div>
       } @else {
@@ -47,22 +48,22 @@ interface CartLine {
             <div class="menu-toolbar">
               <div class="table-select" style="margin: 0">
                 <app-icon name="table" />
-                <select class="select" [ngModel]="table()" (ngModelChange)="table.set($event)" aria-label="Table">
+                <select class="select" [ngModel]="table()" (ngModelChange)="table.set($event)" [attr.aria-label]="'Table' | t">
                   @for (t of tables(); track t.id) {
-                    <option [value]="t.number">Table {{ t.number }}{{ t.name ? ' · ' + t.name : '' }}</option>
+                    <option [value]="t.number">{{ 'Table' | t }} {{ t.number }}{{ t.name ? ' · ' + t.name : '' }}</option>
                   }
                 </select>
               </div>
               <div class="search">
                 <app-icon name="search" />
-                <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" placeholder="Search the menu" />
+                <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" [placeholder]="'Search the menu' | t" />
               </div>
             </div>
 
             <div class="chip-row" style="margin-bottom: 14px">
               @for (category of categories(); track category) {
                 <button class="chip" type="button" [class.active]="activeCategory() === category" (click)="activeCategory.set(category)">
-                  {{ category }}
+                  {{ category === 'All' ? ('All' | t) : category }}
                 </button>
               }
             </div>
@@ -84,7 +85,7 @@ interface CartLine {
                     <span class="menu-name">{{ item.name }}</span>
                     <span class="menu-price">{{ money(item.price) }} ETB</span>
                     @if (!item.available) {
-                      <span class="avail off" style="margin-top: 4px">Unavailable</span>
+                      <span class="avail off" style="margin-top: 4px">{{ 'Unavailable' | t }}</span>
                     }
                   </span>
                 </button>
@@ -94,18 +95,18 @@ interface CartLine {
             @if (!filteredMenu().length) {
               <div class="empty">
                 <app-icon name="search" />
-                <strong>No matching items</strong>
-                <p>{{ menu().length ? 'Try another search or category.' : 'The menu is empty. Add categories and items under Manager → Menu.' }}</p>
+                <strong>{{ 'No matching items' | t }}</strong>
+                <p>{{ menu().length ? ('Try another search or category.' | t) : ('The menu is empty. Add categories and items under Manager → Menu.' | t) }}</p>
               </div>
             }
           </section>
 
           <aside class="summary-card">
             <div class="summary-head">
-              <h3>Order summary</h3>
+              <h3>{{ 'Order summary' | t }}</h3>
               <div class="row" style="gap: 6px">
                 @if (cart().length) {
-                  <button class="icon-btn" style="width: 30px; height: 30px" type="button" (click)="clear()" aria-label="Clear order">
+                  <button class="icon-btn" style="width: 30px; height: 30px" type="button" (click)="clear()" [attr.aria-label]="'Clear order' | t">
                     <app-icon name="trash" />
                   </button>
                 }
@@ -118,13 +119,13 @@ interface CartLine {
                   <span class="sum-emoji"><app-icon name="utensils" /></span>
                   <div class="sum-main">
                     <strong>{{ line.name }}</strong>
-                    <span>{{ money(line.price) }} ETB each</span>
+                    <span>{{ money(line.price) }} {{ 'ETB each' | t }}</span>
                     <div class="qty">
-                      <button type="button" (click)="decrease(line.itemId)" aria-label="Remove one">−</button>
+                      <button type="button" (click)="decrease(line.itemId)" [attr.aria-label]="'Remove one' | t">−</button>
                       <span>{{ line.qty }}</span>
-                      <button type="button" (click)="increase(line.itemId)" aria-label="Add one">+</button>
+                      <button type="button" (click)="increase(line.itemId)" [attr.aria-label]="'Add one' | t">+</button>
                       <button class="note-btn" type="button" (click)="openNote(line.itemId)">
-                        <app-icon name="edit" /> {{ line.notes ? 'Edit note' : 'Add note' }}
+                        <app-icon name="edit" /> {{ line.notes ? ('Edit note' | t) : ('Add note' | t) }}
                       </button>
                     </div>
                     @if (line.notes) {
@@ -138,27 +139,27 @@ interface CartLine {
               @if (!cart().length) {
                 <div class="empty" style="padding: 28px 8px">
                   <app-icon name="utensils" />
-                  <strong>No items yet</strong>
-                  <p>Tap a dish to start this order.</p>
+                  <strong>{{ 'No items yet' | t }}</strong>
+                  <p>{{ 'Tap a dish to start this order.' | t }}</p>
                 </div>
               }
             </div>
 
             <div style="padding: 0 16px 10px">
-              <input class="input" placeholder="Order note (optional)" [ngModel]="notes()" (ngModelChange)="notes.set($event)" />
+              <input class="input" [placeholder]="'Order note (optional)' | t" [ngModel]="notes()" (ngModelChange)="notes.set($event)" />
             </div>
 
             <div class="sum-totals">
-              <div class="sum-row"><span>Subtotal</span><span class="num">{{ money(subtotal()) }} ETB</span></div>
-              <div class="sum-row"><span>Tax</span><span class="num">{{ money(tax()) }} ETB</span></div>
-              <div class="sum-row total"><span>Total</span><span class="num">{{ money(total()) }} ETB</span></div>
+              <div class="sum-row"><span>{{ 'Subtotal' | t }}</span><span class="num">{{ money(subtotal()) }} ETB</span></div>
+              <div class="sum-row"><span>{{ 'Tax' | t }}</span><span class="num">{{ money(tax()) }} ETB</span></div>
+              <div class="sum-row total"><span>{{ 'Total' | t }}</span><span class="num">{{ money(total()) }} ETB</span></div>
             </div>
 
             <div class="sum-actions">
               <button class="btn btn-primary btn-lg btn-block" type="button" [disabled]="!cart().length || busy()" (click)="send()">
-                <app-icon name="receipt" /> {{ busy() ? 'Sending…' : 'Send to kitchen' }}
+                <app-icon name="receipt" /> {{ busy() ? ('Sending…' | t) : ('Send to kitchen' | t) }}
               </button>
-              <p class="tiny muted" style="text-align: center; margin-top: 8px">Payment is collected after the food is served.</p>
+              <p class="tiny muted" style="text-align: center; margin-top: 8px">{{ 'Payment is collected after the food is served.' | t }}</p>
             </div>
           </aside>
         </div>
@@ -170,20 +171,20 @@ interface CartLine {
         <div class="modal" style="max-width: 420px" (click)="$event.stopPropagation()">
           <div class="modal-head">
             <div>
-              <h3>Item note</h3>
+              <h3>{{ 'Item note' | t }}</h3>
               <p>{{ lineName(itemId) }}</p>
             </div>
             <button class="modal-close" type="button" (click)="noteItem.set(null)"><app-icon name="x" /></button>
           </div>
           <div class="modal-body">
             <div class="field">
-              <label class="label" for="line-note">Instructions for the kitchen</label>
+              <label class="label" for="line-note">{{ 'Instructions for the kitchen' | t }}</label>
               <textarea id="line-note" class="textarea" [(ngModel)]="noteDraft"></textarea>
             </div>
           </div>
           <div class="modal-foot">
-            <button class="btn btn-ghost" type="button" (click)="noteItem.set(null)">Cancel</button>
-            <button class="btn btn-primary" type="button" (click)="saveNote()">Save note</button>
+            <button class="btn btn-ghost" type="button" (click)="noteItem.set(null)">{{ 'Cancel' | t }}</button>
+            <button class="btn btn-primary" type="button" (click)="saveNote()">{{ 'Save note' | t }}</button>
           </div>
         </div>
       </div>
@@ -339,7 +340,7 @@ export class NewOrderPage implements OnInit {
 
     this.cart.set([]);
     this.notes.set('');
-    this.toast.show(`Order #${result.data.number} sent to kitchen`);
+    this.toast.show(translate('Order #{number} sent to kitchen', { number: result.data.number }));
     await this.router.navigate(['/waiter/orders', result.data.id]);
   }
 }

@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { ageLabel, clock, Issue, issueLabel, money } from '../../core/models';
 import { Store } from '../../core/store';
@@ -7,20 +8,20 @@ import { Icon } from '../../shared/icon';
 
 @Component({
   selector: 'app-manager-issues',
-  imports: [FormsModule, Icon],
+  imports: [FormsModule, Icon, TranslatePipe],
   template: `
     <div class="page">
       <div class="page-head">
         <div>
-          <div class="eyebrow">Manager</div>
-          <h1 class="page-title">Kitchen &amp; bar issues</h1>
-          <p class="page-sub">Every item the kitchen removed or flagged, and whether it was recovered.</p>
+          <div class="eyebrow">{{ 'Manager' | t }}</div>
+          <h1 class="page-title">{{ 'Kitchen & bar issues' | t }}</h1>
+          <p class="page-sub">{{ 'Every item the kitchen removed or flagged, and whether it was recovered.' | t }}</p>
         </div>
         <div class="head-actions">
           <div class="seg">
-            <button type="button" [class.active]="tab() === 'OPEN'" (click)="tab.set('OPEN')">Open ({{ openCount() }})</button>
-            <button type="button" [class.active]="tab() === 'RESOLVED'" (click)="tab.set('RESOLVED')">Resolved</button>
-            <button type="button" [class.active]="tab() === 'ALL'" (click)="tab.set('ALL')">All</button>
+            <button type="button" [class.active]="tab() === 'OPEN'" (click)="tab.set('OPEN')">{{ 'Open (' | t }}{{ openCount() }})</button>
+            <button type="button" [class.active]="tab() === 'RESOLVED'" (click)="tab.set('RESOLVED')">{{ 'Resolved' | t }}</button>
+            <button type="button" [class.active]="tab() === 'ALL'" (click)="tab.set('ALL')">{{ 'All' | t }}</button>
           </div>
           <div class="search">
             <app-icon name="search" />
@@ -32,21 +33,21 @@ import { Icon } from '../../shared/icon';
       <div class="grid grid-3" style="margin-bottom: 18px">
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--red-soft); color: var(--red)"><app-icon name="alert" /></div>
-          <div class="stat-label">Open issues</div>
+          <div class="stat-label">{{ 'Open issues' | t }}</div>
           <div class="stat-value">{{ openCount() }}</div>
-          <div class="stat-foot">Waiting for a manager</div>
+          <div class="stat-foot">{{ 'Waiting for a manager' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--amber-soft); color: var(--amber)"><app-icon name="wallet" /></div>
-          <div class="stat-label">Value removed</div>
-          <div class="stat-value">{{ money(removedValue()) }} <small>ETB</small></div>
-          <div class="stat-foot">Across all issues shown</div>
+          <div class="stat-label">{{ 'Value removed' | t }}</div>
+          <div class="stat-value">{{ money(removedValue()) }} <small>{{ 'ETB' | t }}</small></div>
+          <div class="stat-foot">{{ 'Across all issues shown' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="retract" /></div>
-          <div class="stat-label">Recovered</div>
+          <div class="stat-label">{{ 'Recovered' | t }}</div>
           <div class="stat-value">{{ recoveredCount() }}</div>
-          <div class="stat-foot">Tickets reordered by waiters</div>
+          <div class="stat-foot">{{ 'Tickets reordered by waiters' | t }}</div>
         </div>
       </div>
 
@@ -60,12 +61,12 @@ import { Icon } from '../../shared/icon';
                     <app-icon [name]="issue.resolved ? 'check' : 'alert'" />
                   </span>
                   <div>
-                    <strong class="strong">Order #{{ issue.orderNumber }}</strong>
-                    <div class="tiny muted">Table {{ issue.table }} · {{ ageLabel(issue.createdAt) }} ago</div>
+                    <strong class="strong">{{ 'Order #' | t }}{{ issue.orderNumber }}</strong>
+                    <div class="tiny muted">{{ 'Table' | t }} {{ issue.table }} · {{ ageLabel(issue.createdAt) }} {{ 'ago' | t }}</div>
                   </div>
                 </div>
                 <span [class]="'pill ' + (issue.resolved ? 'pill-green' : 'pill-red')">
-                  {{ issue.resolved ? 'Resolved' : 'Open' }}
+                  {{ issue.resolved ? ('Resolved' | t) : ('Open' | t) }}
                 </span>
               </div>
 
@@ -81,12 +82,12 @@ import { Icon } from '../../shared/icon';
 
               <div class="between mt-3" style="border-top: 1px solid var(--line); padding-top: 10px">
                 <div class="tiny muted">
-                  {{ issue.resolved && issue.resolvedBy ? 'Resolved by ' + issue.resolvedBy : 'Flagged by kitchen' }}
+                  {{ issue.resolved && issue.resolvedBy ? ('Resolved by ' | t) + issue.resolvedBy : ('Flagged by kitchen' | t) }}
                   · {{ clock(issue.createdAt) }}
                 </div>
                 <div class="row" style="gap: 6px">
                   @if (!issue.resolved) {
-                    <button class="btn btn-sm btn-primary" type="button" (click)="resolve(issue.id)">Resolve</button>
+                    <button class="btn btn-sm btn-primary" type="button" (click)="resolve(issue.id)">{{ 'Resolve' | t }}</button>
                   }
                 </div>
               </div>
@@ -96,8 +97,8 @@ import { Icon } from '../../shared/icon';
       } @else {
         <div class="card empty" style="padding: 56px 20px">
           <app-icon name="check-circle" style="color: var(--green)" />
-          <strong>{{ tab() === 'OPEN' ? 'No open issues' : 'No issues found' }}</strong>
-          <p>{{ tab() === 'OPEN' ? 'The kitchen line is clear. New flags will appear here.' : 'Try another filter.' }}</p>
+          <strong>{{ tab() === 'OPEN' ? ('No open issues' | t) : ('No issues found' | t) }}</strong>
+          <p>{{ tab() === 'OPEN' ? ('The kitchen line is clear. New flags will appear here.' | t) : ('Try another filter.' | t) }}</p>
         </div>
       }
     </div>
@@ -167,6 +168,6 @@ export class ManagerIssuesPage {
   protected async resolve(id: string): Promise<void> {
     const result = await this.store.resolveIssue(id);
     if (!result.ok) this.toast.show(result.error, 'error');
-    else this.toast.show('Issue resolved');
+    else this.toast.show(translate('Issue resolved'));
   }
 }

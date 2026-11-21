@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { assetUrl } from '../../core/api.config';
 import {
@@ -34,64 +35,63 @@ interface MenuDraft {
 
 @Component({
   selector: 'app-menu',
-  imports: [FormsModule, Icon],
+  imports: [FormsModule, Icon, TranslatePipe],
   template: `
     <div class="page">
       <div class="page-head">
         <div>
-          <div class="eyebrow">Menu</div>
-          <h1 class="page-title">Menu &amp; availability</h1>
-          <p class="page-sub">Prices, classifications and sold-out switches used by every new order.</p>
+          <div class="eyebrow">{{ 'Menu' | t }}</div>
+          <h1 class="page-title">{{ 'Menu & availability' | t }}</h1>
+          <p class="page-sub">{{ 'Prices, classifications and sold-out switches used by every new order.' | t }}</p>
         </div>
         <div class="head-actions">
           <div class="search">
             <app-icon name="search" />
-            <input type="search" placeholder="Search items" [ngModel]="query()" (ngModelChange)="query.set($event)" />
+            <input type="search" [placeholder]="'Search items' | t" [ngModel]="query()" (ngModelChange)="query.set($event)" />
           </div>
-          <select class="select" style="width: auto" [ngModel]="fastingFilter()" (ngModelChange)="fastingFilter.set($event)" aria-label="Filter by fasting classification">
-            <option [ngValue]="'all'">All fasting</option>
+          <select class="select" style="width: auto" [ngModel]="fastingFilter()" (ngModelChange)="fastingFilter.set($event)" [attr.aria-label]="'Filter by fasting classification' | t">
+            <option [ngValue]="'all'">{{ 'All fasting' | t }}</option>
             @for (option of fastingOptions; track option.value) {
-              <option [ngValue]="option.value">{{ option.label }}</option>
+              <option [ngValue]="option.value">{{ option.label | t }}</option>
             }
           </select>
-          <select class="select" style="width: auto" [ngModel]="alcoholFilter()" (ngModelChange)="alcoholFilter.set($event)" aria-label="Filter by alcohol classification">
-            <option [ngValue]="'all'">All alcohol</option>
+          <select class="select" style="width: auto" [ngModel]="alcoholFilter()" (ngModelChange)="alcoholFilter.set($event)" [attr.aria-label]="'Filter by alcohol classification' | t">
+            <option [ngValue]="'all'">{{ 'All alcohol' | t }}</option>
             @for (option of alcoholOptions; track option.value) {
-              <option [ngValue]="option.value">{{ option.label }}</option>
+              <option [ngValue]="option.value">{{ option.label | t }}</option>
             }
           </select>
-          <button class="btn btn-secondary" type="button" (click)="openCategory()"><app-icon name="plus" /> Category</button>
+          <button class="btn btn-secondary" type="button" (click)="openCategory()"><app-icon name="plus" /> {{ 'Category' | t }}</button>
           <button class="btn btn-primary" type="button" (click)="openNew()" [disabled]="!store.menuCategories().length">
-            <app-icon name="plus" /> Add item
-          </button>
+            <app-icon name="plus" /> {{ 'Add item' | t }} </button>
         </div>
       </div>
 
       <div class="grid grid-3" style="margin-bottom: 18px">
         <div class="stat-card">
           <div class="stat-icon"><app-icon name="utensils" /></div>
-          <div class="stat-label">Menu items</div>
+          <div class="stat-label">{{ 'Menu items' | t }}</div>
           <div class="stat-value">{{ store.menu().length }}</div>
-          <div class="stat-foot">Across {{ store.menuCategories().length }} categories</div>
+          <div class="stat-foot">{{ 'Across' | t }} {{ store.menuCategories().length }} {{ 'categories' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="check-circle" /></div>
-          <div class="stat-label">Available</div>
+          <div class="stat-label">{{ 'Available' | t }}</div>
           <div class="stat-value">{{ availableCount() }}</div>
-          <div class="stat-foot">Orderable right now</div>
+          <div class="stat-foot">{{ 'Orderable right now' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--red-soft); color: var(--red)"><app-icon name="alert" /></div>
-          <div class="stat-label">Sold out</div>
+          <div class="stat-label">{{ 'Sold out' | t }}</div>
           <div class="stat-value">{{ store.menu().length - availableCount() }}</div>
-          <div class="stat-foot">Hidden from order entry</div>
+          <div class="stat-foot">{{ 'Hidden from order entry' | t }}</div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-head" style="flex-wrap: wrap">
           <div class="chip-row">
-            <button class="chip" type="button" [class.active]="active() === 'all'" (click)="active.set('all')">All</button>
+            <button class="chip" type="button" [class.active]="active() === 'all'" (click)="active.set('all')">{{ 'All' | t }}</button>
             @for (entry of orderedCategories(); track entry.category.id) {
               <button class="chip" type="button" [class.active]="active() === entry.category.id" (click)="active.set(entry.category.id)">
                 @if (entry.depth > 0) {
@@ -101,7 +101,7 @@ interface MenuDraft {
               </button>
             }
           </div>
-          <span class="tiny muted">Click the stock badge to mark an item out of stock instantly</span>
+          <span class="tiny muted">{{ 'Click the stock badge to mark an item out of stock instantly' | t }}</span>
         </div>
 
         <div class="table-wrap">
@@ -109,11 +109,11 @@ interface MenuDraft {
             <thead>
               <tr>
                 <th></th>
-                <th>Item</th>
-                <th>Category</th>
-                <th>Classification</th>
-                <th class="t-right">Price</th>
-                <th>Stock</th>
+                <th>{{ 'Item' | t }}</th>
+                <th>{{ 'Category' | t }}</th>
+                <th>{{ 'Classification' | t }}</th>
+                <th class="t-right">{{ 'Price' | t }}</th>
+                <th>{{ 'Stock' | t }}</th>
                 <th></th>
               </tr>
             </thead>
@@ -141,12 +141,12 @@ interface MenuDraft {
                     <div class="row" style="gap: 4px; flex-wrap: wrap">
                       @if (item.fastingType !== fasting.NotApplicable) {
                         <span class="pill no-dot" [class.pill-blue]="item.fastingType === fasting.Fasting" [class.pill-grey]="item.fastingType === fasting.NonFasting">
-                          {{ fastingLabel[item.fastingType] }}
+                          {{ fastingLabel[item.fastingType] | t }}
                         </span>
                       }
                       @if (item.alcoholType !== alcohol.NotApplicable) {
                         <span class="pill no-dot" [class.pill-red]="item.alcoholType === alcohol.Alcoholic" [class.pill-green]="item.alcoholType === alcohol.NonAlcoholic">
-                          {{ alcoholLabel[item.alcoholType] }}
+                          {{ alcoholLabel[item.alcoholType] | t }}
                         </span>
                       }
                       @if (item.fastingType === fasting.NotApplicable && item.alcoholType === alcohol.NotApplicable) {
@@ -161,16 +161,16 @@ interface MenuDraft {
                       type="button"
                       [class.out]="!item.available"
                       (click)="toggle(item)"
-                      [attr.title]="item.available ? 'Mark out of stock' : 'Mark in stock'"
-                      [attr.aria-label]="(item.available ? 'Mark ' : 'Restock ') + item.name"
+                      [attr.title]="(item.available ? 'Mark out of stock' : 'Mark in stock') | t"
+                      [attr.aria-label]="stockActionLabel(item)"
                     >
                       <app-icon [name]="item.available ? 'check-circle' : 'alert-circle'" />
-                      {{ item.available ? 'In stock' : 'Out of stock' }}
+                      {{ item.available ? ('In stock' | t) : ('Out of stock' | t) }}
                     </button>
                   </td>
                   <td>
                     <div class="row" style="justify-content: flex-end; gap: 4px">
-                      <button class="btn btn-sm btn-ghost" type="button" (click)="openEdit(item)"><app-icon name="edit" /> Edit</button>
+                      <button class="btn btn-sm btn-ghost" type="button" (click)="openEdit(item)"><app-icon name="edit" /> {{ 'Edit' | t }}</button>
                     </div>
                   </td>
                 </tr>
@@ -182,12 +182,12 @@ interface MenuDraft {
         @if (!filtered().length) {
           <div class="empty">
             <app-icon name="utensils" />
-            <strong>No items found</strong>
+            <strong>{{ 'No items found' | t }}</strong>
             <p>
               @if (store.menuCategories().length) {
-                Add a dish or change the category/classification filters.
+                {{ 'Add a dish or change the category/classification filters.' | t }}
               } @else {
-                Create a category first, then add menu items to it.
+                {{ 'Create a category first, then add menu items to it.' | t }}
               }
             </p>
           </div>
@@ -200,27 +200,27 @@ interface MenuDraft {
         <div class="modal" (click)="$event.stopPropagation()">
           <div class="modal-head">
             <div>
-              <h3>{{ editingId() ? 'Edit item' : 'Add menu item' }}</h3>
-              <p>Saved items are available on every waiter device immediately.</p>
+              <h3>{{ editingId() ? ('Edit item' | t) : ('Add menu item' | t) }}</h3>
+              <p>{{ 'Saved items are available on every waiter device immediately.' | t }}</p>
             </div>
             <button class="modal-close" type="button" (click)="modalOpen.set(false)"><app-icon name="x" /></button>
           </div>
           <div class="modal-body">
             <div class="grid grid-2" style="gap: 12px">
               <div class="field">
-                <label class="label" for="item-name">Name</label>
+                <label class="label" for="item-name">{{ 'Name' | t }}</label>
                 <input id="item-name" class="input" [(ngModel)]="draft.name" />
               </div>
               <div class="field">
-                <label class="label" for="item-category">Category</label>
+                <label class="label" for="item-category">{{ 'Category' | t }}</label>
                 <select id="item-category" class="select" [(ngModel)]="draft.type" (ngModelChange)="onTypeChange()">
                   @for (option of categoryTypes; track option.value) {
-                    <option [ngValue]="option.value">{{ option.label }}</option>
+                    <option [ngValue]="option.value">{{ option.label | t }}</option>
                   }
                 </select>
               </div>
               <div class="field">
-                <label class="label" for="item-section">Section</label>
+                <label class="label" for="item-section">{{ 'Section' | t }}</label>
                 @if (draftSections().length) {
                   <select id="item-section" class="select" [(ngModel)]="draft.categoryId" (ngModelChange)="onSectionChange()">
                     @for (section of draftSections(); track section.id) {
@@ -228,30 +228,30 @@ interface MenuDraft {
                     }
                   </select>
                 } @else {
-                  <select class="select" disabled><option>No sections yet</option></select>
-                  <span class="hint">No {{ typeLabel() }} sections yet. Add one with the Category button first.</span>
+                  <select class="select" disabled><option>{{ 'No sections yet' | t }}</option></select>
+                  <span class="hint">{{ 'No' | t }} {{ typeLabel() }} {{ 'sections yet. Add one with the Category button first.' | t }}</span>
                 }
               </div>
               <div class="field">
-                <label class="label" for="item-price">Price (ETB)</label>
+                <label class="label" for="item-price">{{ 'Price (ETB)' | t }}</label>
                 <input id="item-price" class="input" type="number" min="0" step="1" [(ngModel)]="draft.price" />
               </div>
               @if (draftIsFood()) {
                 <div class="field">
-                  <label class="label" for="item-fasting">Fasting</label>
+                  <label class="label" for="item-fasting">{{ 'Fasting' | t }}</label>
                   <select id="item-fasting" class="select" [(ngModel)]="draft.fastingType">
                     @for (option of foodFastingOptions; track option.value) {
-                      <option [ngValue]="option.value">{{ option.label }}</option>
+                      <option [ngValue]="option.value">{{ option.label | t }}</option>
                     }
                   </select>
                 </div>
               }
               @if (draftAllowsAlcohol()) {
                 <div class="field">
-                  <label class="label" for="item-alcohol">Alcohol</label>
+                  <label class="label" for="item-alcohol">{{ 'Alcohol' | t }}</label>
                   <select id="item-alcohol" class="select" [(ngModel)]="draft.alcoholType">
                     @for (option of alcoholOptions; track option.value) {
-                      <option [ngValue]="option.value">{{ option.label }}</option>
+                      <option [ngValue]="option.value">{{ option.label | t }}</option>
                     }
                   </select>
                 </div>
@@ -259,20 +259,20 @@ interface MenuDraft {
               <!-- Preparation time (hidden for now)
               <div class="field">
                 <label class="label" for="item-prep">Preparation time (minutes)</label>
-                <input id="item-prep" class="input" type="number" min="1" step="1" [(ngModel)]="draft.preparationTimeMinutes" placeholder="Optional" />
+                <input id="item-prep" class="input" type="number" min="1" step="1" [(ngModel)]="draft.preparationTimeMinutes" [placeholder]="'Optional' | t" />
               </div>
               -->
             </div>
             <div class="field mt-3">
-              <label class="label" for="item-desc">Description</label>
+              <label class="label" for="item-desc">{{ 'Description' | t }}</label>
               <input id="item-desc" class="input" [(ngModel)]="draft.description" />
             </div>
             <div class="field mt-3">
-              <label class="label">Photo</label>
+              <label class="label">{{ 'Photo' | t }}</label>
               <div class="menu-image-upload">
                 <span class="menu-image-preview">
                   @if (previewUrl()) {
-                    <img [src]="previewUrl()" alt="Menu item photo preview" />
+                    <img [src]="previewUrl()" [alt]="'Menu item photo preview' | t" />
                   } @else {
                     <app-icon name="utensils" />
                   }
@@ -280,15 +280,14 @@ interface MenuDraft {
                 <div class="stack" style="gap: 6px">
                   <div class="row" style="gap: 8px">
                     <button class="btn btn-sm btn-secondary" type="button" (click)="imageInput.click()">
-                      <app-icon name="edit" /> {{ previewUrl() ? 'Replace photo' : 'Upload photo' }}
+                      <app-icon name="edit" /> {{ previewUrl() ? ('Replace photo' | t) : ('Upload photo' | t) }}
                     </button>
                     @if (previewUrl()) {
                       <button class="btn btn-sm btn-ghost" type="button" (click)="clearImage()">
-                        <app-icon name="trash" /> Remove
-                      </button>
+                        <app-icon name="trash" /> {{ 'Remove' | t }} </button>
                     }
                   </div>
-                  <span class="hint">JPG, PNG or WEBP · up to 5 MB. Shows on the waiter and customer menu.</span>
+                  <span class="hint">{{ 'JPG, PNG or WEBP · up to 5 MB. Shows on the waiter and customer menu.' | t }}</span>
                 </div>
               </div>
               <input #imageInput type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden (change)="onImagePicked($event)" />
@@ -298,9 +297,9 @@ interface MenuDraft {
             }
           </div>
           <div class="modal-foot">
-            <button class="btn btn-ghost" type="button" (click)="modalOpen.set(false)">Cancel</button>
+            <button class="btn btn-ghost" type="button" (click)="modalOpen.set(false)">{{ 'Cancel' | t }}</button>
             <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="save()">
-              {{ busy() ? 'Saving…' : editingId() ? 'Save changes' : 'Add item' }}
+              {{ busy() ? ('Saving…' | t) : editingId() ? ('Save changes' | t) : ('Add item' | t) }}
             </button>
           </div>
         </div>
@@ -312,32 +311,32 @@ interface MenuDraft {
         <div class="modal" (click)="$event.stopPropagation()">
           <div class="modal-head">
             <div>
-              <h3>New category</h3>
-              <p>Group items under Foods, Beverages, or Extras, then nest sections like Breakfast or Cold Drinks.</p>
+              <h3>{{ 'New category' | t }}</h3>
+              <p>{{ 'Group items under Foods, Beverages, or Extras, then nest sections like Breakfast or Cold Drinks.' | t }}</p>
             </div>
             <button class="modal-close" type="button" (click)="categoryOpen.set(false)"><app-icon name="x" /></button>
           </div>
           <div class="modal-body">
             <div class="field">
-              <label class="label" for="category-name">Name</label>
+              <label class="label" for="category-name">{{ 'Name' | t }}</label>
               <input id="category-name" class="input" [(ngModel)]="categoryName" />
             </div>
             <div class="grid grid-2" style="gap: 12px; margin-top: 12px">
               <div class="field">
-                <label class="label" for="category-type">Type</label>
+                <label class="label" for="category-type">{{ 'Type' | t }}</label>
                 <select id="category-type" class="select" [(ngModel)]="categoryType" [disabled]="!!categoryParentId">
                   @for (option of categoryTypeOptions; track option.value) {
-                    <option [ngValue]="option.value">{{ option.label }}</option>
+                    <option [ngValue]="option.value">{{ option.label | t }}</option>
                   }
                 </select>
                 @if (categoryParentId) {
-                  <span class="hint">Inherited from the parent category.</span>
+                  <span class="hint">{{ 'Inherited from the parent category.' | t }}</span>
                 }
               </div>
               <div class="field">
-                <label class="label" for="category-parent">Parent category</label>
+                <label class="label" for="category-parent">{{ 'Parent category' | t }}</label>
                 <select id="category-parent" class="select" [(ngModel)]="categoryParentId" (ngModelChange)="onCategoryParentChange()">
-                  <option [ngValue]="''">Top level</option>
+                  <option [ngValue]="''">{{ 'Top level' | t }}</option>
                   @for (entry of orderedCategories(); track entry.category.id) {
                     <option [ngValue]="entry.category.id">{{ entry.depth ? '— ' : '' }}{{ entry.category.name }}</option>
                   }
@@ -345,17 +344,17 @@ interface MenuDraft {
               </div>
             </div>
             <div class="field mt-3">
-              <label class="label" for="category-desc">Description</label>
-              <input id="category-desc" class="input" [(ngModel)]="categoryDescription" placeholder="Optional" />
+              <label class="label" for="category-desc">{{ 'Description' | t }}</label>
+              <input id="category-desc" class="input" [(ngModel)]="categoryDescription" [placeholder]="'Optional' | t" />
             </div>
             @if (error()) {
               <div class="auth-error mt-3">{{ error() }}</div>
             }
           </div>
           <div class="modal-foot">
-            <button class="btn btn-ghost" type="button" (click)="categoryOpen.set(false)">Cancel</button>
+            <button class="btn btn-ghost" type="button" (click)="categoryOpen.set(false)">{{ 'Cancel' | t }}</button>
             <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="saveCategory()">
-              {{ busy() ? 'Saving…' : 'Add category' }}
+              {{ busy() ? ('Saving…' | t) : ('Add category' | t) }}
             </button>
           </div>
         </div>
@@ -485,7 +484,7 @@ export class MenuPage {
       this.toast.show(result.error, 'error');
       return;
     }
-    this.toast.show(item.available ? `${item.name} marked sold out` : `${item.name} is available again`, 'info');
+    this.toast.show(item.available ? translate('{name} marked sold out', { name: item.name }) : translate('{name} is available again', { name: item.name }), 'info');
   }
 
   protected openNew(): void {
@@ -526,8 +525,14 @@ export class MenuPage {
     return this.sectionsFor(this.draft.type, this.draft.categoryId);
   }
 
+  protected stockActionLabel(item: MenuItem): string {
+    return item.available
+      ? translate('Mark {name} out of stock', { name: item.name })
+      : translate('Restock {name}', { name: item.name });
+  }
+
   protected typeLabel(): string {
-    return this.categoryTypes.find((option) => option.value === this.draft.type)?.label ?? '';
+    return translate(this.categoryTypes.find((option) => option.value === this.draft.type)?.label ?? '');
   }
 
   protected onTypeChange(): void {
@@ -571,11 +576,11 @@ export class MenuPage {
     input.value = '';
     if (!file) return;
     if (!file.type.startsWith('image/')) {
-      this.error.set('Choose an image file.');
+      this.error.set(translate('Choose an image file.'));
       return;
     }
     if (file.size > MenuPage.MaxImageBytes) {
-      this.error.set('Image must be 5 MB or smaller.');
+      this.error.set(translate('Image must be 5 MB or smaller.'));
       return;
     }
     this.error.set('');
@@ -611,7 +616,7 @@ export class MenuPage {
   protected async saveCategory(): Promise<void> {
     const name = this.categoryName.trim();
     if (!name) {
-      this.error.set('Give the category a name.');
+      this.error.set(translate('Give the category a name.'));
       return;
     }
 
@@ -629,34 +634,34 @@ export class MenuPage {
       return;
     }
     this.categoryOpen.set(false);
-    this.toast.show('Category added');
+    this.toast.show(translate('Category added'));
   }
 
   protected async save(): Promise<void> {
     if (!this.draft.name.trim()) {
-      this.error.set('Give the item a name.');
+      this.error.set(translate('Give the item a name.'));
       return;
     }
     if (!this.draft.categoryId) {
-      this.error.set(`Add a section for ${this.typeLabel()} first.`);
+      this.error.set(translate('Add a section for {section} first.', { section: this.typeLabel() }));
       return;
     }
     if (!this.draft.price || this.draft.price <= 0) {
-      this.error.set('Price must be greater than zero.');
+      this.error.set(translate('Price must be greater than zero.'));
       return;
     }
 
     const category = this.categoryById(this.draft.categoryId);
     if (category?.type === MenuCategoryType.Food && this.draft.fastingType === MenuItemFastingType.NotApplicable) {
-      this.error.set('Food items must be classified as fasting or non-fasting.');
+      this.error.set(translate('Food items must be classified as fasting or non-fasting.'));
       return;
     }
     if (category && category.type !== MenuCategoryType.Food && this.draft.fastingType !== MenuItemFastingType.NotApplicable) {
-      this.error.set('Only food items use a fasting classification. Beverages and extras must use Not applicable.');
+      this.error.set(translate('Only food items use a fasting classification. Beverages and extras must use Not applicable.'));
       return;
     }
     if (this.draft.alcoholType !== MenuItemAlcoholType.NotApplicable && !category?.allowsAlcoholClassification) {
-      this.error.set('Alcoholic or non-alcoholic classification is only allowed for Cold Drinks.');
+      this.error.set(translate('Alcoholic or non-alcoholic classification is only allowed for Cold Drinks.'));
       return;
     }
 
@@ -694,7 +699,7 @@ export class MenuPage {
       return;
     }
     this.modalOpen.set(false);
-    this.toast.show(this.editingId() ? 'Menu item updated' : 'Menu item added');
+    this.toast.show(translate(this.editingId() ? 'Menu item updated' : 'Menu item added'));
   }
 
   private categoryById(id: string): MenuCategory | undefined {

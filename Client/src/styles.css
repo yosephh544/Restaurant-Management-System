@@ -315,6 +315,23 @@ svg {
   white-space: nowrap;
 }
 
+.lang-btn {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--ink-2);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.lang-btn:hover {
+  border-color: var(--brand);
+  color: var(--brand);
+}
+
 .icon-btn {
   width: 36px;
   height: 36px;
@@ -2468,6 +2485,13 @@ svg {
   display: grid;
   grid-template-columns: minmax(0, 1.05fr) minmax(420px, 0.95fr);
   background: var(--bg);
+}
+
+.auth-lang {
+  position: fixed;
+  top: 18px;
+  right: 22px;
+  z-index: 20;
 }
 
 .auth-brand {

@@ -1,28 +1,29 @@
 import { Component, computed, DestroyRef, inject, input, OnInit, output, signal } from '@angular/core';
+import { TranslatePipe, translate } from '../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Bill, METHOD_LABEL, money, PayMethod, Payment } from '../core/models';
+import { Bill, METHOD_LABEL, money, PayMethod, Payment, payStateLabel } from '../core/models';
 import { Store } from '../core/store';
 import { ToastService } from '../core/toast.service';
 import { Icon } from './icon';
 
 @Component({
   selector: 'app-pay-sheet',
-  imports: [FormsModule, RouterLink, Icon],
+  imports: [FormsModule, RouterLink, Icon, TranslatePipe],
   template: `
     <div class="modal-backdrop" (click)="close()">
       <div class="modal" (click)="$event.stopPropagation()">
         <div class="modal-head">
           <div>
-            <h3>{{ paid() ? 'Payment complete' : pending() ? 'Payment pending' : 'Take payment' }}</h3>
+            <h3>{{ paid() ? ('Payment complete' | t) : pending() ? ('Payment pending' | t) : ('Take payment' | t) }}</h3>
             <p>
-              {{ reference() || 'Table ' + tableNumber() }}
+              {{ reference() || ('Table ' | t) + tableNumber() }}
               @if (tableNumber()) {
-                · Table {{ tableNumber() }}
+                {{ '· Table' | t }} {{ tableNumber() }}
               }
             </p>
           </div>
-          <button class="modal-close" type="button" (click)="close()" aria-label="Close">
+          <button class="modal-close" type="button" (click)="close()" [attr.aria-label]="'Close' | t">
             <app-icon name="x" />
           </button>
         </div>
@@ -31,8 +32,8 @@ import { Icon } from './icon';
           <div class="modal-body">
             <div class="empty" style="padding: 36px 10px">
               <app-icon name="clock" />
-              <strong>Preparing the bill…</strong>
-              <p>Checking for an open bill on this table.</p>
+              <strong>{{ 'Preparing the bill…' | t }}</strong>
+              <p>{{ 'Checking for an open bill on this table.' | t }}</p>
             </div>
           </div>
         } @else if (paid(); as p) {
@@ -41,18 +42,18 @@ import { Icon } from './icon';
               <div style="margin: 0 auto 12px; width: 56px; height: 56px; border-radius: 50%; background: var(--green-soft); color: var(--green); display: grid; place-items: center; font-size: 28px">
                 <app-icon name="check" />
               </div>
-              <strong style="font-size: 18px">{{ money(p.total) }} ETB collected</strong>
-              <p>{{ methodLabel(p.method) }} · {{ p.tip > 0 ? 'includes ' + money(p.tip) + ' ETB tip' : 'no tip' }}</p>
+              <strong style="font-size: 18px">{{ money(p.total) }} {{ 'ETB collected' | t }}</strong>
+              <p>{{ methodLabel(p.method) }} · {{ p.tip > 0 ? ('includes ' | t) + money(p.tip) + (' ETB tip' | t) : ('no tip' | t) }}</p>
             </div>
 
             @if (p.method === 'CASH') {
               <div class="amount-box">
                 <div class="amount-cell">
-                  <span>Tendered</span>
+                  <span>{{ 'Tendered' | t }}</span>
                   <strong>{{ money(p.tendered ?? 0) }}</strong>
                 </div>
                 <div class="amount-cell">
-                  <span>Change given</span>
+                  <span>{{ 'Change given' | t }}</span>
                   <strong>{{ money(p.change ?? 0) }}</strong>
                 </div>
               </div>
@@ -61,22 +62,21 @@ import { Icon } from './icon';
             <div class="row" style="gap: 8px">
               @if (allowReceipt() && bill(); as b) {
                 <a class="btn btn-secondary btn-block" [routerLink]="['/cashier/bills', b.id, 'receipt']" (click)="close()">
-                  <app-icon name="printer" /> View receipt
-                </a>
+                  <app-icon name="printer" /> {{ 'View receipt' | t }} </a>
               }
-              <button class="btn btn-primary btn-block" type="button" (click)="close()">Done</button>
+              <button class="btn btn-primary btn-block" type="button" (click)="close()">{{ 'Done' | t }}</button>
             </div>
           </div>
         } @else if (pending(); as p) {
           <div class="modal-body">
             <div class="amount-box">
               <div class="amount-cell">
-                <span>Requested</span>
+                <span>{{ 'Requested' | t }}</span>
                 <strong>{{ money(p.total) }}</strong>
               </div>
               <div class="amount-cell due">
-                <span>Status</span>
-                <strong style="font-size: 14px; color: var(--amber)">{{ p.status }}</strong>
+                <span>{{ 'Status' | t }}</span>
+                <strong style="font-size: 14px; color: var(--amber)">{{ payStateLabel(p.status) }}</strong>
               </div>
             </div>
 
@@ -84,12 +84,12 @@ import { Icon } from './icon';
               <div class="row">
                 <app-icon name="clock" />
                 <div>
-                  <strong>{{ methodLabel(p.method) }} payment requested</strong>
+                  <strong>{{ methodLabel(p.method) }} {{ 'payment requested' | t }}</strong>
                   <p>
                     @if (p.method === 'QR_SCAN') {
-                      Present the QR payload below to the customer. This screen checks the provider for settlement.
+                      {{ 'Present the QR payload below to the customer. This screen checks the provider for settlement.' | t }}
                     } @else {
-                      A prompt was sent to {{ p.phone || 'the customer' }}. Ask the customer to approve it.
+                      {{ 'A prompt was sent to' | t }} {{ p.phone || ('the customer' | t) }}{{ '. Ask the customer to approve it.' | t }}
                     }
                   </p>
                 </div>
@@ -97,16 +97,14 @@ import { Icon } from './icon';
               @if (p.qrData) {
                 <div class="qr-box">
                   <div class="tiny" style="word-break: break-all">
-                    <strong class="strong" style="color: var(--ink)">QR payload</strong><br />
+                    <strong class="strong" style="color: var(--ink)">{{ 'QR payload' | t }}</strong><br />
                     {{ p.qrData }}
                   </div>
                 </div>
               }
             </div>
 
-            <p class="tiny muted mt-3">
-              Waiting for the payment provider. The status is checked automatically every few seconds.
-            </p>
+            <p class="tiny muted mt-3"> {{ 'Waiting for the payment provider. The status is checked automatically every few seconds.' | t }} </p>
 
             @if (error()) {
               <div class="auth-error mt-3">{{ error() }}</div>
@@ -114,28 +112,26 @@ import { Icon } from './icon';
 
             <div class="row mt-3" style="gap: 8px">
               <button class="btn btn-secondary btn-block" type="button" [disabled]="busy()" (click)="retract()">
-                <app-icon name="retract" /> Retract
-              </button>
+                <app-icon name="retract" /> {{ 'Retract' | t }} </button>
               <button class="btn btn-primary btn-block" type="button" [disabled]="busy()" (click)="checkStatus()">
-                <app-icon name="check" /> Check status
-              </button>
+                <app-icon name="check" /> {{ 'Check status' | t }} </button>
             </div>
           </div>
         } @else if (bill(); as b) {
           <div class="modal-body">
             <div class="amount-box">
               <div class="amount-cell">
-                <span>Bill {{ b.number }}</span>
+                <span>{{ 'Bill' | t }} {{ b.number }}</span>
                 <strong>{{ money(b.subtotal + b.tax - b.discount) }}</strong>
               </div>
               <div class="amount-cell due">
-                <span>Collect now</span>
+                <span>{{ 'Collect now' | t }}</span>
                 <strong>{{ money(total()) }}</strong>
               </div>
             </div>
 
             <div class="field">
-              <label class="label" for="tip">Tip (optional)</label>
+              <label class="label" for="tip">{{ 'Tip (optional)' | t }}</label>
               <div class="row">
                 @if (settings().tipPresets.length) {
                   <div class="tip-presets">
@@ -158,27 +154,24 @@ import { Icon } from './icon';
                   />
                 </div>
               </div>
-              <span class="hint">The tip is recorded on the table's payment.</span>
+              <span class="hint">{{ "The tip is recorded on the table's payment." | t }}</span>
             </div>
 
             <div class="field mt-3">
-              <span class="label">Payment method</span>
+              <span class="label">{{ 'Payment method' | t }}</span>
               <div class="method-grid">
                 <button class="method-btn" type="button" [class.active]="method() === 'CASH'" [disabled]="!settings().cash" (click)="method.set('CASH')">
-                  <app-icon name="cash" /> Cash
-                </button>
+                  <app-icon name="cash" /> {{ 'Cash' | t }} </button>
                 <button class="method-btn" type="button" [class.active]="method() === 'QR_SCAN'" [disabled]="!settings().qr" (click)="method.set('QR_SCAN')">
-                  <app-icon name="qr" /> QR code
-                </button>
+                  <app-icon name="qr" /> {{ 'QR code' | t }} </button>
                 <button class="method-btn" type="button" [class.active]="method() === 'PHONE_PUSH'" [disabled]="!settings().phonePay" (click)="method.set('PHONE_PUSH')">
-                  <app-icon name="phone" /> Phone
-                </button>
+                  <app-icon name="phone" /> {{ 'Phone' | t }} </button>
               </div>
             </div>
 
             @if (method() === 'CASH') {
               <div class="field mt-3">
-                <label class="label" for="tendered">Cash tendered</label>
+                <label class="label" for="tendered">{{ 'Cash tendered' | t }}</label>
                 <div class="row">
                   <input
                     id="tendered"
@@ -189,10 +182,10 @@ import { Icon } from './icon';
                     [ngModel]="tendered()"
                     (ngModelChange)="tendered.set($event === null || $event === '' ? null : +$event)"
                   />
-                  <button class="btn btn-secondary btn-sm" type="button" (click)="tendered.set(total())">Exact</button>
+                  <button class="btn btn-secondary btn-sm" type="button" (click)="tendered.set(total())">{{ 'Exact' | t }}</button>
                 </div>
                 <div class="between mt-2">
-                  <span class="hint">Change due</span>
+                  <span class="hint">{{ 'Change due' | t }}</span>
                   <strong class="num" style="font-size: 14px">{{ money(change()) }} ETB</strong>
                 </div>
               </div>
@@ -200,12 +193,12 @@ import { Icon } from './icon';
 
             @if (method() === 'PHONE_PUSH') {
               <div class="field mt-3">
-                <label class="label" for="phone">Customer phone</label>
+                <label class="label" for="phone">{{ 'Customer phone' | t }}</label>
                 <div class="input-wrap">
                   <app-icon name="phone" />
                   <input id="phone" class="input" name="phone" [(ngModel)]="phone" inputmode="tel" />
                 </div>
-                <span class="hint">A payment prompt is pushed to this number.</span>
+                <span class="hint">{{ 'A payment prompt is pushed to this number.' | t }}</span>
               </div>
             }
 
@@ -215,18 +208,18 @@ import { Icon } from './icon';
           </div>
 
           <div class="modal-foot">
-            <button class="btn btn-ghost" type="button" (click)="close()">Cancel</button>
+            <button class="btn btn-ghost" type="button" (click)="close()">{{ 'Cancel' | t }}</button>
             <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="submit()">
               <app-icon [name]="method() === 'CASH' ? 'cash' : method() === 'QR_SCAN' ? 'qr' : 'phone'" />
-              {{ busy() ? 'Working…' : method() === 'CASH' ? 'Take cash payment' : 'Send payment request' }}
+              {{ busy() ? ('Working…' | t) : method() === 'CASH' ? ('Take cash payment' | t) : ('Send payment request' | t) }}
             </button>
           </div>
         } @else {
           <div class="modal-body">
             <div class="empty" style="padding: 36px 10px">
               <app-icon name="alert" />
-              <strong>No open bill</strong>
-              <p>{{ error() || 'This table has no billable orders right now.' }}</p>
+              <strong>{{ 'No open bill' | t }}</strong>
+              <p>{{ error() || ('This table has no billable orders right now.' | t) }}</p>
             </div>
           </div>
         }
@@ -248,6 +241,7 @@ export class PaySheet implements OnInit {
   readonly settled = output<Payment>();
 
   protected readonly money = money;
+  protected readonly payStateLabel = payStateLabel;
   protected readonly settings = this.store.settings;
 
   protected readonly method = signal<PayMethod>('CASH');
@@ -283,7 +277,7 @@ export class PaySheet implements OnInit {
   }
 
   protected methodLabel(method: PayMethod | string): string {
-    return METHOD_LABEL[method as PayMethod] ?? method;
+    return translate(METHOD_LABEL[method as PayMethod] ?? method);
   }
 
   protected presetAmount(preset: number): number {
@@ -298,12 +292,12 @@ export class PaySheet implements OnInit {
     if (this.method() === 'CASH') {
       const tendered = this.tendered() ?? this.total();
       if (tendered < this.total()) {
-        this.error.set('Cash tendered is less than the amount due.');
+        this.error.set(translate('Cash tendered is less than the amount due.'));
         return;
       }
     }
     if (this.method() === 'PHONE_PUSH' && this.phone.trim().length < 7) {
-      this.error.set('Enter the customer phone number for a payment push.');
+      this.error.set(translate('Enter the customer phone number for a payment push.'));
       return;
     }
 
@@ -325,13 +319,13 @@ export class PaySheet implements OnInit {
     if (result.data.status === 'PAID') {
       this.paid.set(result.data);
       this.settled.emit(result.data);
-      this.toast.show('Cash payment recorded');
+      this.toast.show(translate('Cash payment recorded'));
       return;
     }
 
     this.pending.set(result.data);
     this.startPolling();
-    this.toast.show(this.method() === 'QR_SCAN' ? 'QR payment requested' : 'Payment prompt sent');
+    this.toast.show(translate(this.method() === 'QR_SCAN' ? 'QR payment requested' : 'Payment prompt sent'));
   }
 
   protected async checkStatus(): Promise<void> {
@@ -340,7 +334,7 @@ export class PaySheet implements OnInit {
     this.error.set('');
     const info = await this.store.paymentStatus(payment.id);
     if (!info) {
-      this.error.set('Could not check the payment status.');
+      this.error.set(translate('Could not check the payment status.'));
       return;
     }
     if (info.settled) {
@@ -350,7 +344,7 @@ export class PaySheet implements OnInit {
     if (info.status !== 'INITIATED') {
       this.pending.set(null);
       this.stopPolling();
-      this.error.set(`Payment ${info.status.toLowerCase()}. Choose another method.`);
+      this.error.set(translate('Payment {status}. Choose another method.', { status: translate(info.status) }));
     }
   }
 
@@ -366,7 +360,7 @@ export class PaySheet implements OnInit {
     }
     this.pending.set(null);
     this.stopPolling();
-    this.toast.show('Payment request retracted', 'info');
+    this.toast.show(translate('Payment request retracted'), 'info');
   }
 
   protected close(): void {
@@ -418,7 +412,7 @@ export class PaySheet implements OnInit {
     this.pending.set(null);
     this.paid.set(payment);
     this.settled.emit(payment);
-    this.toast.show('Payment settled');
+    this.toast.show(translate('Payment settled'));
   }
 
   private startPolling(): void {

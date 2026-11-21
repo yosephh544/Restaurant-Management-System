@@ -1,19 +1,21 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { TranslatePipe } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { AuditKind, clock, ROLE_LABEL, roleFrom, shortDate } from '../../core/models';
+import { translate } from '../../core/i18n';
 import { Store } from '../../core/store';
 import { Icon, IconName } from '../../shared/icon';
 
 @Component({
   selector: 'app-audit-log',
-  imports: [FormsModule, Icon],
+  imports: [FormsModule, Icon, TranslatePipe],
   template: `
     <div class="page">
       <div class="page-head">
         <div>
-          <div class="eyebrow">Manager</div>
-          <h1 class="page-title">Audit log</h1>
-          <p class="page-sub">Orders, payments, corrections and staff changes in one timeline.</p>
+          <div class="eyebrow">{{ 'Manager' | t }}</div>
+          <h1 class="page-title">{{ 'Audit log' | t }}</h1>
+          <p class="page-sub">{{ 'Orders, payments, corrections and staff changes in one timeline.' | t }}</p>
         </div>
         <div class="search">
           <app-icon name="search" />
@@ -24,27 +26,27 @@ import { Icon, IconName } from '../../shared/icon';
       <div class="grid grid-4" style="margin-bottom: 18px">
         <div class="stat-card">
           <div class="stat-icon"><app-icon name="clock" /></div>
-          <div class="stat-label">Events shown</div>
+          <div class="stat-label">{{ 'Events shown' | t }}</div>
           <div class="stat-value">{{ rows().length }}</div>
-          <div class="stat-foot">All recorded activity</div>
+          <div class="stat-foot">{{ 'All recorded activity' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="card" /></div>
-          <div class="stat-label">Payment events</div>
+          <div class="stat-label">{{ 'Payment events' | t }}</div>
           <div class="stat-value">{{ counts().payment }}</div>
-          <div class="stat-foot">Settlements and requests</div>
+          <div class="stat-foot">{{ 'Settlements and requests' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--red-soft); color: var(--red)"><app-icon name="alert" /></div>
-          <div class="stat-label">Kitchen issues</div>
+          <div class="stat-label">{{ 'Kitchen issues' | t }}</div>
           <div class="stat-value">{{ counts().cancel }}</div>
-          <div class="stat-foot">Cancellations and reports</div>
+          <div class="stat-foot">{{ 'Cancellations and reports' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="users" /></div>
-          <div class="stat-label">Staff changes</div>
+          <div class="stat-label">{{ 'Staff changes' | t }}</div>
           <div class="stat-value">{{ counts().staff }}</div>
-          <div class="stat-foot">Accounts, roles and tips</div>
+          <div class="stat-foot">{{ 'Accounts, roles and tips' | t }}</div>
         </div>
       </div>
 
@@ -53,11 +55,11 @@ import { Icon, IconName } from '../../shared/icon';
           <div class="chip-row">
             @for (option of filters; track option.value) {
               <button class="chip" type="button" [class.active]="kind() === option.value" (click)="kind.set(option.value)">
-                {{ option.label }}
+                {{ option.label | t }}
               </button>
             }
           </div>
-          <span class="tiny muted">Newest first</span>
+          <span class="tiny muted">{{ 'Newest first' | t }}</span>
         </div>
 
         <div class="timeline">
@@ -79,8 +81,8 @@ import { Icon, IconName } from '../../shared/icon';
           @if (!rows().length) {
             <div class="empty">
               <app-icon name="search" />
-              <strong>No matching events</strong>
-              <p>Try another filter or a different search.</p>
+              <strong>{{ 'No matching events' | t }}</strong>
+              <p>{{ 'Try another filter or a different search.' | t }}</p>
             </div>
           }
         </div>
@@ -122,7 +124,7 @@ export class AuditLogPage {
   }));
 
   protected roleLabel(role: string): string {
-    return ROLE_LABEL[roleFrom(role)];
+    return translate(ROLE_LABEL[roleFrom(role)]);
   }
 
   protected kindIcon(kind: string): IconName {

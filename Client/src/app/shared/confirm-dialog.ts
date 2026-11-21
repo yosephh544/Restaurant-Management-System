@@ -1,9 +1,10 @@
 import { Component, input, output } from '@angular/core';
+import { TranslatePipe } from '../core/i18n';
 import { Icon } from './icon';
 
 @Component({
   selector: 'app-confirm',
-  imports: [Icon],
+  imports: [Icon, TranslatePipe],
   template: `
     <div class="modal-backdrop" (click)="closed.emit()">
       <div class="modal" style="max-width: 430px" (click)="$event.stopPropagation()">
@@ -27,9 +28,9 @@ import { Icon } from './icon';
           <ng-content />
         </div>
         <div class="modal-foot">
-          <button class="btn btn-ghost" type="button" (click)="closed.emit()">Cancel</button>
+          <button class="btn btn-ghost" type="button" (click)="closed.emit()">{{ 'Cancel' | t }}</button>
           <button [class]="'btn ' + (danger() ? 'btn-danger' : 'btn-primary')" type="button" (click)="confirmed.emit()">
-            {{ confirmLabel() }}
+            {{ confirmLabel() | t }}
           </button>
         </div>
       </div>

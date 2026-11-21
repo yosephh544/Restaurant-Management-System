@@ -1,4 +1,5 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
+import { TranslatePipe, translate } from '../../core/i18n';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { clock, KitchenTicket } from '../../core/models';
 import { Store } from '../../core/store';
@@ -8,31 +9,29 @@ import { IssueDialog } from '../../shared/issue-dialog';
 
 @Component({
   selector: 'app-kitchen-ticket',
-  imports: [RouterLink, Icon, IssueDialog],
+  imports: [RouterLink, Icon, IssueDialog, TranslatePipe],
   template: `
     @if (ticket(); as t) {
       <div class="page">
         <div class="detail-head">
           <div>
-            <a class="back-link" [routerLink]="stationPath"><app-icon name="arrow-left" /> Back to board</a>
+            <a class="back-link" [routerLink]="stationPath"><app-icon name="arrow-left" /> {{ 'Back to board' | t }}</a>
             <div class="row" style="gap: 10px; flex-wrap: wrap">
               <h1 class="page-title">#{{ t.number }}</h1>
-              <span class="ticket-table">Table {{ t.table }}</span>
+              <span class="ticket-table">{{ 'Table' | t }} {{ t.table }}</span>
               <span [class]="'pill ' + (t.status === 'PENDING' ? 'pill-amber' : t.status === 'PREPARING' ? 'pill-orange' : 'pill-green')">
                 {{ statusLabel(t) }}
               </span>
             </div>
             <p class="page-sub">
-              {{ t.waiterName }} · opened {{ clock(t.createdAt) }} · {{ elapsed() }} min on the board
-            </p>
+              {{ t.waiterName }} {{ '· opened' | t }} {{ clock(t.createdAt) }} · {{ elapsed() }} {{ 'min on the board' | t }} </p>
           </div>
           <div class="head-actions">
             @if (t.status === 'PENDING' || t.status === 'PREPARING') {
               <button class="btn btn-secondary" type="button" (click)="showIssue.set(true)">
-                <app-icon name="alert" /> Report issue
-              </button>
+                <app-icon name="alert" /> {{ 'Report issue' | t }} </button>
               <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="advance()">
-                <app-icon name="check" /> {{ busy() ? 'Working…' : t.status === 'PENDING' ? 'Accept ticket' : 'Mark ready' }}
+                <app-icon name="check" /> {{ busy() ? ('Working…' | t) : t.status === 'PENDING' ? ('Accept ticket' | t) : ('Mark ready' | t) }}
               </button>
             }
           </div>
@@ -43,8 +42,8 @@ import { IssueDialog } from '../../shared/issue-dialog';
             <div class="row">
               <app-icon name="check-circle" style="color: var(--green)" />
               <div>
-                <strong style="color: var(--green)">{{ isBar ? 'Poured and at the bar' : 'Plated and at the pass' }}</strong>
-                <p style="color: var(--green)">The waiter has been notified on their board.</p>
+                <strong style="color: var(--green)">{{ isBar ? ('Poured and at the bar' | t) : ('Plated and at the pass' | t) }}</strong>
+                <p style="color: var(--green)">{{ 'The waiter has been notified on their board.' | t }}</p>
               </div>
             </div>
           </div>
@@ -54,12 +53,11 @@ import { IssueDialog } from '../../shared/issue-dialog';
           <div class="card">
             <div class="card-head">
               <div>
-                <div class="card-title">Ticket items</div>
-                <div class="card-sub">{{ t.items.length }} lines · no prices shown in the {{ isBar ? 'bar' : 'kitchen' }}</div>
+                <div class="card-title">{{ 'Ticket items' | t }}</div>
+                <div class="card-sub">{{ t.items.length }} {{ 'lines · no prices shown in the' | t }} {{ isBar ? ('bar' | t) : ('kitchen' | t) }}</div>
               </div>
               <span class="ticket-time" [class.warn]="elapsed() >= 12" [class.late]="elapsed() >= 20">
-                <app-icon name="clock" /> {{ elapsed() }} min
-              </span>
+                <app-icon name="clock" /> {{ elapsed() }} {{ 'min' | t }} </span>
             </div>
             <div style="padding: 8px 18px 18px">
               @for (item of t.items; track item.id) {
@@ -75,7 +73,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
                       }
                     </div>
                   </div>
-                  <span class="tiny muted">{{ item.status === 'CANCELLED' ? 'Removed' : item.status === 'PREPARED' ? 'Prepared' : isBar ? 'To prepare' : 'To cook' }}</span>
+                  <span class="tiny muted">{{ item.status === 'CANCELLED' ? ('Removed' | t) : item.status === 'PREPARED' ? ('Prepared' | t) : isBar ? ('To prepare' | t) : ('To cook' | t) }}</span>
                 </div>
               }
             </div>
@@ -83,21 +81,18 @@ import { IssueDialog } from '../../shared/issue-dialog';
 
           <aside class="stack">
             <div class="card card-pad">
-              <div class="card-title" style="margin-bottom: 10px">Ticket details</div>
+              <div class="card-title" style="margin-bottom: 10px">{{ 'Ticket details' | t }}</div>
               <div class="stack">
-                <div class="between small"><span class="muted">Sent</span><span class="strong">{{ clock(t.createdAt) }}</span></div>
-                <div class="between small"><span class="muted">Elapsed</span><span class="strong">{{ elapsed() }} min</span></div>
-                <div class="between small"><span class="muted">Payment</span><span class="strong">{{ t.paymentStatus === 'PAID' ? 'Paid' : 'Open' }}</span></div>
+                <div class="between small"><span class="muted">{{ 'Sent' | t }}</span><span class="strong">{{ clock(t.createdAt) }}</span></div>
+                <div class="between small"><span class="muted">{{ 'Elapsed' | t }}</span><span class="strong">{{ elapsed() }} {{ 'min' | t }}</span></div>
+                <div class="between small"><span class="muted">{{ 'Payment' | t }}</span><span class="strong">{{ t.paymentStatus === 'PAID' ? ('Paid' | t) : ('Open' | t) }}</span></div>
               </div>
             </div>
 
             <div class="card card-pad">
-              <div class="card-title" style="margin-bottom: 8px">Floor contact</div>
-              <p class="small muted">{{ t.waiterName }} is responsible for this table.</p>
-              <p class="tiny muted mt-2">
-                Report an unavailable item here. It is removed from the bill and the waiter can reorder
-                the ticket without any payment being affected.
-              </p>
+              <div class="card-title" style="margin-bottom: 8px">{{ 'Floor contact' | t }}</div>
+              <p class="small muted">{{ t.waiterName }} {{ 'is responsible for this table.' | t }}</p>
+              <p class="tiny muted mt-2"> {{ 'Report an unavailable item here. It is removed from the bill and the waiter can reorder the ticket without any payment being affected.' | t }} </p>
             </div>
           </aside>
         </div>
@@ -110,9 +105,9 @@ import { IssueDialog } from '../../shared/issue-dialog';
       <div class="page">
         <div class="card empty">
           <app-icon name="alert-circle" />
-          <strong>Ticket not found</strong>
-          <p>It may already be served or cancelled.</p>
-          <a class="btn btn-primary btn-sm mt-3" [routerLink]="stationPath">Back to board</a>
+          <strong>{{ 'Ticket not found' | t }}</strong>
+          <p>{{ 'It may already be served or cancelled.' | t }}</p>
+          <a class="btn btn-primary btn-sm mt-3" [routerLink]="stationPath">{{ 'Back to board' | t }}</a>
         </div>
       </div>
     }
@@ -152,7 +147,7 @@ export class KitchenTicketPage implements OnInit, OnDestroy {
   }
 
   protected statusLabel(ticket: KitchenTicket): string {
-    return ticket.status === 'PENDING' ? 'New' : ticket.status === 'PREPARING' ? 'Preparing' : 'Ready';
+    return translate(ticket.status === 'PENDING' ? 'New' : ticket.status === 'PREPARING' ? 'Preparing' : 'Ready');
   }
 
   protected async advance(): Promise<void> {

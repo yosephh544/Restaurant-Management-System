@@ -2,6 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http'
 import { inject, Injectable } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { API_BASE_URL } from './api.config';
+import { translate } from './i18n';
 
 export interface ApiEnvelope<T> {
   success: boolean;
@@ -94,12 +95,12 @@ export class ApiService {
       if (typeof body === 'string' && body.trim()) return body;
       if (body && typeof body === 'object') {
         const fieldError = body.errors ? Object.values(body.errors)[0]?.[0] : null;
-        return fieldError ?? body.message ?? `Request failed (${error.status}).`;
+        return fieldError ?? body.message ?? translate('Request failed ({status}).', { status: error.status });
       }
-      return error.message || `Request failed (${error.status}).`;
+      return error.message || translate('Request failed ({status}).', { status: error.status });
     }
     if (error instanceof Error) return error.message;
-    return 'Something went wrong. Please try again.';
+    return translate('Something went wrong. Please try again.');
   }
 
   private params(values?: Record<string, unknown>): HttpParams {

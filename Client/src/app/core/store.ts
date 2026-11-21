@@ -1,5 +1,6 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { ApiService } from './api.service';
+import { translate } from './i18n';
 import {
   AuditEvent,
   Bill,
@@ -838,7 +839,7 @@ export class Store {
 
   async reorder(orderId: string, items: DraftLine[]): Promise<Result<Order>> {
     const original = this.order(orderId);
-    if (!original) return { ok: false, error: 'Order not found' };
+    if (!original) return { ok: false, error: translate('Order not found') };
     return await this.guard(async () => {
       const created = await this.api.post<OrderDto>(`/orders/${orderId}/reorder`, {
         parentOrderId: orderId,

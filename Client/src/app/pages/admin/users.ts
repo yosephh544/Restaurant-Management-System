@@ -1,4 +1,5 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/auth.service';
 import { initials, ROLE_LABEL, Role, shiftRange, StaffUser } from '../../core/models';
@@ -26,74 +27,74 @@ interface UserDraft {
 
 @Component({
   selector: 'app-users',
-  imports: [FormsModule, Icon],
+  imports: [FormsModule, Icon, TranslatePipe],
   template: `
     <div class="page">
       <div class="page-head">
         <div>
-          <div class="eyebrow">Owner administration</div>
-          <h1 class="page-title">Users &amp; roles</h1>
-          <p class="page-sub">Create staff accounts, assign roles and control who can sign in.</p>
+          <div class="eyebrow">{{ 'Owner administration' | t }}</div>
+          <h1 class="page-title">{{ 'Users & roles' | t }}</h1>
+          <p class="page-sub">{{ 'Create staff accounts, assign roles and control who can sign in.' | t }}</p>
         </div>
         <div class="head-actions">
           <div class="search">
             <app-icon name="search" />
             <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" />
           </div>
-          <button class="btn btn-primary" type="button" (click)="openNew()"><app-icon name="plus" /> New user</button>
+          <button class="btn btn-primary" type="button" (click)="openNew()"><app-icon name="plus" /> {{ 'New user' | t }}</button>
         </div>
       </div>
 
       <div class="grid grid-4" style="margin-bottom: 18px">
         <div class="stat-card">
           <div class="stat-icon"><app-icon name="users" /></div>
-          <div class="stat-label">Accounts</div>
+          <div class="stat-label">{{ 'Accounts' | t }}</div>
           <div class="stat-value">{{ store.users().length }}</div>
-          <div class="stat-foot">All staff accounts</div>
+          <div class="stat-foot">{{ 'All staff accounts' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="check-circle" /></div>
-          <div class="stat-label">Active</div>
+          <div class="stat-label">{{ 'Active' | t }}</div>
           <div class="stat-value">{{ activeCount() }}</div>
-          <div class="stat-foot">Can sign in</div>
+          <div class="stat-foot">{{ 'Can sign in' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--brand-soft); color: var(--brand-dark)"><app-icon name="utensils" /></div>
-          <div class="stat-label">Waiters</div>
+          <div class="stat-label">{{ 'Waiters' | t }}</div>
           <div class="stat-value">{{ waiterCount() }}</div>
-          <div class="stat-foot">Floor accounts</div>
+          <div class="stat-foot">{{ 'Floor accounts' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="shield" /></div>
-          <div class="stat-label">Roles in use</div>
+          <div class="stat-label">{{ 'Roles in use' | t }}</div>
           <div class="stat-value">{{ rolesInUse() }}</div>
-          <div class="stat-foot">Owner always has full access</div>
+          <div class="stat-foot">{{ 'Owner always has full access' | t }}</div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-head" style="flex-wrap: wrap">
           <div class="chip-row">
-            <button class="chip" type="button" [class.active]="roleFilter() === 'ALL'" (click)="roleFilter.set('ALL')">All roles</button>
+            <button class="chip" type="button" [class.active]="roleFilter() === 'ALL'" (click)="roleFilter.set('ALL')">{{ 'All roles' | t }}</button>
             @for (role of roleOptions; track role) {
               <button class="chip" type="button" [class.active]="roleFilter() === role" (click)="roleFilter.set(role)">
                 {{ roleLabel(role) }}
               </button>
             }
           </div>
-          <span class="tiny muted">Deactivated accounts keep their history and tips</span>
+          <span class="tiny muted">{{ 'Deactivated accounts keep their history and tips' | t }}</span>
         </div>
 
         <div class="table-wrap">
           <table class="table">
             <thead>
               <tr>
-                <th>Staff</th>
-                <th>Role</th>
-                <th>Shift</th>
-                <th>Username</th>
-                <th>Status</th>
-                <th>Created</th>
+                <th>{{ 'Staff' | t }}</th>
+                <th>{{ 'Role' | t }}</th>
+                <th>{{ 'Shift' | t }}</th>
+                <th>{{ 'Username' | t }}</th>
+                <th>{{ 'Status' | t }}</th>
+                <th>{{ 'Created' | t }}</th>
                 <th></th>
               </tr>
             </thead>
@@ -105,7 +106,7 @@ interface UserDraft {
                       <span class="avatar">{{ initials(member.name) }}</span>
                       <span>
                         <strong>{{ member.name }}</strong><br />
-                        <span class="tiny muted">{{ member.phone || 'No phone' }}</span>
+                        <span class="tiny muted">{{ member.phone || ('No phone' | t) }}</span>
                       </span>
                     </span>
                   </td>
@@ -117,21 +118,21 @@ interface UserDraft {
                       <span class="pill pill-blue no-dot">{{ member.defaultShift.name }}</span><br />
                       <span class="tiny muted">{{ shiftRange(member.defaultShift.startMinutes, member.defaultShift.endMinutes) }}</span>
                     } @else if (member.role === 'MANAGER') {
-                      <span class="pill pill-blue no-dot">Any time</span>
+                      <span class="pill pill-blue no-dot">{{ 'Any time' | t }}</span>
                     } @else {
-                      <span class="pill pill-amber">Not assigned</span>
+                      <span class="pill pill-amber">{{ 'Not assigned' | t }}</span>
                     }
                   </td>
                   <td class="muted num">&#64;{{ member.username }}</td>
                   <td>
                     <span [class]="'pill ' + (member.active ? 'pill-green' : 'pill-grey')">
-                      {{ member.active ? 'Active' : 'Inactive' }}
+                      {{ member.active ? ('Active' | t) : ('Inactive' | t) }}
                     </span>
                   </td>
                   <td class="muted num">{{ member.createdAt.slice(0, 10) }}</td>
                   <td>
                     <div class="row" style="gap: 4px; justify-content: flex-end">
-                      <button class="btn btn-sm btn-ghost" type="button" (click)="openEdit(member)"><app-icon name="edit" /> Edit</button>
+                      <button class="btn btn-sm btn-ghost" type="button" (click)="openEdit(member)"><app-icon name="edit" /> {{ 'Edit' | t }}</button>
                       <button
                         class="btn btn-sm"
                         [class.btn-danger]="member.active"
@@ -140,7 +141,7 @@ interface UserDraft {
                         [disabled]="member.role === 'OWNER' || member.id === currentUserId"
                         (click)="toggle(member)"
                       >
-                        {{ member.active ? 'Deactivate' : 'Activate' }}
+                        {{ member.active ? ('Deactivate' | t) : ('Activate' | t) }}
                       </button>
                     </div>
                   </td>
@@ -153,16 +154,16 @@ interface UserDraft {
         @if (!rows().length) {
           <div class="empty">
             <app-icon name="users" />
-            <strong>No accounts match</strong>
-            <p>Try another role or search.</p>
+            <strong>{{ 'No accounts match' | t }}</strong>
+            <p>{{ 'Try another role or search.' | t }}</p>
           </div>
         }
       </div>
 
       <div class="page-head" style="margin-top: 26px; margin-bottom: 12px">
         <div>
-          <h2 class="page-title" style="font-size: 18px">What each role can do</h2>
-          <p class="page-sub">Screens and actions are shown based on the signed-in role.</p>
+          <h2 class="page-title" style="font-size: 18px">{{ 'What each role can do' | t }}</h2>
+          <p class="page-sub">{{ 'Screens and actions are shown based on the signed-in role.' | t }}</p>
         </div>
       </div>
 
@@ -173,12 +174,12 @@ interface UserDraft {
               <span class="stat-icon" style="margin: 0"><app-icon [name]="card.icon" /></span>
               <div>
                 <strong>{{ roleLabel(card.role) }}</strong>
-                <div class="tiny muted">{{ card.blurb }}</div>
+                <div class="tiny muted">{{ card.blurb | t }}</div>
               </div>
             </div>
             <ul style="margin: 0; padding-left: 18px; font-size: 12px; color: var(--muted); line-height: 1.7">
               @for (permission of card.can; track permission) {
-                <li>{{ permission }}</li>
+                <li>{{ permission | t }}</li>
               }
             </ul>
           </div>
@@ -191,12 +192,12 @@ interface UserDraft {
         <div class="modal" (click)="$event.stopPropagation()">
           <div class="modal-head">
             <div>
-              <h3>{{ editingId() ? 'Edit staff account' : 'New staff account' }}</h3>
+              <h3>{{ editingId() ? ('Edit staff account' | t) : ('New staff account' | t) }}</h3>
               <p>
                 @if (editingId()) {
-                  Leave the password and PIN blank to keep the current credentials.
+                  {{ 'Leave the password and PIN blank to keep the current credentials.' | t }}
                 } @else {
-                  Share the temporary password with the new team member.
+                  {{ 'Share the temporary password with the new team member.' | t }}
                 }
               </p>
             </div>
@@ -205,11 +206,11 @@ interface UserDraft {
           <div class="modal-body">
             <div class="grid grid-2" style="gap: 12px">
               <div class="field">
-                <label class="label" for="user-name">Full name</label>
+                <label class="label" for="user-name">{{ 'Full name' | t }}</label>
                 <input id="user-name" class="input" [(ngModel)]="draft.name" />
               </div>
               <div class="field">
-                <label class="label" for="user-username">Username</label>
+                <label class="label" for="user-username">{{ 'Username' | t }}</label>
                 <input
                   id="user-username"
                   class="input"
@@ -220,11 +221,11 @@ interface UserDraft {
                 />
               </div>
               <div class="field">
-                <label class="label" for="user-phone">Phone (optional)</label>
+                <label class="label" for="user-phone">{{ 'Phone (optional)' | t }}</label>
                 <input id="user-phone" class="input" [(ngModel)]="draft.phone" inputmode="tel" />
               </div>
               <div class="field">
-                <label class="label" for="user-role">Role</label>
+                <label class="label" for="user-role">{{ 'Role' | t }}</label>
                 <select id="user-role" class="select" [ngModel]="draft.role" (ngModelChange)="setRole($event)">
                   @for (role of roleOptions; track role) {
                     <option [value]="role">{{ roleLabel(role) }}</option>
@@ -233,14 +234,13 @@ interface UserDraft {
               </div>
               @if (draft.role !== 'OWNER') {
                 <div class="field" style="grid-column: 1 / -1">
-                  <label class="label" for="user-shift">
-                    Default shift {{ draft.role === 'MANAGER' ? '(optional)' : '' }}
+                  <label class="label" for="user-shift"> {{ 'Default shift' | t }} {{ draft.role === 'MANAGER' ? ('(optional)' | t) : '' }}
                   </label>
                   <select id="user-shift" class="select" [(ngModel)]="draft.defaultShiftId">
                     @if (draft.role === 'MANAGER') {
-                      <option value="">Any time — no fixed shift</option>
+                      <option value="">{{ 'Any time — no fixed shift' | t }}</option>
                     } @else {
-                      <option value="" disabled>Select a shift</option>
+                      <option value="" disabled>{{ 'Select a shift' | t }}</option>
                     }
                     @for (shift of activeShifts(); track shift.id) {
                       <option [value]="shift.id">{{ shift.name }} · {{ shiftRange(shift.startMinutes, shift.endMinutes) }}</option>
@@ -248,34 +248,31 @@ interface UserDraft {
                   </select>
                   <p class="tiny muted" style="margin: 6px 0 0">
                     @if (draft.role === 'MANAGER') {
-                      Leave blank so this manager can sign in at any time. Assign a shift to restrict their sign-in window.
+                      {{ 'Leave blank so this manager can sign in at any time. Assign a shift to restrict their sign-in window.' | t }}
                     } @else {
-                      This staff member can only sign in within this shift window (15 minutes early to 60 minutes late).
+                      {{ 'This staff member can only sign in within this shift window (15 minutes early to 60 minutes late).' | t }}
                     }
                   </p>
                 </div>
               }
               <div class="field">
-                <label class="label" for="user-password">Password</label>
+                <label class="label" for="user-password">{{ 'Password' | t }}</label>
                 <input id="user-password" class="input" [(ngModel)]="draft.password" autocomplete="new-password" />
               </div>
               <div class="field">
-                <label class="label" for="user-pin">Device PIN (optional)</label>
+                <label class="label" for="user-pin">{{ 'Device PIN (optional)' | t }}</label>
                 <input id="user-pin" class="input" [(ngModel)]="draft.pin" maxlength="6" inputmode="numeric" autocomplete="off" />
               </div>
             </div>
-            <p class="tiny muted mt-3">
-              Staff sign in with their username and password. Waiters and kitchen staff can also use a
-              4-digit PIN on shared devices.
-            </p>
+            <p class="tiny muted mt-3"> {{ 'Staff sign in with their username and password. Waiters and kitchen staff can also use a 4-digit PIN on shared devices.' | t }} </p>
             @if (error()) {
               <div class="auth-error mt-3">{{ error() }}</div>
             }
           </div>
           <div class="modal-foot">
-            <button class="btn btn-ghost" type="button" (click)="modalOpen.set(false)">Cancel</button>
+            <button class="btn btn-ghost" type="button" (click)="modalOpen.set(false)">{{ 'Cancel' | t }}</button>
             <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="save()">
-              {{ busy() ? 'Saving…' : editingId() ? 'Save changes' : 'Create account' }}
+              {{ busy() ? ('Saving…' | t) : editingId() ? ('Save changes' | t) : ('Create account' | t) }}
             </button>
           </div>
         </div>
@@ -355,7 +352,7 @@ export class UsersPage {
   });
 
   protected roleLabel(role: Role): string {
-    return ROLE_LABEL[role];
+    return translate(ROLE_LABEL[role]);
   }
 
   protected openNew(): void {
@@ -398,38 +395,38 @@ export class UsersPage {
     const pin = this.draft.pin.trim();
 
     if (!name) {
-      this.error.set('Enter the staff member’s name.');
+      this.error.set(translate('Enter the staff member’s name.'));
       return;
     }
     if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
-      this.error.set('Use a username of 3–30 letters, numbers, dots, dashes or underscores.');
+      this.error.set(translate('Use a username of 3–30 letters, numbers, dots, dashes or underscores.'));
       return;
     }
     const duplicate = this.store
       .users()
       .some((u) => u.username.toLowerCase() === username && u.id !== this.editingId());
     if (duplicate) {
-      this.error.set('That username is already taken.');
+      this.error.set(translate('That username is already taken.'));
       return;
     }
     if (phone && phone.replace(/\D/g, '').length < 7) {
-      this.error.set('Enter a valid phone number, or leave it blank.');
+      this.error.set(translate('Enter a valid phone number, or leave it blank.'));
       return;
     }
     if (!this.editingId() && password.length < 6) {
-      this.error.set('Use a password of at least 6 characters.');
+      this.error.set(translate('Use a password of at least 6 characters.'));
       return;
     }
     if (password && password.length < 6) {
-      this.error.set('Use a password of at least 6 characters.');
+      this.error.set(translate('Use a password of at least 6 characters.'));
       return;
     }
     if (pin && !/^\d{4,6}$/.test(pin)) {
-      this.error.set('The PIN must be 4–6 digits.');
+      this.error.set(translate('The PIN must be 4–6 digits.'));
       return;
     }
     if (this.draft.role !== 'OWNER' && this.draft.role !== 'MANAGER' && !this.draft.defaultShiftId) {
-      this.error.set('Choose a default shift for this staff member.');
+      this.error.set(translate('Choose a default shift for this staff member.'));
       return;
     }
 
@@ -451,12 +448,12 @@ export class UsersPage {
       return;
     }
     this.modalOpen.set(false);
-    this.toast.show(this.editingId() ? 'Account updated' : 'Staff account created');
+    this.toast.show(this.editingId() ? translate('Account updated') : translate('Staff account created'));
   }
 
   protected async toggle(member: StaffUser): Promise<void> {
     if (member.role === 'OWNER' || member.id === this.currentUserId) {
-      this.toast.show('This account cannot be deactivated', 'error');
+      this.toast.show(translate('This account cannot be deactivated'), 'error');
       return;
     }
     const result = await this.store.toggleUserActive(member.id, !member.active);
@@ -464,7 +461,7 @@ export class UsersPage {
       this.toast.show(result.error, 'error');
       return;
     }
-    this.toast.show(member.active ? `${member.name} deactivated` : `${member.name} reactivated`);
+    this.toast.show(member.active ? translate('{name} deactivated', { name: member.name }) : translate('{name} reactivated', { name: member.name }));
   }
 
   private blank(): UserDraft {

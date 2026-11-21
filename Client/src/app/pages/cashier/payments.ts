@@ -1,4 +1,5 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { clock, dayKey, money, Payment } from '../../core/models';
@@ -9,57 +10,57 @@ import { Icon } from '../../shared/icon';
 
 @Component({
   selector: 'app-cashier-payments',
-  imports: [FormsModule, RouterLink, Icon, ConfirmDialog],
+  imports: [FormsModule, RouterLink, Icon, ConfirmDialog, TranslatePipe],
   template: `
     <div class="page">
       <div class="page-head">
         <div>
-          <div class="eyebrow">Cashier workspace</div>
-          <h1 class="page-title">Payments</h1>
-          <p class="page-sub">Every settlement, refund and transfer on one ledger.</p>
+          <div class="eyebrow">{{ 'Cashier workspace' | t }}</div>
+          <h1 class="page-title">{{ 'Payments' | t }}</h1>
+          <p class="page-sub">{{ 'Every settlement, refund and transfer on one ledger.' | t }}</p>
         </div>
         <div class="head-actions">
-          <a class="btn btn-secondary" routerLink="/cashier/bills"><app-icon name="bill" /> Open bills</a>
+          <a class="btn btn-secondary" routerLink="/cashier/bills"><app-icon name="bill" /> {{ 'Open bills' | t }}</a>
         </div>
       </div>
 
       <div class="grid grid-4" style="margin-bottom: 18px">
         <div class="stat-card">
           <div class="stat-icon"><app-icon name="card" /></div>
-          <div class="stat-label">Transactions</div>
+          <div class="stat-label">{{ 'Transactions' | t }}</div>
           <div class="stat-value">{{ stats().count }}</div>
-          <div class="stat-foot">In the current view</div>
+          <div class="stat-foot">{{ 'In the current view' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="check-circle" /></div>
-          <div class="stat-label">Settled</div>
-          <div class="stat-value">{{ money(stats().collected) }} <small>ETB</small></div>
-          <div class="stat-foot">Paid payments</div>
+          <div class="stat-label">{{ 'Settled' | t }}</div>
+          <div class="stat-value">{{ money(stats().collected) }} <small>{{ 'ETB' | t }}</small></div>
+          <div class="stat-foot">{{ 'Paid payments' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="cash" /></div>
-          <div class="stat-label">Tips collected</div>
-          <div class="stat-value">{{ money(stats().tips) }} <small>ETB</small></div>
-          <div class="stat-foot">Credited to waiters</div>
+          <div class="stat-label">{{ 'Tips collected' | t }}</div>
+          <div class="stat-value">{{ money(stats().tips) }} <small>{{ 'ETB' | t }}</small></div>
+          <div class="stat-foot">{{ 'Credited to waiters' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--red-soft); color: var(--red)"><app-icon name="retract" /></div>
-          <div class="stat-label">Refunded</div>
-          <div class="stat-value">{{ money(stats().refunded) }} <small>ETB</small></div>
-          <div class="stat-foot">Returned to guests</div>
+          <div class="stat-label">{{ 'Refunded' | t }}</div>
+          <div class="stat-value">{{ money(stats().refunded) }} <small>{{ 'ETB' | t }}</small></div>
+          <div class="stat-foot">{{ 'Returned to guests' | t }}</div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-head" style="flex-wrap: wrap; gap: 10px">
           <div class="seg">
-            <button type="button" [class.active]="scope() === 'today'" (click)="scope.set('today')">Today</button>
-            <button type="button" [class.active]="scope() === 'all'" (click)="scope.set('all')">All time</button>
+            <button type="button" [class.active]="scope() === 'today'" (click)="scope.set('today')">{{ 'Today' | t }}</button>
+            <button type="button" [class.active]="scope() === 'all'" (click)="scope.set('all')">{{ 'All time' | t }}</button>
           </div>
           <div class="chip-row">
             @for (option of methods; track option.value) {
               <button class="chip" type="button" [class.active]="method() === option.value" (click)="method.set(option.value)">
-                {{ option.label }}
+                {{ option.label | t }}
               </button>
             }
           </div>
@@ -78,13 +79,13 @@ import { Icon } from '../../shared/icon';
             <table class="table">
               <thead>
                 <tr>
-                  <th>Order</th>
-                  <th>Time</th>
-                  <th>Method</th>
-                  <th>Waiter</th>
-                  <th class="t-right">Amount</th>
-                  <th class="t-right">Tip</th>
-                  <th>Status</th>
+                  <th>{{ 'Order' | t }}</th>
+                  <th>{{ 'Time' | t }}</th>
+                  <th>{{ 'Method' | t }}</th>
+                  <th>{{ 'Waiter' | t }}</th>
+                  <th class="t-right">{{ 'Amount' | t }}</th>
+                  <th class="t-right">{{ 'Tip' | t }}</th>
+                  <th>{{ 'Status' | t }}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -93,7 +94,7 @@ import { Icon } from '../../shared/icon';
                   <tr>
                     <td>
                       @if (payment.billId) {
-                        <a class="strong" [routerLink]="['/cashier/bills', payment.billId]">{{ payment.billNumber || 'Bill' }}</a>
+                        <a class="strong" [routerLink]="['/cashier/bills', payment.billId]">{{ payment.billNumber || ('Bill' | t) }}</a>
                       } @else {
                         <span class="strong">{{ payment.billNumber || payment.orderNumber }}</span>
                       }
@@ -112,23 +113,21 @@ import { Icon } from '../../shared/icon';
                     <td>
                       <div class="row" style="gap: 4px; justify-content: flex-end">
                         @if (payment.billId && (payment.status === 'PAID' || payment.status === 'REFUNDED')) {
-                          <a class="btn btn-sm btn-ghost" [routerLink]="['/cashier/bills', payment.billId, 'receipt']" title="Receipt">
+                          <a class="btn btn-sm btn-ghost" [routerLink]="['/cashier/bills', payment.billId, 'receipt']" [title]="'Receipt' | t">
                             <app-icon name="printer" />
                           </a>
                         }
                         @if (payment.status === 'INITIATED') {
-                          <button class="btn btn-sm btn-secondary" type="button" (click)="retract(payment)">Retract</button>
+                          <button class="btn btn-sm btn-secondary" type="button" (click)="retract(payment)">{{ 'Retract' | t }}</button>
                         }
                         @if (payment.status === 'PAID') {
                           <button
                             class="btn btn-sm btn-danger"
                             type="button"
                             [disabled]="!canRefund(payment)"
-                            [title]="canRefund(payment) ? 'Refund this payment' : 'Refund only after the order is served'"
+                            [title]="(canRefund(payment) ? 'Refund this payment' : 'Refund only after the order is served') | t"
                             (click)="askRefund(payment)"
-                          >
-                            Refund
-                          </button>
+                          > {{ 'Refund' | t }} </button>
                         }
                       </div>
                     </td>
@@ -140,8 +139,8 @@ import { Icon } from '../../shared/icon';
         } @else {
           <div class="empty">
             <app-icon name="card" />
-            <strong>No payments found</strong>
-            <p>Adjust the filters or collect a payment from an open bill.</p>
+            <strong>{{ 'No payments found' | t }}</strong>
+            <p>{{ 'Adjust the filters or collect a payment from an open bill.' | t }}</p>
           </div>
         }
       </div>
@@ -149,9 +148,9 @@ import { Icon } from '../../shared/icon';
 
     @if (refundTarget(); as payment) {
       <app-confirm
-        title="Refund this payment?"
+        [title]="'Refund this payment?' | t"
         [message]="'Return ' + money(payment.total) + ' ETB for ' + (payment.billNumber || 'order #' + payment.orderNumber) + '. The payment is marked REFUNDED and removed from revenue.'"
-        confirmLabel="Refund payment"
+        [confirmLabel]="'Refund payment' | t"
         [danger]="true"
         (confirmed)="refund()"
         (closed)="refundTarget.set(null)"
@@ -165,6 +164,14 @@ export class CashierPaymentsPage implements OnInit {
 
   protected readonly money = money;
   protected readonly clock = clock;
+
+  protected refundMessage(payment: Payment): string {
+    return translate('Return {amount} ETB for {reference}. The payment is marked REFUNDED and removed from revenue.', {
+      amount: money(payment.total),
+      reference: payment.billNumber || translate('order #{number}', { number: payment.orderNumber }),
+    });
+  }
+
   protected readonly scope = signal<'today' | 'all'>('today');
   protected readonly method = signal<'ALL' | 'CASH' | 'QR_SCAN' | 'PHONE_PUSH'>('ALL');
   protected readonly query = signal('');
@@ -208,23 +215,23 @@ export class CashierPaymentsPage implements OnInit {
   });
 
   protected methodLabel(payment: Payment): string {
-    return payment.method === 'CASH' ? 'Cash' : payment.method === 'QR_SCAN' ? 'QR' : 'Phone';
+    return translate(payment.method === 'CASH' ? 'Cash' : payment.method === 'QR_SCAN' ? 'QR' : 'Phone');
   }
 
   protected statusLabel(payment: Payment): string {
     switch (payment.status) {
       case 'PAID':
-        return 'Paid';
+        return translate('Paid');
       case 'INITIATED':
-        return 'Pending';
+        return translate('Pending');
       case 'REFUNDED':
-        return 'Refunded';
+        return translate('Refunded');
       case 'TRANSFERRED':
-        return 'Transferred';
+        return translate('Transferred');
       case 'FAILED':
-        return 'Failed';
+        return translate('Failed');
       default:
-        return 'Retracted';
+        return translate('Retracted');
     }
   }
 
@@ -249,7 +256,7 @@ export class CashierPaymentsPage implements OnInit {
 
   protected askRefund(payment: Payment): void {
     if (!this.canRefund(payment)) {
-      this.toast.show('Refunds are only allowed after the order is served', 'error');
+      this.toast.show(translate('Refunds are only allowed after the order is served'), 'error');
       return;
     }
     this.refundTarget.set(payment);
@@ -261,12 +268,12 @@ export class CashierPaymentsPage implements OnInit {
     const result = await this.store.refundPayment(payment.id);
     this.refundTarget.set(null);
     if (!result.ok) this.toast.show(result.error, 'error');
-    else this.toast.show('Payment refunded');
+    else this.toast.show(translate('Payment refunded'));
   }
 
   protected async retract(payment: Payment): Promise<void> {
     const result = await this.store.retractPayment(payment.id);
     if (!result.ok) this.toast.show(result.error, 'error');
-    else this.toast.show('Payment request retracted', 'info');
+    else this.toast.show(translate('Payment request retracted'), 'info');
   }
 }

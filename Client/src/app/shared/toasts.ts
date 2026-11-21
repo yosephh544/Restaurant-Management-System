@@ -1,17 +1,18 @@
 import { Component, inject } from '@angular/core';
+import { TranslatePipe } from '../core/i18n';
 import { ToastService } from '../core/toast.service';
 import { Icon } from './icon';
 
 @Component({
   selector: 'app-toasts',
-  imports: [Icon],
+  imports: [Icon, TranslatePipe],
   template: `
     <div class="toast-wrap" aria-live="polite">
       @for (toast of toasts.toasts(); track toast.id) {
         <div class="toast" [class.toast-success]="toast.tone === 'success'" [class.toast-error]="toast.tone === 'error'">
           <app-icon [name]="toast.tone === 'success' ? 'check-circle' : toast.tone === 'error' ? 'alert-circle' : 'bell'" />
           <span>{{ toast.message }}</span>
-          <button type="button" class="toast-x" (click)="toasts.dismiss(toast.id)" aria-label="Dismiss">
+          <button type="button" class="toast-x" (click)="toasts.dismiss(toast.id)" [attr.aria-label]="'Dismiss' | t">
             <app-icon name="x" />
           </button>
         </div>

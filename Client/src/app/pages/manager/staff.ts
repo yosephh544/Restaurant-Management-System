@@ -1,26 +1,28 @@
 import { Component, computed, inject, signal } from '@angular/core';
+import { TranslatePipe } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { dayKey, initials, money, ROLE_LABEL, StaffUser } from '../../core/models';
+import { translate } from '../../core/i18n';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
 
 @Component({
   selector: 'app-staff',
-  imports: [FormsModule, RouterLink, Icon],
+  imports: [FormsModule, RouterLink, Icon, TranslatePipe],
   template: `
     <div class="page">
       <div class="page-head">
         <div>
-          <div class="eyebrow">Manager</div>
-          <h1 class="page-title">Staff</h1>
-          <p class="page-sub">Team status, tips and daily activity.</p>
+          <div class="eyebrow">{{ 'Manager' | t }}</div>
+          <h1 class="page-title">{{ 'Staff' | t }}</h1>
+          <p class="page-sub">{{ 'Team status, tips and daily activity.' | t }}</p>
         </div>
         <div class="head-actions">
           @if (isOwner()) {
-            <a class="btn btn-secondary" routerLink="/admin/users"><app-icon name="shield" /> Users &amp; roles</a>
+            <a class="btn btn-secondary" routerLink="/admin/users"><app-icon name="shield" /> {{ 'Users & roles' | t }}</a>
           }
           <div class="search">
             <app-icon name="search" />
@@ -32,50 +34,50 @@ import { Icon } from '../../shared/icon';
       <div class="grid grid-4" style="margin-bottom: 18px">
         <div class="stat-card">
           <div class="stat-icon"><app-icon name="users" /></div>
-          <div class="stat-label">Team size</div>
+          <div class="stat-label">{{ 'Team size' | t }}</div>
           <div class="stat-value">{{ stats().total }}</div>
-          <div class="stat-foot">{{ stats().active }} active accounts</div>
+          <div class="stat-foot">{{ stats().active }} {{ 'active accounts' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="user" /></div>
-          <div class="stat-label">On the floor</div>
+          <div class="stat-label">{{ 'On the floor' | t }}</div>
           <div class="stat-value">{{ stats().onFloor }}</div>
-          <div class="stat-foot">Waiters active today</div>
+          <div class="stat-foot">{{ 'Waiters active today' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--brand-soft); color: var(--brand-dark)"><app-icon name="cash" /></div>
-          <div class="stat-label">Tips today</div>
-          <div class="stat-value">{{ money(stats().tipsToday) }} <small>ETB</small></div>
-          <div class="stat-foot">{{ money(stats().unsettled) }} ETB unsettled</div>
+          <div class="stat-label">{{ 'Tips today' | t }}</div>
+          <div class="stat-value">{{ money(stats().tipsToday) }} <small>{{ 'ETB' | t }}</small></div>
+          <div class="stat-foot">{{ money(stats().unsettled) }} {{ 'ETB unsettled' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--amber-soft); color: var(--amber)"><app-icon name="clock" /></div>
-          <div class="stat-label">Orders today</div>
+          <div class="stat-label">{{ 'Orders today' | t }}</div>
           <div class="stat-value">{{ stats().ordersToday }}</div>
-          <div class="stat-foot">Opened by the team</div>
+          <div class="stat-foot">{{ 'Opened by the team' | t }}</div>
         </div>
       </div>
 
       <div class="card">
         <div class="card-head" style="flex-wrap: wrap">
           <div class="seg">
-            <button type="button" [class.active]="filter() === 'ALL'" (click)="filter.set('ALL')">All</button>
-            <button type="button" [class.active]="filter() === 'FLOOR'" (click)="filter.set('FLOOR')">Floor team</button>
-            <button type="button" [class.active]="filter() === 'INACTIVE'" (click)="filter.set('INACTIVE')">Inactive</button>
+            <button type="button" [class.active]="filter() === 'ALL'" (click)="filter.set('ALL')">{{ 'All' | t }}</button>
+            <button type="button" [class.active]="filter() === 'FLOOR'" (click)="filter.set('FLOOR')">{{ 'Floor team' | t }}</button>
+            <button type="button" [class.active]="filter() === 'INACTIVE'" (click)="filter.set('INACTIVE')">{{ 'Inactive' | t }}</button>
           </div>
-          <span class="tiny muted">Tip payouts settle every unsettled tip for a waiter</span>
+          <span class="tiny muted">{{ 'Tip payouts settle every unsettled tip for a waiter' | t }}</span>
         </div>
 
         <div class="table-wrap">
           <table class="table">
             <thead>
               <tr>
-                <th>Staff</th>
-                <th>Role</th>
-                <th>Username</th>
-                <th class="t-right">Orders today</th>
-                <th class="t-right">Tips</th>
-                <th>Status</th>
+                <th>{{ 'Staff' | t }}</th>
+                <th>{{ 'Role' | t }}</th>
+                <th>{{ 'Username' | t }}</th>
+                <th class="t-right">{{ 'Orders today' | t }}</th>
+                <th class="t-right">{{ 'Tips' | t }}</th>
+                <th>{{ 'Status' | t }}</th>
                 <th></th>
               </tr>
             </thead>
@@ -87,7 +89,7 @@ import { Icon } from '../../shared/icon';
                       <span class="avatar">{{ initials(member.name) }}</span>
                       <span>
                         <strong>{{ member.name }}</strong><br />
-                        <span class="tiny muted">{{ member.active ? 'Can sign in' : 'Sign-in blocked' }}</span>
+                        <span class="tiny muted">{{ member.active ? ('Can sign in' | t) : ('Sign-in blocked' | t) }}</span>
                       </span>
                     </span>
                   </td>
@@ -103,13 +105,13 @@ import { Icon } from '../../shared/icon';
                   </td>
                   <td>
                     <span [class]="'pill ' + (member.active ? 'pill-green' : 'pill-grey')">
-                      {{ member.active ? 'Active' : 'Inactive' }}
+                      {{ member.active ? ('Active' | t) : ('Inactive' | t) }}
                     </span>
                   </td>
                   <td>
                     <div class="row" style="gap: 4px; justify-content: flex-end">
                       @if (member.role === 'WAITER' && tipsFor(member.id) > 0) {
-                        <button class="btn btn-sm btn-secondary" type="button" (click)="payTips(member)">Pay tips</button>
+                        <button class="btn btn-sm btn-secondary" type="button" (click)="payTips(member)">{{ 'Pay tips' | t }}</button>
                       }
                       <button
                         class="btn btn-sm"
@@ -119,7 +121,7 @@ import { Icon } from '../../shared/icon';
                         [disabled]="member.role === 'OWNER' || member.id === currentUserId"
                         (click)="toggle(member)"
                       >
-                        {{ member.active ? 'Deactivate' : 'Activate' }}
+                        {{ member.active ? ('Deactivate' | t) : ('Activate' | t) }}
                       </button>
                     </div>
                   </td>
@@ -132,8 +134,8 @@ import { Icon } from '../../shared/icon';
         @if (!rows().length) {
           <div class="empty">
             <app-icon name="users" />
-            <strong>No staff match</strong>
-            <p>Try a different filter or search.</p>
+            <strong>{{ 'No staff match' | t }}</strong>
+            <p>{{ 'Try a different filter or search.' | t }}</p>
           </div>
         }
       </div>
@@ -179,7 +181,7 @@ export class StaffPage {
   });
 
   protected roleLabel(member: StaffUser): string {
-    return ROLE_LABEL[member.role];
+    return translate(ROLE_LABEL[member.role]);
   }
 
   protected ordersToday(member: StaffUser): number {
@@ -197,12 +199,12 @@ export class StaffPage {
       this.toast.show(result.error, 'error');
       return;
     }
-    this.toast.show(`Tips paid out to ${member.name}`);
+    this.toast.show(translate('Tips paid out to {name}', { name: member.name }));
   }
 
   protected async toggle(member: StaffUser): Promise<void> {
     if (member.role === 'OWNER' || member.id === this.currentUserId) {
-      this.toast.show('This account cannot be deactivated', 'error');
+      this.toast.show(translate('This account cannot be deactivated'), 'error');
       return;
     }
     const result = await this.store.toggleUserActive(member.id, !member.active);
@@ -210,6 +212,6 @@ export class StaffPage {
       this.toast.show(result.error, 'error');
       return;
     }
-    this.toast.show(member.active ? `${member.name} deactivated` : `${member.name} reactivated`);
+    this.toast.show(member.active ? translate('{name} deactivated', { name: member.name }) : translate('{name} reactivated', { name: member.name }));
   }
 }
