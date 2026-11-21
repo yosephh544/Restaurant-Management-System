@@ -84,7 +84,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
                     } @else if (item.status === 'PREPARED') {
                       <span class="pill pill-green no-dot">{{ 'Ready' | t }}</span>
                     } @else if (ticket.status !== 'PENDING') {
-                      <button class="btn btn-sm btn-secondary" type="button"
+                      <button class="btn btn-sm btn-primary" type="button"
                               [disabled]="itemBusy() === item.id"
                               (click)="readyItem(ticket, item)">
                         {{ itemBusy() === item.id ? ('Working…' | t) : ('Ready' | t) }}

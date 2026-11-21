@@ -135,7 +135,7 @@ import { PaySheet } from '../../shared/pay-sheet';
                         <div class="line-note">{{ line.notes }}</div>
                       }
                       @if (line.status === 'PREPARED') {
-                        <button class="btn btn-sm btn-secondary" type="button" style="margin-top: 6px"
+                        <button class="btn btn-sm btn-primary" type="button" style="margin-top: 6px"
                                 [disabled]="!!serving()" (click)="serveLine(line.id)">
                           <app-icon name="check" /> {{ serving() === line.id ? ('Working…' | t) : ('Serve' | t) }}
                         </button>

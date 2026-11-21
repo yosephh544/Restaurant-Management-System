@@ -76,7 +76,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
                   <div class="row" style="gap: 10px">
                     <span class="tiny muted">{{ item.status === 'CANCELLED' ? ('Removed' | t) : item.status === 'PREPARED' ? ('Prepared' | t) : isBar ? ('To prepare' | t) : ('To cook' | t) }}</span>
                     @if (item.status === 'ACTIVE' && t.status !== 'PENDING') {
-                      <button class="btn btn-sm btn-secondary" type="button"
+                      <button class="btn btn-sm btn-primary" type="button"
                               [disabled]="itemBusy() === item.id"
                               (click)="readyItem(item)">
                         {{ itemBusy() === item.id ? ('Working…' | t) : ('Ready' | t) }}

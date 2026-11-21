@@ -20,31 +20,7 @@ import { Icon } from '../../shared/icon';
         {{ i18n.lang() === 'en' ? 'አማርኛ' : ('English' | t) }}
       </button>
       <section class="auth-brand">
-        <div class="sidebar-brand">
-          <span class="brand-mark"><app-icon name="logo" /></span>
-          <span class="brand-text">
-            <strong>{{ 'Majete Corner' | t }}</strong>
-            <span>{{ 'Restaurant Management System' | t }}</span>
-          </span>
-        </div>
-
-        <div class="auth-hero">
-          <h1>{{ 'Run the floor,' | t }}<br /><em>{{ 'not the paperwork.' | t }}</em></h1>
-          <p> {{ 'One workspace for waiters, kitchen, cashier and management — orders, tickets, bills and payments stay in sync from the table to the till.' | t }} </p>
-          <div class="auth-points">
-            <div class="auth-point"><span class="tick"><app-icon name="check" /></span> {{ 'Send orders straight to the kitchen' | t }}</div>
-            <div class="auth-point"><span class="tick"><app-icon name="check" /></span> {{ 'Cash, QR and phone payments in one flow' | t }}</div>
-            <div class="auth-point"><span class="tick"><app-icon name="check" /></span> {{ 'Live issues, tips and daily reconciliation' | t }}</div>
-          </div>
-          <div class="auth-role-cards">
-            <div class="role-card"><strong><app-icon name="utensils" /> {{ 'Waiter' | t }}</strong><span>{{ 'Tables & orders' | t }}</span></div>
-            <div class="role-card"><strong><app-icon name="table" /> {{ 'Kitchen' | t }}</strong><span>{{ 'Tickets & prep' | t }}</span></div>
-            <div class="role-card"><strong><app-icon name="bill" /> {{ 'Cashier' | t }}</strong><span>{{ 'Bills & payments' | t }}</span></div>
-            <div class="role-card"><strong><app-icon name="chart" /> {{ 'Manager' | t }}</strong><span>{{ 'Reports & floor' | t }}</span></div>
-          </div>
-        </div>
-
-        <div class="auth-foot">{{ '© 2026 Majete Corner · Smart Operations. Exceptional Dining.' | t }}</div>
+        <img class="auth-logo" src="majete-logo.png" alt="Majete Corner" />
       </section>
 
       <section class="auth-panel">
