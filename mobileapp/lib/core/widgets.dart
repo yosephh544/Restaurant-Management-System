@@ -3,15 +3,17 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'models.dart';
 
+const restaurantName = 'Majete Corner';
+
 // Visual palette adapted from ui-ref; shared by all service screens.
 const ink = Color(0xFF23312A);
-const muted = Color(0xFF78837C);
+const muted = Color(0xFF5F6E64);
 const forest = Color(0xFF286044);
 const forestDark = Color(0xFF1D4C35);
 const mint = Color(0xFFE7F1E9);
-const cream = Color(0xFFFBFCF9);
-const lineColor = Color(0xFFE6E9E3);
-const amber = Color(0xFFA56414);
+const cream = Color(0xFFF3F5EF);
+const lineColor = Color(0xFFDDE5D9);
+const amber = Color(0xFF8D550D);
 const amberPale = Color(0xFFFFF1D8);
 const blue = Color(0xFF385E82);
 const bluePale = Color(0xFFEAF1F8);
@@ -50,7 +52,7 @@ ThemeData serviceTheme() => ThemeData(
               fontSize: 16, fontWeight: FontWeight.w700, letterSpacing: -.2),
           titleSmall: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
           bodyLarge: TextStyle(fontSize: 14, color: ink, height: 1.45),
-          bodyMedium: TextStyle(fontSize: 13, color: ink, height: 1.45),
+          bodyMedium: TextStyle(fontSize: 14, color: ink, height: 1.45),
           bodySmall: TextStyle(fontSize: 11, color: muted, height: 1.4),
           labelLarge: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
       appBarTheme: const AppBarTheme(
@@ -61,8 +63,9 @@ ThemeData serviceTheme() => ThemeData(
           centerTitle: false,
           titleTextStyle:
               TextStyle(color: ink, fontSize: 17, fontWeight: FontWeight.w800)),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
           elevation: 0,
+          surfaceTintColor: Colors.transparent,
           color: Colors.white,
           margin: EdgeInsets.zero,
           shape: RoundedRectangleBorder(
@@ -84,16 +87,20 @@ ThemeData serviceTheme() => ThemeData(
               borderSide: const BorderSide(color: lineColor)),
           focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(13),
-              borderSide: const BorderSide(color: forest, width: 1.5))),
+              borderSide: const BorderSide(color: forest, width: 2))),
       filledButtonTheme: FilledButtonThemeData(
           style: FilledButton.styleFrom(
-              minimumSize: const Size(48, 48),
+              minimumSize: const Size(48, 52),
+              textStyle:
+                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(13)))),
       outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
-              minimumSize: const Size(48, 48),
+              minimumSize: const Size(48, 52),
+              textStyle:
+                  const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
               foregroundColor: forestDark,
               backgroundColor: const Color(0xFFF5F9F5),
               side: const BorderSide(color: Color(0xFFDCE5DD)),
@@ -104,7 +111,7 @@ ThemeData serviceTheme() => ThemeData(
               side: const WidgetStatePropertyAll(BorderSide(color: lineColor)),
               shape: WidgetStatePropertyAll(RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(13))))),
-      dialogTheme: DialogTheme(
+      dialogTheme: DialogThemeData(
           backgroundColor: Colors.white,
           surfaceTintColor: Colors.transparent,
           shape:
@@ -116,30 +123,64 @@ ThemeData serviceTheme() => ThemeData(
               RoundedRectangleBorder(borderRadius: BorderRadius.circular(13))),
       navigationBarTheme: const NavigationBarThemeData(
           backgroundColor: Colors.white, indicatorColor: mint),
+      chipTheme: ChipThemeData(
+          backgroundColor: Colors.white,
+          selectedColor: forest,
+          checkmarkColor: Colors.white,
+          side: const BorderSide(color: lineColor),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          labelStyle:
+              const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
     );
+
+({Color color, Color background}) statusAppearance(String status) {
+  final c = code(status);
+  if (c.contains('CANCEL') || c == 'FAILED') {
+    return (color: red, background: redPale);
+  }
+  return switch (c) {
+    'PENDING' || 'NOTSUBMITTED' => (color: blue, background: bluePale),
+    'PREPARING' || 'PAYMENTINITIATED' || 'INITIATED' || 'REFUNDPENDING' => (
+        color: amber,
+        background: amberPale
+      ),
+    'READY' || 'PAID' || 'PAIDOUT' => (color: forestDark, background: mint),
+    'SERVED' => (color: forestDark, background: const Color(0xFFEAF0EB)),
+    _ => (color: muted, background: const Color(0xFFEEF1EB)),
+  };
+}
 
 class BrandMark extends StatelessWidget {
   final double size;
   const BrandMark({this.size = 36, super.key});
   @override
-  Widget build(BuildContext context) => Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-          color: forest, borderRadius: BorderRadius.circular(size * .3)),
-      child: Icon(Icons.restaurant, color: Colors.white, size: size * .52));
+  Widget build(BuildContext context) => ClipRRect(
+      borderRadius: BorderRadius.circular(size * .22),
+      child: Image.asset('assets/images/logo.jpg',
+          width: size,
+          height: size,
+          fit: BoxFit.contain,
+          semanticLabel: '$restaurantName logo'));
 }
 
 class Eyebrow extends StatelessWidget {
   final String text;
   const Eyebrow(this.text, {super.key});
   @override
-  Widget build(BuildContext context) => Text(text.toUpperCase(),
-      style: const TextStyle(
-          color: muted,
-          fontSize: 10,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.1));
+  Widget build(BuildContext context) => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const SizedBox(height: 10),
+          Text(text.toUpperCase(),
+              style: const TextStyle(
+                  color: muted,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.1)),
+        ],
+      );
 }
 
 class ScreenHeading extends StatelessWidget {
@@ -182,6 +223,30 @@ class ScreenHeading extends StatelessWidget {
   }
 }
 
+class RefreshHeading extends StatelessWidget {
+  final String eyebrow, title;
+  final Widget refreshControl;
+  const RefreshHeading(
+      {required this.eyebrow,
+      required this.title,
+      required this.refreshControl,
+      super.key});
+  @override
+  Widget build(BuildContext context) =>
+      Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        Eyebrow(eyebrow),
+        const SizedBox(height: 4),
+        Row(children: [
+          Expanded(
+              child: Text(title,
+                  style: Theme.of(context).textTheme.headlineSmall)),
+          const SizedBox(width: 12),
+          refreshControl,
+        ]),
+        const SizedBox(height: 16),
+      ]);
+}
+
 class SectionHeading extends StatelessWidget {
   final String title;
   final String? eyebrow, detail;
@@ -214,26 +279,24 @@ class ServiceStat extends StatelessWidget {
   const ServiceStat(this.label, this.value, this.hint,
       {this.accent = false, super.key});
   @override
-  Widget build(BuildContext context) => Container(
-      padding: const EdgeInsets.all(13),
-      decoration: BoxDecoration(
-          color: accent ? const Color(0xFFF0F7F1) : Colors.white,
-          border:
-              Border.all(color: accent ? const Color(0xFFDBE9DE) : lineColor),
-          borderRadius: BorderRadius.circular(16)),
+  Widget build(BuildContext context) => Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(
+              child: Text('$value',
+                  style: TextStyle(
+                      color: accent ? forestDark : ink,
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      height: 1))),
+        ]),
+        const SizedBox(height: 7),
         Text(label,
             style: const TextStyle(
-                color: muted, fontSize: 11, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 8),
-        Text('$value',
-            style: const TextStyle(
-                color: ink,
-                fontSize: 25,
-                fontWeight: FontWeight.w800,
-                height: 1)),
-        const SizedBox(height: 6),
-        Text(hint, style: const TextStyle(color: muted, fontSize: 10)),
+                color: ink, fontSize: 12, fontWeight: FontWeight.w700)),
+        const SizedBox(height: 3),
+        Text(hint, style: const TextStyle(color: muted, fontSize: 11)),
       ]));
 }
 
@@ -243,16 +306,27 @@ class StatRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) =>
       LayoutBuilder(builder: (context, constraints) {
-        final columns = constraints.maxWidth < 280 ||
-                MediaQuery.textScalerOf(context).scale(1) > 1.3
-            ? 1
-            : stats.length;
-        return Wrap(spacing: 10, runSpacing: 10, children: [
-          for (final stat in stats)
-            SizedBox(
-                width: (constraints.maxWidth - (columns - 1) * 10) / columns,
-                child: stat),
-        ]);
+        final narrow = constraints.maxWidth < 280 ||
+            MediaQuery.textScalerOf(context).scale(1) > 1.3;
+        return Container(
+            decoration: BoxDecoration(
+                color: Colors.white,
+                border: Border.all(color: lineColor),
+                borderRadius: BorderRadius.circular(10)),
+            child: narrow
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: stats)
+                : IntrinsicHeight(
+                    child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                        for (var i = 0; i < stats.length; i++) ...[
+                          if (i > 0)
+                            const VerticalDivider(width: 1, thickness: 1),
+                          Expanded(child: stats[i]),
+                        ],
+                      ])));
       });
 }
 
@@ -269,9 +343,17 @@ class OrderHeading extends StatelessWidget {
   Widget build(BuildContext context) {
     final copy =
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Eyebrow(number),
-      const SizedBox(height: 6),
-      Text('Table $table', style: Theme.of(context).textTheme.titleLarge),
+      Text(number,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: const TextStyle(
+              color: muted, fontSize: 11, fontWeight: FontWeight.w700)),
+      const SizedBox(height: 4),
+      Text('Table $table',
+          style: Theme.of(context)
+              .textTheme
+              .titleLarge
+              ?.copyWith(fontSize: 21, fontWeight: FontWeight.w800)),
     ]);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       LayoutBuilder(
@@ -311,7 +393,7 @@ class QuantityButton extends StatelessWidget {
       tooltip: tooltip,
       onPressed: onPressed,
       style: IconButton.styleFrom(
-          minimumSize: const Size(44, 44),
+          minimumSize: const Size(48, 48),
           foregroundColor: add ? forestDark : muted,
           backgroundColor: add ? mint : Colors.white,
           side: const BorderSide(color: lineColor),
@@ -325,26 +407,17 @@ class StatusBadge extends StatelessWidget {
   const StatusBadge(this.status, {super.key});
   @override
   Widget build(BuildContext context) {
-    final c = code(status);
-    final (color, background) = c.contains('CANCEL') || c == 'FAILED'
-        ? (red, redPale)
-        : switch (c) {
-            'PENDING' || 'NOTSUBMITTED' => (blue, bluePale),
-            'PREPARING' ||
-            'PAYMENTINITIATED' ||
-            'INITIATED' ||
-            'REFUNDPENDING' =>
-              (amber, amberPale),
-            'READY' || 'PAID' || 'PAIDOUT' => (forestDark, mint),
-            _ => (const Color(0xFF5F6C62), const Color(0xFFEEF0ED)),
-          };
+    final appearance = statusAppearance(status);
     return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
         decoration: BoxDecoration(
-            color: background, borderRadius: BorderRadius.circular(99)),
+            color: appearance.background,
+            borderRadius: BorderRadius.circular(10)),
         child: Text(statusLabel(status),
             style: TextStyle(
-                color: color, fontWeight: FontWeight.w700, fontSize: 11)));
+                color: appearance.color,
+                fontWeight: FontWeight.w700,
+                fontSize: 12)));
   }
 }
 
@@ -454,12 +527,14 @@ class PageButtons extends StatelessWidget {
 class AsyncPane<T> extends StatefulWidget {
   final Future<T> Function() load;
   final Widget Function(T, VoidCallback) builder;
+  final Widget Function(Widget refreshControl)? headerBuilder;
   final Duration? interval;
   final Object? loadKey;
   final bool Function(T)? keepPolling;
   const AsyncPane(
       {required this.load,
       required this.builder,
+      this.headerBuilder,
       this.interval,
       this.loadKey,
       this.keepPolling,
@@ -560,6 +635,52 @@ class _AsyncPaneState<T> extends State<AsyncPane<T>>
 
   @override
   Widget build(BuildContext context) {
+    final label = widget.interval != null &&
+            (_data == null || widget.keepPolling?.call(_data as T) != false)
+        ? 'Auto refresh'
+        : 'Updated';
+    final refreshText = widget.headerBuilder == null
+        ? Text(
+            '$label${_updated == null ? '' : ' · ${DateFormat.Hm().format(_updated!)}'}',
+            style: const TextStyle(color: muted, fontSize: 12))
+        : Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+                Text(label,
+                    style: const TextStyle(
+                        color: forestDark,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700)),
+                if (_updated != null)
+                  Text(DateFormat.Hm().format(_updated!),
+                      style: const TextStyle(color: muted, fontSize: 10)),
+              ]);
+    final refreshControl = Row(
+        mainAxisSize:
+            widget.headerBuilder == null ? MainAxisSize.max : MainAxisSize.min,
+        children: [
+          if (widget.headerBuilder == null)
+            Expanded(child: refreshText)
+          else
+            refreshText,
+          IconButton(
+              tooltip: 'Refresh',
+              style: IconButton.styleFrom(
+                  foregroundColor: forest, backgroundColor: mint),
+              onPressed: _busy ? null : () => unawaited(_load()),
+              icon: const Icon(Icons.refresh, size: 18)),
+        ]);
+    final content = _buildContent(refreshControl);
+    return widget.headerBuilder == null
+        ? content
+        : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+            widget.headerBuilder!(refreshControl),
+            content,
+          ]);
+  }
+
+  Widget _buildContent(Widget refreshControl) {
     if (_data == null) {
       if (_error != null) {
         return EmptyState('Unable to load', '$_error',
@@ -579,20 +700,7 @@ class _AsyncPaneState<T> extends State<AsyncPane<T>>
         Notice(
             'Last updated ${_updated == null ? 'earlier' : DateFormat.Hm().format(_updated!)}. $_error',
             error: true),
-      Padding(
-          padding: const EdgeInsets.symmetric(vertical: 6),
-          child: Row(children: [
-            const Icon(Icons.sync, size: 14, color: forest),
-            const SizedBox(width: 6),
-            Expanded(
-                child: Text(
-                    '${widget.interval != null && widget.keepPolling?.call(_data as T) != false ? 'Auto refresh' : 'Updated'}${_updated == null ? '' : ' · ${DateFormat.Hm().format(_updated!)}'}',
-                    style: const TextStyle(color: muted, fontSize: 11))),
-            IconButton(
-                tooltip: 'Refresh',
-                onPressed: _busy ? null : () => unawaited(_load()),
-                icon: const Icon(Icons.refresh, size: 18)),
-          ])),
+      if (widget.headerBuilder == null) refreshControl,
       widget.builder(_data as T, () => unawaited(_load())),
     ]);
   }
@@ -604,7 +712,7 @@ class ScreenBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) => SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(
-          16, 20, 16, 24 + MediaQuery.viewInsetsOf(context).bottom),
+          16, 5, 16, 24 + MediaQuery.viewInsetsOf(context).bottom),
       child: Center(
           child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 960), child: child)));

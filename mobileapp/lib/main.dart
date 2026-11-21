@@ -44,7 +44,7 @@ class _RmsAppState extends ConsumerState<RmsApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) => MaterialApp.router(
-      title: 'RMS Service',
+      title: restaurantName,
       debugShowCheckedModeBanner: false,
       theme: serviceTheme(),
       routerConfig: ref.watch(routerProvider));

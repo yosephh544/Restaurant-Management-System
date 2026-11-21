@@ -59,6 +59,26 @@ class RouterRefresh extends ChangeNotifier {
   void changed() => notifyListeners();
 }
 
+// Paint the entire route, including loading states, while it slides over the
+// stationary tab page. Fading transparent content would blend both pages' text.
+CustomTransitionPage<void> _detailPage(
+        BuildContext context, GoRouterState state, Widget child) =>
+    CustomTransitionPage<void>(
+        key: state.pageKey,
+        transitionDuration: const Duration(milliseconds: 220),
+        reverseTransitionDuration: const Duration(milliseconds: 180),
+        child: ColoredBox(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: SizedBox.expand(child: child)),
+        transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+            ClipRect(
+                child: SlideTransition(
+                    position: Tween<Offset>(
+                            begin: const Offset(1, 0), end: Offset.zero)
+                        .chain(CurveTween(curve: Curves.easeOutCubic))
+                        .animate(animation),
+                    child: child)));
+
 final routerProvider = Provider<GoRouter>((ref) {
   final refresh = RouterRefresh();
   ref.listen(sessionProvider, (previous, next) {
@@ -95,29 +115,42 @@ final routerProvider = Provider<GoRouter>((ref) {
                       key: state.pageKey, child: const OrdersPage()),
                   routes: [
                     GoRoute(
-                        path: 'new',
-                        builder: (_, s) => CartPage(
-                            key: ValueKey(s.uri.toString()),
-                            itemId: s.uri.queryParameters['item'])),
+                      path: 'new',
+                      pageBuilder: (context, s) => _detailPage(
+                          context,
+                          s,
+                          CartPage(
+                              key: ValueKey(s.uri.toString()),
+                              itemId: s.uri.queryParameters['item'])),
+                    ),
                     GoRoute(
                         path: ':id',
-                        builder: (_, s) => OrderDetailPage(
-                            key: ValueKey(s.pathParameters['id']),
-                            id: s.pathParameters['id']!),
+                        pageBuilder: (context, s) => _detailPage(
+                            context,
+                            s,
+                            OrderDetailPage(
+                                key: ValueKey(s.pathParameters['id']),
+                                id: s.pathParameters['id']!)),
                         routes: [
                           GoRoute(
                               path: 'add',
-                              builder: (_, s) => CartPage(
-                                  key:
-                                      ValueKey('add/${s.pathParameters['id']}'),
-                                  orderId: s.pathParameters['id']!)),
+                              pageBuilder: (context, s) => _detailPage(
+                                  context,
+                                  s,
+                                  CartPage(
+                                      key: ValueKey(
+                                          'add/${s.pathParameters['id']}'),
+                                      orderId: s.pathParameters['id']!))),
                           GoRoute(
                               path: 'replace',
-                              builder: (_, s) => CartPage(
-                                  key: ValueKey(
-                                      'replace/${s.pathParameters['id']}'),
-                                  orderId: s.pathParameters['id']!,
-                                  replacement: true)),
+                              pageBuilder: (context, s) => _detailPage(
+                                  context,
+                                  s,
+                                  CartPage(
+                                      key: ValueKey(
+                                          'replace/${s.pathParameters['id']}'),
+                                      orderId: s.pathParameters['id']!,
+                                      replacement: true))),
                         ]),
                   ]),
               GoRoute(
@@ -138,9 +171,12 @@ final routerProvider = Provider<GoRouter>((ref) {
                           : const SessionsPage())),
               GoRoute(
                   path: '/sessions/:id',
-                  builder: (_, s) => PaymentPage(
-                      key: ValueKey(s.pathParameters['id']),
-                      id: s.pathParameters['id']!)),
+                  pageBuilder: (context, s) => _detailPage(
+                      context,
+                      s,
+                      PaymentPage(
+                          key: ValueKey(s.pathParameters['id']),
+                          id: s.pathParameters['id']!))),
               GoRoute(
                   path: '/profile',
                   pageBuilder: (_, state) => NoTransitionPage(
@@ -166,7 +202,8 @@ class ServiceShell extends ConsumerWidget {
   const ServiceShell({required this.path, required this.child, super.key});
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final staff = ref.watch(sessionProvider).session?.staff;
+    final session = ref.watch(sessionProvider);
+    final staff = session.session?.staff;
     if (staff == null) return const SizedBox.shrink();
     final destinations = destinationsFor(staff);
     final found = destinations
@@ -192,49 +229,51 @@ class ServiceShell extends ConsumerWidget {
     final wide = MediaQuery.sizeOf(context).width >= 600;
     return Scaffold(
         appBar: AppBar(
-            leading: root
-                ? const Center(child: BrandMark())
-                : IconButton(
-                    tooltip: 'Back',
-                    icon: const Icon(Icons.arrow_back),
-                    onPressed: () {
-                      if (context.canPop()) {
-                        context.pop();
-                      } else {
-                        context.go(homeFor(staff));
-                      }
-                    }),
-            titleSpacing: 0,
-            title:
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(root ? 'RMS Service' : title),
-              if (root)
-                const Text('Restaurant operations',
-                    style: TextStyle(color: muted, fontSize: 10)),
-            ]),
-            bottom: const PreferredSize(
-                preferredSize: Size.fromHeight(1), child: Divider(height: 1)),
-            actions: [
-              if (MediaQuery.sizeOf(context).width >= 360)
-                Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: Text(statusLabel(staff.role),
-                        style: const TextStyle(
-                            color: forest,
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600))),
-              IconButton(
-                  tooltip: 'Profile',
-                  onPressed: () {
-                    if (path != '/profile') context.go('/profile');
-                  },
-                  style: IconButton.styleFrom(
-                      side: const BorderSide(color: lineColor),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(13))),
-                  icon: const Icon(Icons.person_outline, size: 20)),
-              const SizedBox(width: 8),
-            ]),
+          toolbarHeight: 72,
+          leading: root
+              ? const Center(child: BrandMark(size: 42))
+              : IconButton(
+                  tooltip: 'Back',
+                  icon: const Icon(Icons.arrow_back),
+                  onPressed: () async {
+                    if (context.canPop()) {
+                      await GoRouter.of(context).routerDelegate.popRoute();
+                    } else {
+                      context.go(homeFor(staff));
+                    }
+                  }),
+          titleSpacing: 0,
+          title:
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              root ? restaurantName : title,
+              style: TextStyle(fontSize: 20),
+            ),
+          ]),
+          bottom: const PreferredSize(
+              preferredSize: Size.fromHeight(1), child: Divider(height: 1)),
+          actions: [
+            if (MediaQuery.sizeOf(context).width >= 360)
+              Padding(
+                  padding: const EdgeInsets.only(right: 6),
+                  child: Text(statusLabel(staff.role),
+                      style: const TextStyle(
+                          color: muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600))),
+            IconButton(
+                tooltip: 'Profile',
+                onPressed: () {
+                  if (path != '/profile') context.go('/profile');
+                },
+                style: IconButton.styleFrom(
+                    side: const BorderSide(color: lineColor),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13))),
+                icon: const Icon(Icons.person_outline, size: 20)),
+            const SizedBox(width: 10),
+          ],
+        ),
         body: SafeArea(
             child:
                 Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -263,6 +302,16 @@ class ServiceShell extends ConsumerWidget {
                 ]),
           Expanded(child: child),
         ])),
+        floatingActionButton: path == '/orders' && staff.canCreateOrders
+            ? FloatingActionButton.extended(
+                onPressed: () => context.go('/orders/new'),
+                backgroundColor: forest,
+                foregroundColor: Colors.white,
+                elevation: 3,
+                icon: const Icon(Icons.add),
+                label: const Text('New order'))
+            : null,
+        floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         bottomNavigationBar: wide
             ? null
             : Container(
@@ -291,7 +340,7 @@ class ServiceShell extends ConsumerWidget {
                                         button: true,
                                         child: Material(
                                             color: i == selected
-                                                ? const Color(0xFFEDF4EE)
+                                                ? mint
                                                 : Colors.transparent,
                                             borderRadius:
                                                 BorderRadius.circular(12),
@@ -326,7 +375,7 @@ class ServiceShell extends ConsumerWidget {
                                                                   TextAlign
                                                                       .center,
                                                               style: TextStyle(
-                                                                  fontSize: 11,
+                                                                  fontSize: 12,
                                                                   fontWeight:
                                                                       FontWeight
                                                                           .w700,

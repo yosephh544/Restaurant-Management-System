@@ -50,12 +50,19 @@ class Staff {
       role: j['role'] as String,
       active: j['isActive'] == true,
       permissions: List<String>.from(j['permissions'] as List? ?? []));
-  bool can(String permission) => active && permissions.contains(permission);
-  bool get canCreateOrders =>
-      !cashier && can(P.ordersCreate) && can(P.menuView);
+  bool can(String permission) =>
+      active &&
+      permissions.contains(permission) &&
+      (!P.waiterActions.contains(permission) || waiter);
+  bool get canCreateOrders => waiter && can(P.ordersCreate) && can(P.menuView);
   bool get canReplaceOrders =>
-      !cashier && can(P.ordersReorder) && can(P.menuView);
+      waiter && can(P.ordersReorder) && can(P.menuView);
   bool get canAddItems => waiter && can(P.ordersAdd) && can(P.menuView);
+  bool canServeOrder(RestaurantOrder order) =>
+      waiter &&
+      can(P.ordersServe) &&
+      ownsOrOversees(order) &&
+      code(order.status) == 'READY';
   bool ownsOrOversees(RestaurantOrder order) => !waiter || order.waiterId == id;
   bool canTakePayment(RestaurantOrder order) =>
       can(P.paymentsInitiate) &&
@@ -243,6 +250,7 @@ class RestaurantOrder {
         local.month == now.month &&
         local.day == now.day;
   }
+
   bool get pendingPayment => code(paymentStatus) == 'PAYMENTINITIATED';
   bool get cancelled => code(status) == 'CANCELLEDBYKITCHEN';
   bool get hasCancelledItems => items.any((i) => i.cancelled);

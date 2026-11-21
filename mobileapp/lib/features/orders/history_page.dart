@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:intl/intl.dart';
 import '../../core/models.dart';
 import '../../core/permissions.dart';
 import '../../core/session.dart';
@@ -48,75 +49,75 @@ class _PaidOrdersPageState extends ConsumerState<PaidOrdersPage> {
         !staff.can(P.ordersView)) {
       return const SizedBox.shrink();
     }
-    return ScreenBody(
-        child:
-            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      ScreenHeading(
-          eyebrow: 'Today · ${staff.role}',
-          title: staff.waiter ? 'Your payments' : 'Payment history',
-          subtitle: staff.waiter
-              ? 'Paid orders from your tables today.'
-              : 'Today’s paid orders across the restaurant.'),
-      const SizedBox(height: 20),
-      if (!staff.waiter) ...[
-        TextField(
-            decoration: const InputDecoration(
-                hintText: 'Search paid orders', prefixIcon: Icon(Icons.search)),
-            onChanged: (value) {
-              _debounce?.cancel();
-              _debounce = Timer(const Duration(milliseconds: 350), () {
-                if (mounted) {
-                  setState(() {
-                    _search = value.trim();
-                    _page = 1;
-                  });
-                }
+    final search = TextField(
+        decoration: const InputDecoration(
+            hintText: 'Search paid orders', prefixIcon: Icon(Icons.search)),
+        onChanged: (value) {
+          _debounce?.cancel();
+          _debounce = Timer(const Duration(milliseconds: 350), () {
+            if (mounted) {
+              setState(() {
+                _search = value.trim();
+                _page = 1;
               });
-            }),
-        const SizedBox(height: 12),
-      ],
-      AsyncPane<PageData<RestaurantOrder>>(
-          loadKey: '$_page/$_search/${staff.id}/${staff.role}',
-          interval: const Duration(seconds: 5),
-          load: () => _load(staff),
-          builder: (data, refresh) {
-            final orders = data.items
-                .where((order) =>
-                    order.paid &&
-                    order.createdToday &&
-                    (!staff.waiter || order.waiterId == staff.id))
-                .toList();
-            return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SectionHeading('Paid orders',
-                      eyebrow: 'Completed',
-                      detail:
-                          '${data.totalCount} ${data.totalCount == 1 ? 'order' : 'orders'}'),
-                  if (orders.isEmpty)
-                    EmptyState(
-                        'No paid orders',
-                        staff.waiter
-                            ? 'Completed payments will appear here.'
-                            : 'Completed payments will appear here. Try another search if needed.',
-                        icon: staff.waiter
-                            ? Icons.payments_outlined
-                            : Icons.history),
-                  for (final order in orders)
-                    Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: OrderCard(
-                            order: order,
-                            showAmount: true,
-                            showWaiter: staff.cashier,
-                            onTap: () => context.push('/orders/${order.id}'))),
-                  PageButtons(
-                      page: data.page,
-                      pages: data.totalPages,
-                      total: data.totalCount,
-                      onPage: (page) => setState(() => _page = page)),
-                ]);
-          }),
-    ]));
+            }
+          });
+        });
+    return ScreenBody(
+        child: AsyncPane<PageData<RestaurantOrder>>(
+            headerBuilder: (refreshControl) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      RefreshHeading(
+                          eyebrow:
+                              '${DateFormat('EEEE').format(DateTime.now())} service',
+                          title: staff.waiter
+                              ? 'Your payments'
+                              : 'Payment history',
+                          refreshControl: refreshControl),
+                      if (!staff.waiter) ...[
+                        search,
+                        const SizedBox(height: 16)
+                      ],
+                    ]),
+            loadKey: '$_page/$_search/${staff.id}/${staff.role}',
+            interval: const Duration(seconds: 5),
+            load: () => _load(staff),
+            builder: (data, refresh) {
+              final orders = data.items
+                  .where((order) =>
+                      order.paid &&
+                      order.createdToday &&
+                      (!staff.waiter || order.waiterId == staff.id))
+                  .toList();
+              return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const SectionHeading('Paid orders'),
+                    if (orders.isEmpty)
+                      EmptyState(
+                          'No paid orders',
+                          staff.waiter
+                              ? 'Completed payments will appear here.'
+                              : 'Completed payments will appear here. Try another search if needed.',
+                          icon: staff.waiter
+                              ? Icons.payments_outlined
+                              : Icons.history),
+                    for (final order in orders)
+                      Padding(
+                          padding: const EdgeInsets.only(bottom: 12),
+                          child: OrderCard(
+                              order: order,
+                              showAmount: true,
+                              showWaiter: staff.cashier,
+                              onTap: () =>
+                                  context.push('/orders/${order.id}'))),
+                    PageButtons(
+                        page: data.page,
+                        pages: data.totalPages,
+                        total: data.totalCount,
+                        onPage: (page) => setState(() => _page = page)),
+                  ]);
+            }));
   }
 }

@@ -34,6 +34,7 @@ Future<void> startPayment(
   bool busy = false, uncertain = false;
   final api = ref.read(restaurantApiProvider);
   final workspace = ref.read(sessionProvider.notifier).workspace!;
+  final offline = ref.read(sessionProvider).isDemo;
   final id = await showDialog<String>(
       context: context,
       barrierDismissible: false,
@@ -55,7 +56,7 @@ Future<void> startPayment(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
                                     children: [
-                                      if (!cash)
+                                      if (!cash && !offline)
                                         const Notice(testPaymentNotice),
                                       Text(
                                           '${order.orderNumber} · Table ${order.table}'),
@@ -64,17 +65,20 @@ Future<void> startPayment(
                                           value: method,
                                           decoration: const InputDecoration(
                                               labelText: 'Payment method'),
-                                          items: const [
-                                            DropdownMenuItem(
+                                          items: [
+                                            const DropdownMenuItem(
                                                 value: 'CASH',
                                                 child: Text('Cash')),
                                             DropdownMenuItem(
                                                 value: 'PHONE_PUSH',
-                                                child: Text(
-                                                    'Phone request (test)')),
+                                                child: Text(offline
+                                                    ? 'Phone request'
+                                                    : 'Phone request (test)')),
                                             DropdownMenuItem(
                                                 value: 'QR_SCAN',
-                                                child: Text('QR code (test)')),
+                                                child: Text(offline
+                                                    ? 'QR code'
+                                                    : 'QR code (test)')),
                                           ],
                                           onChanged: busy
                                               ? null
@@ -207,8 +211,12 @@ Future<void> startPayment(
                               : cash
                                   ? 'Accept cash'
                                   : method == 'QR_SCAN'
-                                      ? 'Show test QR'
-                                      : 'Start test payment')),
+                                      ? (offline
+                                          ? 'Show QR code'
+                                          : 'Show test QR')
+                                      : (offline
+                                          ? 'Start payment'
+                                          : 'Start test payment'))),
                     ]));
           }));
   if (id != null && context.mounted) context.go('/sessions/$id');
@@ -252,7 +260,7 @@ class SessionsPage extends ConsumerWidget {
                                         style: const TextStyle(
                                             fontWeight: FontWeight.bold)),
                                     subtitle: Text(
-                                        '${session.methodLabel}${session.cash ? '' : ' · test'} · ${money(session.total)}\n${statusLabel(session.status)} · ${DateFormat('MMM d, HH:mm').format(session.created.toLocal())}'),
+                                        '${session.methodLabel}${session.cash || ref.watch(sessionProvider).isDemo ? '' : ' · test'} · ${money(session.total)}\n${statusLabel(session.status)} · ${DateFormat('MMM d, HH:mm').format(session.created.toLocal())}'),
                                     isThreeLine: true,
                                     trailing: const Icon(Icons.chevron_right),
                                     onTap: () => context
@@ -331,11 +339,14 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
               ])) ??
       false;
   Future<void> _refund(PaymentSession payment, VoidCallback refresh) async {
+    final offline = ref.read(sessionProvider).isDemo;
     if (!await _confirm(
         'Record refund?',
-        payment.cash
-            ? 'Return the cash to the customer before confirming.'
-            : 'Record a test refund? No money will be returned.',
+        offline
+            ? 'Record this refund?'
+            : payment.cash
+                ? 'Return the cash to the customer before confirming.'
+                : 'Record a test refund? No money will be returned.',
         'Record refund')) return;
     if (!mounted) return;
     await _run(() async {
@@ -384,14 +395,17 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
           keepPolling: (d) => d.payment.pending,
           builder: (detail, refresh) {
             final payment = detail.payment;
-            final staff = ref.watch(sessionProvider).session?.staff;
+            final state = ref.watch(sessionProvider);
+            final staff = state.session?.staff;
+            final offline = state.isDemo;
             if (staff == null) return const SizedBox.shrink();
             final canManage = staff.can(P.paymentsRetract);
             final settledServed = payment.paid && detail.order?.served == true;
             return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (!payment.cash) const Notice(testPaymentNotice),
+                  if (!payment.cash && !offline)
+                    const Notice(testPaymentNotice),
                   const SizedBox(height: 12),
                   Card(
                       child: Padding(
@@ -426,7 +440,10 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                                 if (code(payment.method) == 'QRSCAN' &&
                                     payment.qrData != null) ...[
                                   const SizedBox(height: 24),
-                                  const Text('Test QR · No money collected',
+                                  Text(
+                                      offline
+                                          ? 'QR code'
+                                          : 'Test QR · No money collected',
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                           fontWeight: FontWeight.w800,
@@ -436,8 +453,9 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                                           data: payment.qrData!,
                                           size: 240,
                                           backgroundColor: Colors.white,
-                                          semanticsLabel:
-                                              'Test QR code. Does not collect money.')),
+                                          semanticsLabel: offline
+                                              ? 'Payment QR code'
+                                              : 'Test QR code. Does not collect money.')),
                                 ],
                               ]))),
                   const SizedBox(height: 16),
@@ -480,8 +498,12 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                             ? null
                             : () async {
                                 if (!await _confirm(
-                                    'Cancel test payment?',
-                                    'Cancel this pending test payment?',
+                                    offline
+                                        ? 'Cancel payment?'
+                                        : 'Cancel test payment?',
+                                    offline
+                                        ? 'Cancel this pending payment?'
+                                        : 'Cancel this pending test payment?',
                                     'Cancel payment')) return;
                                 if (!mounted) return;
                                 await _run(() async {
@@ -495,7 +517,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                                 }, refresh);
                               },
                         icon: const Icon(Icons.cancel_outlined),
-                        label: const Text('Cancel test payment'))
+                        label: Text(
+                            offline ? 'Cancel payment' : 'Cancel test payment'))
                   ],
                   if (canManage && settledServed) ...[
                     const SizedBox(height: 12),

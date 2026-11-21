@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
+import 'demo.dart';
 import 'models.dart';
 
 abstract class Vault {
@@ -24,6 +25,17 @@ class SecureVault implements Vault {
       storage.write(key: key, value: value);
   @override
   Future<void> delete(String key) => storage.delete(key: key);
+}
+
+// Demo drafts and payments never enter the device's real secure storage.
+class _DemoVault implements Vault {
+  final Map<String, String> values = {};
+  @override
+  Future<String?> read(String key) async => values[key];
+  @override
+  Future<void> write(String key, String value) async => values[key] = value;
+  @override
+  Future<void> delete(String key) async => values.remove(key);
 }
 
 class LocalWorkspace {
@@ -98,7 +110,8 @@ class LocalWorkspace {
 class SessionState {
   final Session? session;
   final bool ready;
-  const SessionState({this.session, this.ready = false});
+  final bool isDemo;
+  const SessionState({this.session, this.ready = false, this.isDemo = false});
 }
 
 final preferencesProvider = Provider<SharedPreferences>(
@@ -127,6 +140,9 @@ class SessionController extends StateNotifier<SessionState> {
   LocalWorkspace? workspace;
   int _generation = 0;
   bool _signingOut = false;
+  DemoRestaurant? _demo;
+  _DemoVault? _demoVault;
+  HttpClientAdapter? _liveAdapter;
   SessionController(this.api, this.vault, this.preferences)
       : super(const SessionState()) {
     api.token = () => state.session?.accessToken;
@@ -137,21 +153,61 @@ class SessionController extends StateNotifier<SessionState> {
   Future<void> _accept(Session value, {bool persist = true}) async {
     if (!mounted || _signingOut) return;
     final generation = _generation;
-    if (persist) {
+    if (persist && _demo == null) {
       final write = _authWrites.then((_) => vault.write(
           'session', jsonEncode({'server': server, ...value.toJson()})));
       _authWrites = write.catchError((Object _) {});
       await write;
     }
     if (!mounted || _signingOut || generation != _generation) return;
-    workspace ??= LocalWorkspace(vault, server, value.staff.id);
-    state = SessionState(session: value, ready: true);
+    workspace ??= LocalWorkspace(_demoVault ?? vault,
+        _demo == null ? server : 'offline-demo', value.staff.id);
+    state = SessionState(session: value, ready: true, isDemo: _demo != null);
+  }
+
+  Future<void> startDemo(String role) async {
+    if (_signingOut || state.session != null) {
+      throw const ApiException('Sign out before changing accounts.');
+    }
+    final demo = DemoRestaurant();
+    final value = demo.session(role);
+    _generation++;
+    _liveAdapter = api.dio.httpClientAdapter;
+    _demo = demo;
+    _demoVault = _DemoVault();
+    api.dio.httpClientAdapter = demo;
+    await _accept(value, persist: false);
+    await _saveDemoPayments(value.staff);
+  }
+
+  Future<void> switchDemoRole(String role) async {
+    final demo = _demo;
+    if (demo == null || _signingOut) {
+      throw const ApiException('Choose a role to continue.');
+    }
+    final value = demo.session(role);
+    if (state.session?.staff.id == value.staff.id) return;
+    _generation++;
+    workspace?.active = false;
+    workspace = null;
+    await _accept(value, persist: false);
+    await _saveDemoPayments(value.staff);
+  }
+
+  Future<void> _saveDemoPayments(Staff staff) async {
+    if (staff.kitchen) return;
+    final local = workspace!;
+    for (final payment in _demo!.paymentsFor(staff)) {
+      await local.saveSession(payment);
+    }
   }
 
   Future<void> restore() async {
+    final generation = _generation;
     try {
       normalizeServer(server, allowHttp: !kReleaseMode);
       final raw = await vault.read('session');
+      if (!mounted || generation != _generation) return;
       if (raw != null) {
         final j = jsonObject(jsonDecode(raw));
         if (j['server'] == server) {
@@ -164,10 +220,17 @@ class SessionController extends StateNotifier<SessionState> {
     } catch (_) {
       // A network failure keeps an already restored session; unreadable storage does not.
     }
-    if (mounted) state = SessionState(session: state.session, ready: true);
+    if (mounted && generation == _generation) {
+      state = SessionState(
+          session: state.session, ready: true, isDemo: _demo != null);
+    }
   }
 
   Future<void> login(String phone, String credential, bool pin) async {
+    if (_demo != null) {
+      throw const ApiException(
+          'Sign out before signing in to another account.');
+    }
     if (_signingOut) {
       throw const ApiException(
           'Sign-out is still completing. Please try again in a moment.');
@@ -245,11 +308,12 @@ class SessionController extends StateNotifier<SessionState> {
     _generation++;
     final old = state.session;
     final local = workspace;
+    final demo = _demo;
     workspace = null;
     if (local != null) local.active = false;
     state = const SessionState(ready: true);
     try {
-      if (remote && old != null) {
+      if (remote && old != null && demo == null) {
         try {
           await api.dio.post<dynamic>('auth/logout',
               data: {'refreshToken': old.refreshToken},
@@ -261,8 +325,14 @@ class SessionController extends StateNotifier<SessionState> {
       }
       await local?.close();
       await _authWrites;
-      await vault.delete('session');
+      if (demo == null) await vault.delete('session');
     } finally {
+      if (demo != null) {
+        api.dio.httpClientAdapter = _liveAdapter!;
+        _liveAdapter = null;
+        _demo = null;
+        _demoVault = null;
+      }
       _signingOut = false;
     }
   }
@@ -282,6 +352,7 @@ class SessionController extends StateNotifier<SessionState> {
     api.token = null;
     api.refresh = null;
     api.expired = null;
+    if (_liveAdapter != null) api.dio.httpClientAdapter = _liveAdapter!;
     super.dispose();
   }
 }

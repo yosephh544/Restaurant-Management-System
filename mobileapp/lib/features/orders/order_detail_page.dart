@@ -99,10 +99,11 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                                           decoration: const InputDecoration(
                                               labelText: 'Reason details',
                                               counterText: ''),
-                                          validator: (v) =>
-                                              v == null || v.trim().isEmpty
-                                                  ? 'Add reason details.'
-                                                  : null),
+                                          validator: (v) => reason == 'OTHER' &&
+                                                  (v == null ||
+                                                      v.trim().isEmpty)
+                                              ? 'Add details for Other.'
+                                              : null),
                                     ])))),
                     actions: [
                       TextButton(
@@ -215,22 +216,6 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                                         const SizedBox(height: 8),
                                         StatusBadge(line.status),
                                       ],
-                                      if (line.note.isNotEmpty)
-                                        Container(
-                                            margin:
-                                                const EdgeInsets.only(top: 12),
-                                            padding: const EdgeInsets.symmetric(
-                                                horizontal: 10, vertical: 8),
-                                            decoration: BoxDecoration(
-                                                color: amberPale,
-                                                borderRadius:
-                                                    BorderRadius.circular(9)),
-                                            child: Text(line.note,
-                                                style: const TextStyle(
-                                                    color: amber,
-                                                    fontSize: 12,
-                                                    fontWeight:
-                                                        FontWeight.w600))),
                                       if (canCancel && !line.cancelled)
                                         TextButton.icon(
                                             onPressed: _busy
@@ -252,18 +237,23 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                             : () => context.go('/orders/${order.id}/add'),
                         icon: const Icon(Icons.add),
                         label: const Text('Add items')),
-                  if (canEdit &&
-                      staff.can(P.ordersServe) &&
-                      code(order.status) == 'READY') ...[
+                  if (staff.canServeOrder(order)) ...[
                     const SizedBox(height: 12),
                     FilledButton.icon(
                         onPressed: _busy
                             ? null
-                            : () => _act(
-                                () => ref
-                                    .read(restaurantApiProvider)
-                                    .served(order.id),
-                                refresh),
+                            : () => _act(() async {
+                                  final current = await _load();
+                                  final access =
+                                      ref.read(sessionProvider).session?.staff;
+                                  if (access?.canServeOrder(current) != true) {
+                                    throw const ApiException(
+                                        'Only the assigned waiter can mark a ready order served.');
+                                  }
+                                  await ref
+                                      .read(restaurantApiProvider)
+                                      .served(order.id);
+                                }, refresh),
                         icon: const Icon(Icons.room_service_outlined),
                         label: const Text('Mark served'))
                   ],

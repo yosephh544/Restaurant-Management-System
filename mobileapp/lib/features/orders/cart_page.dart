@@ -20,12 +20,16 @@ class CartPage extends ConsumerStatefulWidget {
 class _CartPageState extends ConsumerState<CartPage> {
   final _form = GlobalKey<FormState>();
   final _table = TextEditingController(), _note = TextEditingController();
+  final _searchController = TextEditingController();
+  final _menuScroll = ScrollController();
   final List<DraftLine> _lines = [];
   List<MenuCategory> _menu = [];
   LocalWorkspace? _workspace;
   RestaurantOrder? _original;
   Json? _otherDraft;
   String _search = '';
+  String? _categoryId;
+  bool _reviewing = false;
   String? _error;
   bool _loading = true, _busy = false, _uncertain = false, _loaded = false;
   Timer? _saveTimer;
@@ -163,6 +167,8 @@ class _CartPageState extends ConsumerState<CartPage> {
     if (!_busy) _save();
     _table.dispose();
     _note.dispose();
+    _searchController.dispose();
+    _menuScroll.dispose();
     super.dispose();
   }
 
@@ -178,6 +184,15 @@ class _CartPageState extends ConsumerState<CartPage> {
       }
     });
     _saveSoon();
+  }
+
+  void _showReview(bool review) {
+    FocusScope.of(context).unfocus();
+    setState(() => _reviewing = review);
+  }
+
+  void _resetMenuScroll() {
+    if (_menuScroll.hasClients) _menuScroll.jumpTo(0);
   }
 
   Future<void> _editNote(int index) async {
@@ -282,7 +297,7 @@ class _CartPageState extends ConsumerState<CartPage> {
 
   @override
   Widget build(BuildContext context) {
-    final waiter = ref.watch(sessionProvider).session?.staff.waiter == true;
+    ref.watch(sessionProvider);
     if (_loading) return const Center(child: CircularProgressIndicator());
     if (_otherDraft != null) {
       return ScreenBody(
@@ -382,55 +397,144 @@ class _CartPageState extends ConsumerState<CartPage> {
                 },
                 child: const Text('I checked'))
           ],
-          const SizedBox(height: 16),
-          FilledButton.icon(
-              onPressed: _busy ||
-                      _uncertain ||
-                      _lines.isEmpty ||
-                      _lines.any((l) => !l.item.available)
-                  ? null
-                  : _submit,
-              icon: const Icon(Icons.send_outlined),
-              label: Text(_busy
-                  ? 'Sending…'
-                  : widget.orderId != null && !widget.replacement
-                      ? 'Add items'
-                      : 'Send to kitchen')),
         ]));
+    final submitButton = FilledButton.icon(
+        onPressed: _busy ||
+                _uncertain ||
+                _lines.isEmpty ||
+                _lines.any((l) => !l.item.available)
+            ? null
+            : _submit,
+        icon: const Icon(Icons.send_outlined),
+        label: Text(_busy
+            ? 'Sending…'
+            : widget.orderId != null && !widget.replacement
+                ? 'Add items'
+                : 'Send to kitchen'));
     final menuItems = _menu
         .expand((c) => c.items)
         .where((i) =>
-            waiter ||
-            '${i.name} ${i.description}'.toLowerCase().contains(_search))
+            (_categoryId == null || i.categoryId == _categoryId) &&
+            '${i.name} ${i.description} ${i.categoryName}'
+                .toLowerCase()
+                .contains(_search))
         .toList();
-    final menu =
-        Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      const SectionHeading('Dishes',
-          eyebrow: 'Restaurant menu', detail: 'Tap to add'),
-      if (!waiter) ...[
-        TextField(
-            enabled: !_busy,
-            onChanged: (v) => setState(() => _search = v.toLowerCase().trim()),
-            decoration: const InputDecoration(
-                hintText: 'Search dishes', prefixIcon: Icon(Icons.search))),
-        const SizedBox(height: 16),
-      ],
-      if (menuItems.isEmpty)
-        const EmptyState('No dishes found', '')
-      else
-        SizedBox(
-            height: (menuItems.length * 108.0).clamp(108.0, 420.0).toDouble(),
-            child: ListView.separated(
-                primary: false,
-                padding: EdgeInsets.zero,
-                itemCount: menuItems.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final item = menuItems[index];
+    final itemCount =
+        _lines.fold<int>(0, (count, line) => count + line.quantity);
+    final menuHeader = Padding(
+        padding: const EdgeInsets.fromLTRB(16, 5, 16, 8),
+        child:
+            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+          if (MediaQuery.viewInsetsOf(context).bottom == 0) ...[
+            ScreenHeading(
+                eyebrow: widget.replacement
+                    ? 'Waiter · Replacement'
+                    : widget.orderId != null
+                        ? 'Waiter · Add items'
+                        : 'Waiter · New order',
+                title: widget.replacement
+                    ? 'A fresh order'
+                    : widget.orderId != null
+                        ? 'Add to the table'
+                        : 'Start an order',
+                subtitle: 'Choose dishes and add any preparation notes.'),
+            const SizedBox(height: 12),
+          ],
+          TextField(
+              controller: _searchController,
+              enabled: !_busy,
+              onChanged: (v) {
+                setState(() => _search = v.toLowerCase().trim());
+                _resetMenuScroll();
+              },
+              decoration: InputDecoration(
+                  hintText: 'Search dishes',
+                  prefixIcon: const Icon(Icons.search),
+                  suffixIcon: _searchController.text.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Clear search',
+                          onPressed: () {
+                            _searchController.clear();
+                            setState(() => _search = '');
+                            _resetMenuScroll();
+                          },
+                          icon: const Icon(Icons.close)))),
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [
+                Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: ChoiceChip(
+                        label: const Text('All Items'),
+                        selected: _categoryId == null,
+                        labelStyle: TextStyle(
+                            color: _categoryId == null ? Colors.white : ink),
+                        onSelected: _busy
+                            ? null
+                            : (_) {
+                                setState(() => _categoryId = null);
+                                _resetMenuScroll();
+                              })),
+                for (final category in _menu.where((c) => c.items.isNotEmpty))
+                  Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: ChoiceChip(
+                          label: Text(category.name),
+                          selected: _categoryId == category.id,
+                          labelStyle: TextStyle(
+                              color: _categoryId == category.id
+                                  ? Colors.white
+                                  : ink),
+                          onSelected: _busy
+                              ? null
+                              : (selected) {
+                                  setState(() => _categoryId =
+                                      selected ? category.id : null);
+                                  _resetMenuScroll();
+                                })),
+              ])),
+          const SizedBox(height: 8),
+          Row(children: [
+            const Expanded(
+                child: Text('Dishes',
+                    style: TextStyle(fontWeight: FontWeight.w700))),
+            Text(
+                '${menuItems.length} ${menuItems.length == 1 ? 'dish' : 'dishes'}',
+                style: const TextStyle(color: muted, fontSize: 12)),
+          ]),
+        ]));
+    final menu = CustomScrollView(
+        key: PageStorageKey('$_route/dishes'),
+        controller: _menuScroll,
+        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+        slivers: [
+          SliverToBoxAdapter(child: menuHeader),
+          if (menuItems.isEmpty)
+            const SliverPadding(
+                padding: EdgeInsets.all(16),
+                sliver: SliverToBoxAdapter(
+                    child: EmptyState(
+                        'No dishes found', 'Try another search or category.')))
+          else
+            SliverPadding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                sliver: SliverList(
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                  if (index.isOdd) return const SizedBox(height: 8);
+                  final item = menuItems[index ~/ 2];
                   final quantity = _lines
                       .where((line) => line.item.id == item.id)
                       .fold<int>(0, (count, line) => count + line.quantity);
                   return Card(
+                      color: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: BorderSide(
+                              color: quantity > 0
+                                  ? const Color(0xFF9FBEA3)
+                                  : lineColor)),
                       child: InkWell(
                           borderRadius: BorderRadius.circular(16),
                           onTap: item.available && !_busy
@@ -452,11 +556,12 @@ class _CartPageState extends ConsumerState<CartPage> {
                                       ],
                                       Text(item.name,
                                           style: const TextStyle(
-                                              fontWeight: FontWeight.w700)),
+                                              fontWeight: FontWeight.w700,
+                                              fontSize: 15)),
                                       if (item.description.isNotEmpty) ...[
                                         const SizedBox(height: 4),
                                         Text(item.description,
-                                            maxLines: 2,
+                                            maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
                                                 color: muted, fontSize: 11)),
@@ -467,9 +572,11 @@ class _CartPageState extends ConsumerState<CartPage> {
                                               ? money(item.price)
                                               : 'Unavailable',
                                           style: TextStyle(
-                                              color: item.available ? ink : red,
+                                              color: item.available
+                                                  ? forestDark
+                                                  : red,
                                               fontWeight: FontWeight.w700,
-                                              fontSize: 12)),
+                                              fontSize: 15)),
                                     ])),
                                 const SizedBox(width: 10),
                                 if (quantity > 0) ...[
@@ -487,35 +594,77 @@ class _CartPageState extends ConsumerState<CartPage> {
                                     add: true,
                                     icon: Icons.add),
                               ]))));
-                })),
-    ]);
-    return ScreenBody(
-        child:
-            Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-      ScreenHeading(
-          eyebrow: widget.replacement
-              ? 'Waiter · Replacement'
-              : widget.orderId != null
-                  ? 'Waiter · Add items'
-                  : 'Waiter · New order',
-          title: widget.replacement
-              ? 'A fresh order'
-              : widget.orderId != null
-                  ? 'Add to the table'
-                  : 'Start an order',
-          subtitle: 'Choose dishes and add any preparation notes.'),
-      const SizedBox(height: 24),
-      LayoutBuilder(
-          builder: (context, constraints) => constraints.maxWidth > 760
-              ? Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Expanded(child: menu),
-                  const SizedBox(width: 24),
-                  SizedBox(width: 360, child: cart)
-                ])
-              : Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [menu, const SizedBox(height: 24), cart])),
-    ]));
+                }, childCount: menuItems.length * 2 - 1))),
+        ]);
+    return PopScope(
+        canPop: !_reviewing && !_busy,
+        onPopInvokedWithResult: (didPop, result) {
+          if (!didPop && _reviewing && !_busy) _showReview(false);
+        },
+        child: Center(
+            child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 960),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (_reviewing)
+                        Expanded(
+                            child: ScreenBody(
+                                child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.stretch,
+                                    children: [
+                              Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: TextButton.icon(
+                                      onPressed: _busy
+                                          ? null
+                                          : () => _showReview(false),
+                                      icon: const Icon(Icons.arrow_back),
+                                      label: const Text('Back to dishes'))),
+                              cart,
+                            ])))
+                      else
+                        Expanded(child: menu),
+                      Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: const BoxDecoration(
+                              color: Colors.white,
+                              border:
+                                  Border(top: BorderSide(color: lineColor))),
+                          child: _reviewing
+                              ? submitButton
+                              : Row(children: [
+                                  Expanded(
+                                      child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                        Text(
+                                            itemCount == 0
+                                                ? 'Add dishes'
+                                                : '$itemCount ${itemCount == 1 ? 'item' : 'items'}',
+                                            style: const TextStyle(
+                                                fontWeight: FontWeight.w800,
+                                                fontSize: 18)),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                            itemCount == 0
+                                                ? 'Tap + to select'
+                                                : 'Selected items',
+                                            style: const TextStyle(
+                                                color: muted, fontSize: 11)),
+                                      ])),
+                                  const SizedBox(width: 12),
+                                  FilledButton.icon(
+                                      onPressed: _busy || _lines.isEmpty
+                                          ? null
+                                          : () => _showReview(true),
+                                      icon: const Icon(Icons.arrow_forward),
+                                      label: const Text('Review order')),
+                                ])),
+                    ]))));
   }
 
   Widget _cartLine(int index) {
@@ -526,7 +675,8 @@ class _CartPageState extends ConsumerState<CartPage> {
           Row(children: [
             Expanded(
                 child: Text(line.item.name,
-                    style: const TextStyle(fontWeight: FontWeight.w700))),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w700, fontSize: 16))),
             IconButton(
                 tooltip: 'Remove ${line.item.name}',
                 onPressed: _busy

@@ -1,7 +1,34 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+import '../../core/demo.dart';
 import '../../core/session.dart';
 import '../../core/widgets.dart';
+
+Future<String?> chooseDemoRole(BuildContext context) => showDialog<String>(
+    context: context,
+    builder: (c) => AlertDialog(
+            title: const Text('Choose your role'),
+            content: SizedBox(
+                width: 360,
+                child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text('Select a staff role to continue.'),
+                      const SizedBox(height: 16),
+                      for (final role in DemoRestaurant.roles)
+                        Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: OutlinedButton(
+                                onPressed: () => Navigator.pop(c, role),
+                                child: Text(role))),
+                    ])),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(c),
+                  child: const Text('Cancel'))
+            ]));
 
 Future<void> configureServer(BuildContext context, WidgetRef ref) async {
   final controller = ref.read(sessionProvider.notifier);
@@ -79,6 +106,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
+  Future<void> _tryDemo() async {
+    final role = await chooseDemoRole(context);
+    if (role == null || !mounted) return;
+    setState(() {
+      _busy = true;
+      _error = null;
+    });
+    try {
+      await ref.read(sessionProvider.notifier).startDemo(role);
+    } catch (e) {
+      if (mounted) setState(() => _error = '$e');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
       body: SafeArea(
@@ -100,21 +143,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                     label: const Text('Server'))),
                             const SizedBox(height: 20),
                             const Row(children: [
-                              BrandMark(size: 50),
+                              BrandMark(size: 72),
                               SizedBox(width: 12),
                               Expanded(
                                   child: Column(
                                       crossAxisAlignment:
                                           CrossAxisAlignment.start,
                                       children: [
-                                    Text('RMS Service',
+                                    Text(restaurantName,
                                         style: TextStyle(
+                                            color: ink,
                                             fontSize: 20,
                                             fontWeight: FontWeight.w800,
                                             letterSpacing: -.5)),
                                     Text('Restaurant operations',
                                         style: TextStyle(
-                                            color: muted, fontSize: 11)),
+                                            color: muted, fontSize: 12)),
                                   ])),
                             ]),
                             const SizedBox(height: 26),
@@ -209,6 +253,13 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                             FilledButton(
                                 onPressed: _busy ? null : _login,
                                 child: Text(_busy ? 'Signing in…' : 'Sign in')),
+                            const SizedBox(height: 20),
+                            const Divider(),
+                            const SizedBox(height: 12),
+                            OutlinedButton.icon(
+                                onPressed: _busy ? null : _tryDemo,
+                                icon: const Icon(Icons.arrow_forward),
+                                label: const Text('Continue')),
                           ]))))));
 }
 
@@ -222,7 +273,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   bool _busy = false;
   @override
   Widget build(BuildContext context) {
-    final staff = ref.watch(sessionProvider).session?.staff;
+    final state = ref.watch(sessionProvider);
+    final staff = state.session?.staff;
     if (staff == null) return const SizedBox.shrink();
     return ScreenBody(
         child:
@@ -251,31 +303,63 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                               .textTheme
                               .titleLarge
                               ?.copyWith(fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 4),
-                      Text(staff.phone, style: const TextStyle(color: muted)),
+                      if (staff.phone.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(staff.phone, style: const TextStyle(color: muted)),
+                      ],
                       const SizedBox(height: 8),
                       StatusBadge(staff.role),
                     ])),
               ]))),
       const SizedBox(height: 20),
-      Card(
-          child: ListTile(
-              contentPadding: const EdgeInsets.all(20),
-              leading: const Icon(Icons.settings_ethernet),
-              title: const Text('Server settings'),
-              subtitle: Text(
-                  Uri.tryParse(ref.read(sessionProvider.notifier).server)
-                          ?.host ??
-                      ''),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: _busy ? null : () => configureServer(context, ref))),
+      if (state.isDemo)
+        Card(
+            child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      OutlinedButton.icon(
+                          onPressed: _busy
+                              ? null
+                              : () async {
+                                  final role = await chooseDemoRole(context);
+                                  if (role == null || !mounted) return;
+                                  setState(() => _busy = true);
+                                  try {
+                                    await ref
+                                        .read(sessionProvider.notifier)
+                                        .switchDemoRole(role);
+                                    if (context.mounted) context.go('/');
+                                  } catch (e) {
+                                    if (context.mounted) showError(context, e);
+                                  } finally {
+                                    if (mounted) setState(() => _busy = false);
+                                  }
+                                },
+                          icon: const Icon(Icons.switch_account_outlined),
+                          label: const Text('Change role')),
+                    ]))),
+      if (!state.isDemo)
+        Card(
+            child: ListTile(
+                contentPadding: const EdgeInsets.all(20),
+                leading: const Icon(Icons.settings_ethernet),
+                title: const Text('Server settings'),
+                subtitle: Text(
+                    Uri.tryParse(ref.read(sessionProvider.notifier).server)
+                            ?.host ??
+                        ''),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _busy ? null : () => configureServer(context, ref))),
       const SizedBox(height: 20),
       OutlinedButton.icon(
           onPressed: _busy
               ? null
               : () async {
-                  if (!await confirmAction(context, 'Sign out?',
-                      'Unsent orders and saved payments will be cleared.')) {
+                  if (!state.isDemo &&
+                      !await confirmAction(context, 'Sign out?',
+                          'Unsent orders and saved payments will be cleared.')) {
                     return;
                   }
                   if (!mounted) return;

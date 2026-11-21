@@ -14,4 +14,13 @@ abstract final class P {
   static const paymentsView = 'payments.view';
   static const paymentsRetract = 'payments.retract';
   static const tipsView = 'tips.view';
+
+  // The service app keeps floor work with Waiter, even when the API grants
+  // another role broader permissions.
+  static const waiterActions = {
+    ordersCreate,
+    ordersAdd,
+    ordersReorder,
+    ordersServe,
+  };
 }
