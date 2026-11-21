@@ -1,4 +1,15 @@
-import { Component, computed, DestroyRef, inject, input, OnInit, output, signal } from '@angular/core';
+import {
+  Component,
+  computed,
+  DestroyRef,
+  ElementRef,
+  inject,
+  input,
+  OnInit,
+  output,
+  signal,
+  viewChild,
+} from '@angular/core';
 import { TranslatePipe, translate } from '../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -56,6 +67,34 @@ import { Icon } from './icon';
                   <span>{{ 'Change given' | t }}</span>
                   <strong>{{ money(p.change ?? 0) }}</strong>
                 </div>
+              </div>
+            }
+
+            @if (isDigitalMethod(p.method)) {
+              <div class="pending-box" style="margin-top: 12px">
+                <div class="row" style="align-items: flex-start">
+                  <app-icon [name]="p.verification === 'VERIFIED' ? 'check-circle' : 'alert-circle'" />
+                  <div style="flex: 1">
+                    <strong>
+                      {{ p.verification === 'VERIFIED' ? ('Verified with check.et' | t) : ('Saved without verification' | t) }}
+                    </strong>
+                    <p>
+                      @if (p.verification === 'VERIFIED') {
+                        {{ 'The receipt is stored on this order for the cashier and owner.' | t }}
+                        @if (p.verifiedPayer) {
+                          {{ 'Payer' | t }}: {{ p.verifiedPayer }}.
+                        }
+                      } @else {
+                        {{ 'Review the receipt before releasing tips.' | t }}
+                      }
+                    </p>
+                  </div>
+                </div>
+                @if (p.receiptUrl) {
+                  <a class="btn btn-secondary btn-sm" [href]="p.receiptUrl" target="_blank" rel="noopener">
+                    <app-icon name="receipt" /> {{ 'Open bank receipt' | t }}
+                  </a>
+                }
               </div>
             }
 
@@ -130,42 +169,44 @@ import { Icon } from './icon';
               </div>
             </div>
 
-            <div class="field">
-              <label class="label" for="tip">{{ 'Tip (optional)' | t }}</label>
-              <div class="row">
-                @if (settings().tipPresets.length) {
-                  <div class="tip-presets">
-                    @for (preset of settings().tipPresets; track preset) {
-                      <button type="button" [class.active]="tip() === presetAmount(preset)" (click)="tip.set(presetAmount(preset))">
-                        {{ preset }}%
-                      </button>
-                    }
+            @if (method() === 'CASH') {
+              <div class="field">
+                <label class="label" for="tip">{{ 'Tip (optional)' | t }}</label>
+                <div class="row">
+                  @if (settings().tipPresets.length) {
+                    <div class="tip-presets">
+                      @for (preset of settings().tipPresets; track preset) {
+                        <button type="button" [class.active]="tip() === presetAmount(preset)" (click)="tip.set(presetAmount(preset))">
+                          {{ preset }}%
+                        </button>
+                      }
+                    </div>
+                  }
+                  <div class="input-wrap" style="flex: 1">
+                    <input
+                      id="tip"
+                      class="input t-right"
+                      type="number"
+                      min="0"
+                      step="1"
+                      [ngModel]="tip()"
+                      (ngModelChange)="tip.set(+$event || 0)"
+                    />
                   </div>
-                }
-                <div class="input-wrap" style="flex: 1">
-                  <input
-                    id="tip"
-                    class="input t-right"
-                    type="number"
-                    min="0"
-                    step="1"
-                    [ngModel]="tip()"
-                    (ngModelChange)="tip.set(+$event || 0)"
-                  />
                 </div>
+                <span class="hint">{{ "The tip is recorded on the table's payment." | t }}</span>
               </div>
-              <span class="hint">{{ "The tip is recorded on the table's payment." | t }}</span>
-            </div>
+            }
 
             <div class="field mt-3">
               <span class="label">{{ 'Payment method' | t }}</span>
               <div class="method-grid">
                 <button class="method-btn" type="button" [class.active]="method() === 'CASH'" [disabled]="!settings().cash" (click)="method.set('CASH')">
                   <app-icon name="cash" /> {{ 'Cash' | t }} </button>
-                <button class="method-btn" type="button" [class.active]="method() === 'QR_SCAN'" [disabled]="!settings().qr" (click)="method.set('QR_SCAN')">
-                  <app-icon name="qr" /> {{ 'QR code' | t }} </button>
-                <button class="method-btn" type="button" [class.active]="method() === 'PHONE_PUSH'" [disabled]="!settings().phonePay" (click)="method.set('PHONE_PUSH')">
-                  <app-icon name="phone" /> {{ 'Phone' | t }} </button>
+                <button class="method-btn" type="button" [class.active]="method() === 'TELEBIRR'" (click)="method.set('TELEBIRR')">
+                  <app-icon name="phone" /> {{ 'Telebirr' | t }} </button>
+                <button class="method-btn" type="button" [class.active]="method() === 'CBE'" (click)="method.set('CBE')">
+                  <app-icon name="card" /> {{ 'CBE' | t }} </button>
               </div>
             </div>
 
@@ -191,15 +232,117 @@ import { Icon } from './icon';
               </div>
             }
 
-            @if (method() === 'PHONE_PUSH') {
-              <div class="field mt-3">
-                <label class="label" for="phone">{{ 'Customer phone' | t }}</label>
-                <div class="input-wrap">
-                  <app-icon name="phone" />
-                  <input id="phone" class="input" name="phone" [(ngModel)]="phone" inputmode="tel" />
+            @if (isDigital()) {
+              <div class="pending-box" style="margin-top: 12px">
+                <div class="row" style="justify-content: space-between; align-items: flex-start">
+                  <div>
+                    <span class="tiny muted">{{ 'Customer transfers to' | t }}</span>
+                    <strong style="display: block; font-size: 16px; margin-top: 2px">
+                      {{ accountNumber() || ('No account number in settings' | t) }}
+                    </strong>
+                    @if (settings().accountName) {
+                      <span class="tiny muted">{{ settings().accountName }}</span>
+                    }
+                    <div class="tiny muted" style="margin-top: 4px">{{ 'Amount' | t }}: {{ money(total()) }} ETB</div>
+                  </div>
+                  @if (accountNumber()) {
+                    <button class="btn btn-ghost btn-sm" type="button" (click)="copyAccount()">
+                      <app-icon name="receipt" /> {{ 'Copy' | t }}
+                    </button>
+                  }
                 </div>
-                <span class="hint">{{ 'A payment prompt is pushed to this number.' | t }}</span>
+                @if (settings().paymentQr) {
+                  <a class="tiny" [href]="settings().paymentQr" target="_blank" rel="noopener" style="margin-top: 6px; display: inline-block">
+                    {{ 'Open the restaurant payment QR' | t }}
+                  </a>
+                }
               </div>
+
+              <div class="field mt-3">
+                <label class="label" for="transferred">{{ 'Amount transferred' | t }}</label>
+                <input
+                  id="transferred"
+                  class="input"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  [ngModel]="transferred()"
+                  (ngModelChange)="setTransferred($event)"
+                />
+                <span class="hint">{{ 'Enter the amount on the customer receipt. Anything above the bill is kept as the waiter tip.' | t }}</span>
+              </div>
+
+              <div class="pending-box" style="margin-top: 10px">
+                <div class="between">
+                  <span class="hint">{{ 'Bill' | t }}</span>
+                  <strong class="num">{{ money(base()) }} ETB</strong>
+                </div>
+                <div class="between" style="margin-top: 4px">
+                  <span class="hint">{{ 'Transferred' | t }}</span>
+                  <strong class="num">{{ money(transferred() ?? base()) }} ETB</strong>
+                </div>
+                @if (digitalTip() > 0) {
+                  <div class="between" style="margin-top: 4px">
+                    <span class="hint">{{ 'Tip (auto)' | t }}</span>
+                    <strong class="num" style="color: var(--green)">{{ money(digitalTip()) }} ETB</strong>
+                  </div>
+                } @else if (digitalShort() > 0) {
+                  <div class="auth-error mt-2">
+                    {{ 'Short by' | t }} {{ money(digitalShort()) }} ETB · {{ 'Ask the customer for the remaining amount.' | t }}
+                  </div>
+                }
+              </div>
+
+              <div class="field mt-3">
+                <span class="label">{{ 'Customer receipt' | t }}</span>
+                <button class="btn btn-secondary btn-block" type="button" (click)="toggleScan()">
+                  <app-icon name="qr" />
+                  {{
+                    scanning()
+                      ? ('Stop' | t)
+                      : receiptUrl()
+                        ? ('Scan another receipt QR' | t)
+                        : ('Scan customer receipt QR' | t)
+                  }}
+                </button>
+                @if (scanning()) {
+                  <div style="position: relative; margin-top: 10px; border-radius: 12px; overflow: hidden; background: #000">
+                    <video #scanVideo playsinline muted style="width: 100%; max-height: 240px; object-fit: cover; display: block"></video>
+                    <span class="tiny" style="position: absolute; bottom: 8px; left: 0; right: 0; text-align: center; color: #fff">
+                      {{ "Point the camera at the customer's receipt QR." | t }}
+                    </span>
+                  </div>
+                }
+                @if (receiptUrl()) {
+                  <div class="pending-box" style="margin-top: 10px">
+                    <div class="row">
+                      <app-icon name="check-circle" />
+                      <div style="flex: 1; min-width: 0">
+                        <strong>{{ 'Receipt link captured' | t }}</strong>
+                        <p class="tiny" style="word-break: break-all">{{ receiptUrl() }}</p>
+                      </div>
+                    </div>
+                  </div>
+                }
+                <span class="hint">{{ 'Scan the transaction QR on the customer phone after they pay; the link is stored with the payment.' | t }}</span>
+              </div>
+
+              @if (method() === 'CBE') {
+                <div class="field mt-3">
+                  <label class="label" for="txn">{{ 'Transaction number' | t }}</label>
+                  <input
+                    id="txn"
+                    class="input"
+                    [ngModel]="transactionNumber()"
+                    (ngModelChange)="transactionNumber.set($event)"
+                    [attr.placeholder]="'Optional when the receipt link is available' | t"
+                  />
+                </div>
+              }
+
+              <p class="tiny muted mt-3">
+                {{ 'The receipt is verified with check.et and stored on this order for later review.' | t }}
+              </p>
             }
 
             @if (error()) {
@@ -209,9 +352,15 @@ import { Icon } from './icon';
 
           <div class="modal-foot">
             <button class="btn btn-ghost" type="button" (click)="close()">{{ 'Cancel' | t }}</button>
-            <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="submit()">
-              <app-icon [name]="method() === 'CASH' ? 'cash' : method() === 'QR_SCAN' ? 'qr' : 'phone'" />
-              {{ busy() ? ('Working…' | t) : method() === 'CASH' ? ('Take cash payment' | t) : ('Send payment request' | t) }}
+            <button class="btn btn-primary" type="button" [disabled]="busy() || (isDigital() && digitalShort() > 0)" (click)="submit()">
+              <app-icon [name]="method() === 'CASH' ? 'cash' : method() === 'TELEBIRR' ? 'phone' : 'card'" />
+              {{
+                busy()
+                  ? ('Working…' | t)
+                  : method() === 'CASH'
+                    ? ('Take cash payment' | t)
+                    : ('Verify and record' | t)
+              }}
             </button>
           </div>
         } @else {
@@ -231,6 +380,7 @@ export class PaySheet implements OnInit {
   private readonly store = inject(Store);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly videoRef = viewChild<ElementRef<HTMLVideoElement>>('scanVideo');
 
   readonly billId = input<string | null>(null);
   readonly tableId = input<string | null>(null);
@@ -246,8 +396,13 @@ export class PaySheet implements OnInit {
 
   protected readonly method = signal<PayMethod>('CASH');
   protected readonly tip = signal(0);
+  protected readonly transferred = signal<number | null>(null);
   protected readonly tendered = signal<number | null>(null);
+  // Kept for the dormant gateway (PHONE_PUSH) path; the current sheet only exposes cash and transfers.
   protected phone = '';
+  protected readonly receiptUrl = signal('');
+  protected readonly transactionNumber = signal('');
+  protected readonly scanning = signal(false);
   protected readonly error = signal('');
   protected readonly busy = signal(false);
   protected readonly loading = signal(true);
@@ -256,20 +411,48 @@ export class PaySheet implements OnInit {
   protected readonly pending = signal<Payment | null>(null);
 
   private pollTimer: ReturnType<typeof setInterval> | undefined;
+  private scanTimer: ReturnType<typeof setTimeout> | undefined;
+  private scanStream: MediaStream | undefined;
 
   protected readonly base = computed(() => {
     const bill = this.bill();
     return bill ? Math.round((bill.subtotal + bill.tax - bill.discount) * 100) / 100 : 0;
   });
 
-  protected readonly total = computed(() => Math.round((this.base() + this.tip()) * 100) / 100);
+  protected readonly total = computed(() => {
+    if (this.isDigital()) return Math.round((this.transferred() ?? this.base()) * 100) / 100;
+    return Math.round((this.base() + this.tip()) * 100) / 100;
+  });
+
+  protected readonly digitalTip = computed(() =>
+    this.isDigital()
+      ? Math.max(0, Math.round(((this.transferred() ?? this.base()) - this.base()) * 100) / 100)
+      : 0,
+  );
+
+  protected readonly digitalShort = computed(() =>
+    this.isDigital()
+      ? Math.max(0, Math.round((this.base() - (this.transferred() ?? this.base())) * 100) / 100)
+      : 0,
+  );
 
   protected readonly change = computed(() =>
     Math.max(0, Math.round(((this.tendered() ?? 0) - this.total()) * 100) / 100),
   );
 
+  protected readonly isDigital = computed(
+    () => this.method() === 'TELEBIRR' || this.method() === 'CBE',
+  );
+
+  protected readonly accountNumber = computed(() =>
+    this.method() === 'TELEBIRR' ? this.settings().telebirr : this.method() === 'CBE' ? this.settings().cbe : '',
+  );
+
   constructor() {
-    this.destroyRef.onDestroy(() => this.stopPolling());
+    this.destroyRef.onDestroy(() => {
+      this.stopPolling();
+      this.stopScan();
+    });
   }
 
   async ngOnInit(): Promise<void> {
@@ -280,8 +463,16 @@ export class PaySheet implements OnInit {
     return translate(METHOD_LABEL[method as PayMethod] ?? method);
   }
 
+  protected isDigitalMethod(method: PayMethod | string): boolean {
+    return method === 'TELEBIRR' || method === 'CBE';
+  }
+
   protected presetAmount(preset: number): number {
     return Math.round((this.base() * preset) / 100);
+  }
+
+  protected setTransferred(value: number | string | null): void {
+    this.transferred.set(value === null || value === '' ? null : +value);
   }
 
   protected async submit(): Promise<void> {
@@ -296,19 +487,45 @@ export class PaySheet implements OnInit {
         return;
       }
     }
-    if (this.method() === 'PHONE_PUSH' && this.phone.trim().length < 7) {
-      this.error.set(translate('Enter the customer phone number for a payment push.'));
-      return;
+
+    if (this.isDigital()) {
+      const receipt = this.receiptUrl().trim();
+      const transaction = this.transactionNumber().trim();
+      if (this.digitalShort() > 0) {
+        this.error.set(
+          translate(
+            'The transfer of {paid} ETB is short of the bill. Remaining {remaining} ETB — ask the customer for the rest.',
+            { paid: money(this.transferred() ?? 0), remaining: money(this.digitalShort()) },
+          ),
+        );
+        return;
+      }
+      if (this.method() === 'TELEBIRR' && !receipt) {
+        this.error.set(translate("Scan the customer's Telebirr receipt QR before recording the payment."));
+        return;
+      }
+      if (this.method() === 'CBE' && !receipt && !transaction) {
+        this.error.set(translate("Scan the CBE receipt or enter its transaction number."));
+        return;
+      }
     }
 
     this.busy.set(true);
-    const result = await this.store.initiatePayment({
-      billId: bill.id,
-      method: this.method(),
-      tipAmount: this.tip(),
-      customerPhone: this.method() === 'PHONE_PUSH' ? this.phone.trim() : undefined,
-      amountTendered: this.method() === 'CASH' ? this.tendered() ?? this.total() : undefined,
-    });
+    const result = this.isDigital()
+      ? await this.store.recordPayment({
+          billId: bill.id,
+          method: this.method(),
+          amountPaid: this.transferred() ?? undefined,
+          receiptUrl: this.receiptUrl().trim() || undefined,
+          transactionNumber: this.transactionNumber().trim() || undefined,
+        })
+      : await this.store.initiatePayment({
+          billId: bill.id,
+          method: this.method(),
+          tipAmount: this.tip(),
+          customerPhone: this.method() === 'PHONE_PUSH' ? this.phone : undefined,
+          amountTendered: this.method() === 'CASH' ? this.tendered() ?? this.total() : undefined,
+        });
     this.busy.set(false);
 
     if (!result.ok) {
@@ -319,7 +536,15 @@ export class PaySheet implements OnInit {
     if (result.data.status === 'PAID') {
       this.paid.set(result.data);
       this.settled.emit(result.data);
-      this.toast.show(translate('Cash payment recorded'));
+      this.toast.show(
+        this.isDigitalMethod(result.data.method)
+          ? translate(
+              result.data.verification === 'VERIFIED'
+                ? 'Payment verified and recorded'
+                : 'Payment recorded without verification',
+            )
+          : translate('Cash payment recorded'),
+      );
       return;
     }
 
@@ -363,8 +588,75 @@ export class PaySheet implements OnInit {
     this.toast.show(translate('Payment request retracted'), 'info');
   }
 
+  protected async copyAccount(): Promise<void> {
+    const value = this.accountNumber();
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      this.toast.show(translate('Account number copied'));
+    } catch {
+      this.error.set(translate('Could not copy the account number.'));
+    }
+  }
+
+  protected async toggleScan(): Promise<void> {
+    if (this.scanning()) {
+      this.stopScan();
+      return;
+    }
+
+    const detectorCtor = (window as unknown as { BarcodeDetector?: new (options?: { formats?: string[] }) => { detect(source: CanvasImageSource): Promise<Array<{ rawValue?: string }>> } }).BarcodeDetector;
+    if (!detectorCtor || !navigator.mediaDevices?.getUserMedia) {
+      this.error.set(translate('Camera scanning is not available on this device.'));
+      return;
+    }
+
+    this.error.set('');
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      this.scanStream = stream;
+      this.scanning.set(true);
+
+      let video = this.videoRef()?.nativeElement;
+      for (let attempt = 0; attempt < 10 && !video; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        video = this.videoRef()?.nativeElement;
+      }
+      if (!video) {
+        this.stopScan();
+        return;
+      }
+
+      video.srcObject = stream;
+      await video.play();
+
+      const detector = new detectorCtor({ formats: ['qr_code'] });
+      const detect = async (): Promise<void> => {
+        if (!this.scanning()) return;
+        try {
+          const codes = await detector.detect(video);
+          const value = codes[0]?.rawValue;
+          if (value) {
+            this.receiptUrl.set(value);
+            this.stopScan();
+            this.toast.show(translate('Receipt QR scanned'));
+            return;
+          }
+        } catch {
+          // Frame could not be decoded yet; keep scanning.
+        }
+        this.scanTimer = setTimeout(() => void detect(), 400);
+      };
+      void detect();
+    } catch {
+      this.stopScan();
+      this.error.set(translate('Camera access was blocked. Allow camera access to scan the receipt QR.'));
+    }
+  }
+
   protected close(): void {
     this.stopPolling();
+    this.stopScan();
     this.closed.emit();
   }
 
@@ -393,6 +685,7 @@ export class PaySheet implements OnInit {
 
     this.bill.set(bill);
     this.tip.set(bill?.tip ?? 0);
+    this.transferred.set(bill ? this.base() : null);
     this.loading.set(false);
 
     if (bill) {
@@ -425,5 +718,15 @@ export class PaySheet implements OnInit {
       clearInterval(this.pollTimer);
       this.pollTimer = undefined;
     }
+  }
+
+  private stopScan(): void {
+    this.scanning.set(false);
+    if (this.scanTimer !== undefined) {
+      clearTimeout(this.scanTimer);
+      this.scanTimer = undefined;
+    }
+    this.scanStream?.getTracks().forEach((track) => track.stop());
+    this.scanStream = undefined;
   }
 }

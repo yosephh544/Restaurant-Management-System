@@ -39,6 +39,22 @@ public class PaymentsController : ApiControllerBase
     }
 
     /// <summary>
+    /// Records a customer Telebirr/CBE transfer made to the restaurant account.
+    /// The receipt is verified with check.et and stored on the order for later review.
+    /// </summary>
+    [HttpPost("record")]
+    [Permission(Permissions.PaymentsInitiate)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<PaymentResponse>), 200)]
+    public async Task<IActionResult> RecordDigitalPayment([FromBody] RecordDigitalPaymentRequest request, CancellationToken ct)
+    {
+        var payment = await _paymentService.RecordDigitalPaymentAsync(request, ct);
+        var message = payment.VerificationStatus == "VERIFIED"
+            ? $"{payment.Method} transfer verified with check.et. The receipt is stored on the order."
+            : $"{payment.Method} transfer recorded. Review the receipt before releasing tips.";
+        return OkResponse(payment, message);
+    }
+
+    /// <summary>
     /// Receives signed asynchronous payment confirmation from ArifPay, marks order PAID, and credits the waiter's tip ledger.
     /// </summary>
     [HttpPost("arifpay/webhook")]

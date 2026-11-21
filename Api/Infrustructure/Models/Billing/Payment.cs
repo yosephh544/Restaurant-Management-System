@@ -53,6 +53,28 @@ public class Payment
     /// <summary>Original settlement this payment was moved from, for audit tracing.</summary>
     public Guid? TransferredFromPaymentId { get; set; }
 
+    /// <summary>Link to the customer's bank receipt, kept so cashiers and owners can review it later.</summary>
+    public string? ReceiptUrl { get; set; }
+
+    /// <summary>Bank transaction number extracted from the receipt, when available.</summary>
+    public string? ReceiptReference { get; set; }
+
+    /// <summary>Amount shown on the customer's receipt (TELEBIRR/CBE only).</summary>
+    public decimal? AmountPaid { get; set; }
+
+    public PaymentVerificationStatus VerificationStatus { get; set; } = PaymentVerificationStatus.NotRequired;
+
+    public decimal? VerifiedAmount { get; set; }
+    public string? VerifiedPayerName { get; set; }
+    public string? VerifiedBank { get; set; }
+    public DateTime? VerifiedAt { get; set; }
+
+    /// <summary>How the receipt was confirmed, e.g. "check.et" or a manual override note.</summary>
+    public string? VerifiedVia { get; set; }
+
+    public Guid? VerifiedById { get; set; }
+    public string? VerificationNote { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? SettledAt { get; set; }
     public DateTime? UpdatedAt { get; set; }
@@ -60,6 +82,7 @@ public class Payment
     // Navigation properties
     public Order Order { get; set; } = default!;
     public User InitiatedBy { get; set; } = default!;
+    public User? VerifiedBy { get; set; }
     public WaiterTip? WaiterTip { get; set; }
     public Bill? Bill { get; set; }
 }

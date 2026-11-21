@@ -70,4 +70,13 @@ public class OrdersController : ApiControllerBase
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<OrderResponse>), 200)]
     public async Task<IActionResult> MarkAsServed([FromRoute] Guid orderId, CancellationToken ct)
         => OkResponse(await _orderService.MarkAsServedAsync(orderId, ct), "Order marked as SERVED.");
+
+    /// <summary>
+    /// Marks one ready line as served; the order becomes SERVED once every line is delivered.
+    /// </summary>
+    [HttpPatch("{orderId:guid}/items/{itemId:guid}/served")]
+    [Permission(Permissions.OrdersServe)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<OrderResponse>), 200)]
+    public async Task<IActionResult> MarkItemServed([FromRoute] Guid orderId, [FromRoute] Guid itemId, CancellationToken ct)
+        => OkResponse(await _orderService.MarkItemServedAsync(orderId, itemId, ct), "Item marked as SERVED.");
 }

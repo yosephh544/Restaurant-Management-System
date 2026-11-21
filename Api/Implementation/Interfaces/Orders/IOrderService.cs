@@ -11,4 +11,5 @@ public interface IOrderService
     Task<OrderResponse> AddOrderItemsAsync(Guid orderId, AddOrderItemsRequest request, CancellationToken ct = default);
     Task<OrderResponse> ReorderAsync(Guid orderId, ReorderRequest request, CancellationToken ct = default);
     Task<OrderResponse> MarkAsServedAsync(Guid orderId, CancellationToken ct = default);
+    Task<OrderResponse> MarkItemServedAsync(Guid orderId, Guid itemId, CancellationToken ct = default);
 }

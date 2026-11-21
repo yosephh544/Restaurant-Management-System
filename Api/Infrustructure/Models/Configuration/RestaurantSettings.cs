@@ -16,5 +16,17 @@ public class RestaurantSettings
     public bool QrEnabled { get; set; } = true;
     public bool PhonePayEnabled { get; set; } = true;
     public string? WebhookSecret { get; set; }
+
+    /// <summary>Telebirr number customers transfer the bill amount to.</summary>
+    public string? TelebirrNumber { get; set; }
+
+    /// <summary>CBE account number customers transfer the bill amount to.</summary>
+    public string? CbeAccountNumber { get; set; }
+
+    /// <summary>Name the restaurant account is registered under, shown with the numbers.</summary>
+    public string? AccountHolderName { get; set; }
+
+    /// <summary>Optional link to the restaurant's payment QR image shown on tables.</summary>
+    public string? PaymentQrUrl { get; set; }
     public DateTime UpdatedAt { get; set; } = DateTime.UtcNow;
 }

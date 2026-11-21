@@ -15,5 +15,6 @@ public interface IStationService
 {
     Task<PagedResponse<StationQueueItemResponse>> GetQueueAsync(PreparationStation station, PagedRequest request, CancellationToken ct = default);
     Task<OrderResponse> UpdateOrderStatusAsync(PreparationStation station, Guid orderId, UpdateStationOrderStatusRequest request, CancellationToken ct = default);
+    Task<OrderResponse> UpdateItemStatusAsync(PreparationStation station, Guid orderId, Guid itemId, UpdateStationOrderStatusRequest request, CancellationToken ct = default);
     Task CancelOrderAsync(PreparationStation station, Guid orderId, CancelOrderRequest request, CancellationToken ct = default);
 }

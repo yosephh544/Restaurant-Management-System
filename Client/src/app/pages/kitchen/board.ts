@@ -79,15 +79,28 @@ import { IssueDialog } from '../../shared/issue-dialog';
                         <div class="tiny" style="color: var(--amber)">{{ item.notes }}</div>
                       }
                     </div>
+                    @if (item.status === 'CANCELLED') {
+                      <span class="tiny muted">{{ 'Removed' | t }}</span>
+                    } @else if (item.status === 'PREPARED') {
+                      <span class="pill pill-green no-dot">{{ 'Ready' | t }}</span>
+                    } @else if (ticket.status !== 'PENDING') {
+                      <button class="btn btn-sm btn-secondary" type="button"
+                              [disabled]="itemBusy() === item.id"
+                              (click)="readyItem(ticket, item)">
+                        {{ itemBusy() === item.id ? ('Working…' | t) : ('Ready' | t) }}
+                      </button>
+                    }
                   </div>
                 }
               </div>
 
               <div class="ticket-actions">
-                <button class="btn btn-primary btn-block" type="button" [disabled]="busy() === ticket.id" (click)="advance(ticket)">
-                  <app-icon name="check" />
-                  {{ busy() === ticket.id ? ('Working…' | t) : ticket.status === 'PENDING' ? ('Accept' | t) : ('Mark ready' | t) }}
-                </button>
+                @if (ticket.status === 'PENDING') {
+                  <button class="btn btn-primary btn-block" type="button" [disabled]="busy() === ticket.id" (click)="advance(ticket)">
+                    <app-icon name="check" />
+                    {{ busy() === ticket.id ? ('Working…' | t) : ('Accept' | t) }}
+                  </button>
+                }
                 <button class="btn btn-secondary btn-block" type="button" (click)="issueTicket.set(ticket)">
                   <app-icon name="alert" /> {{ 'Report issue' | t }} </button>
               </div>
@@ -155,6 +168,7 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
   });
   protected readonly issueTicket = signal<KitchenTicket | null>(null);
   protected readonly busy = signal<string | null>(null);
+  protected readonly itemBusy = signal<string | null>(null);
   protected readonly now = signal(Date.now());
 
   private readonly timer = window.setInterval(() => {
@@ -211,11 +225,18 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
   protected async advance(ticket: KitchenTicket): Promise<void> {
     if (this.busy()) return;
     this.busy.set(ticket.id);
-    const next = ticket.status === 'PENDING' ? 'PREPARING' : 'READY';
     const result = this.isBar
-      ? await this.store.barStatus(ticket.id, next)
-      : await this.store.kitchenStatus(ticket.id, next);
+      ? await this.store.barStatus(ticket.id, 'PREPARING')
+      : await this.store.kitchenStatus(ticket.id, 'PREPARING');
     this.busy.set(null);
+    if (!result.ok) this.toast.show(result.error, 'error');
+  }
+
+  protected async readyItem(ticket: KitchenTicket, item: KitchenTicket['items'][number]): Promise<void> {
+    if (this.itemBusy()) return;
+    this.itemBusy.set(item.id);
+    const result = await this.store.readyItem(ticket.id, item.id, this.isBar ? 'BAR' : 'KITCHEN');
+    this.itemBusy.set(null);
     if (!result.ok) this.toast.show(result.error, 'error');
   }
 

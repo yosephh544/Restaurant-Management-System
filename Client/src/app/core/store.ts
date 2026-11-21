@@ -36,6 +36,7 @@ import {
   StaffUser,
   Table,
   TipEntry,
+  VerificationState,
   WaiterPerformance,
 } from './models';
 import { SessionService } from './session.service';
@@ -57,9 +58,13 @@ export interface BillRequest {
 export interface PaymentRequest {
   billId: string;
   method: PayMethod;
-  tipAmount: number;
+  tipAmount?: number;
   customerPhone?: string;
   amountTendered?: number;
+  receiptUrl?: string;
+  transactionNumber?: string;
+  amountPaid?: number;
+  payerName?: string;
 }
 
 export interface MenuItemInput {
@@ -151,6 +156,7 @@ interface OrderItemDto {
   taxRate: number;
   customerNotes?: string | null;
   itemStatus: ItemStatus;
+  servedAt?: string | null;
 }
 
 interface OrderDto {
@@ -223,6 +229,16 @@ interface PaymentDto {
   actor: string;
   tipPaidOut: boolean;
   qrData?: string | null;
+  receiptUrl?: string | null;
+  receiptReference?: string | null;
+  amountPaid?: number | null;
+  verificationStatus?: VerificationState | null;
+  verifiedAmount?: number | null;
+  verifiedPayerName?: string | null;
+  verifiedBank?: string | null;
+  verifiedAt?: string | null;
+  verifiedVia?: string | null;
+  verificationNote?: string | null;
 }
 
 interface PaymentStatusDto {
@@ -347,6 +363,10 @@ interface SettingsDto {
   qr: boolean;
   phonePay: boolean;
   webhookSecret?: string | null;
+  telebirr?: string | null;
+  cbe?: string | null;
+  accountName?: string | null;
+  paymentQr?: string | null;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -452,6 +472,10 @@ export class Store {
         qr: dto.qr,
         phonePay: dto.phonePay,
         webhookSecret: dto.webhookSecret ?? '',
+        telebirr: dto.telebirr ?? '',
+        cbe: dto.cbe ?? '',
+        accountName: dto.accountName ?? '',
+        paymentQr: dto.paymentQr ?? '',
       });
     });
   }
@@ -888,6 +912,21 @@ export class Store {
     });
   }
 
+  async readyItem(orderId: string, itemId: string, station: 'KITCHEN' | 'BAR'): Promise<Result> {
+    return await this.guard(async () => {
+      const base = station === 'BAR' ? '/bar' : '/kitchen';
+      await this.api.patch(`${base}/orders/${orderId}/items/${itemId}/status`, { status: 'READY' });
+      await Promise.all([station === 'BAR' ? this.loadBar() : this.loadKitchen(), this.loadOrders()]);
+    });
+  }
+
+  async serveItem(orderId: string, itemId: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch(`/orders/${orderId}/items/${itemId}/served`);
+      await this.loadOrders();
+    });
+  }
+
   async cancelBar(
     orderId: string,
     reason: IssueReason,
@@ -941,9 +980,26 @@ export class Store {
       const dto = await this.api.post<PaymentDto>('/payments/initiate', {
         billId: request.billId,
         method: request.method,
-        tipAmount: request.tipAmount,
+        tipAmount: request.tipAmount ?? 0,
         customerPhone: request.customerPhone || null,
         amountTendered: request.amountTendered ?? null,
+      });
+      const payment = this.mapPayment(dto);
+      this.payments.update((list) => [payment, ...list]);
+      await this.reloadBilling();
+      return payment;
+    });
+  }
+
+  async recordPayment(request: PaymentRequest): Promise<Result<Payment>> {
+    return await this.guard(async () => {
+      const dto = await this.api.post<PaymentDto>('/payments/record', {
+        billId: request.billId,
+        method: request.method,
+        receiptUrl: request.receiptUrl || null,
+        transactionNumber: request.transactionNumber || null,
+        amountPaid: request.amountPaid ?? null,
+        payerName: request.payerName || null,
       });
       const payment = this.mapPayment(dto);
       this.payments.update((list) => [payment, ...list]);
@@ -1134,6 +1190,10 @@ export class Store {
         qr: settings.qr,
         phonePay: settings.phonePay,
         webhookSecret: settings.webhookSecret || null,
+        telebirr: settings.telebirr || null,
+        cbe: settings.cbe || null,
+        accountName: settings.accountName || null,
+        paymentQr: settings.paymentQr || null,
       });
       this.settings.set({
         restaurant: saved.restaurant,
@@ -1148,6 +1208,10 @@ export class Store {
         qr: saved.qr,
         phonePay: saved.phonePay,
         webhookSecret: saved.webhookSecret ?? '',
+        telebirr: saved.telebirr ?? '',
+        cbe: saved.cbe ?? '',
+        accountName: saved.accountName ?? '',
+        paymentQr: saved.paymentQr ?? '',
       });
     });
   }
@@ -1254,6 +1318,7 @@ export class Store {
           taxRate: i.taxRate,
           notes: i.customerNotes ?? undefined,
           status: i.itemStatus,
+          servedAt: i.servedAt ?? undefined,
           lineTotal: Math.round(i.unitPrice * i.quantity * 100) / 100,
         }),
       ),
@@ -1311,6 +1376,16 @@ export class Store {
       actor: p.actor,
       tipPaidOut: p.tipPaidOut,
       qrData: p.qrData ?? undefined,
+      receiptUrl: p.receiptUrl ?? undefined,
+      receiptReference: p.receiptReference ?? undefined,
+      amountPaid: p.amountPaid ?? undefined,
+      verification: p.verificationStatus ?? 'NOT_REQUIRED',
+      verifiedAmount: p.verifiedAmount ?? undefined,
+      verifiedPayer: p.verifiedPayerName ?? undefined,
+      verifiedBank: p.verifiedBank ?? undefined,
+      verifiedAt: p.verifiedAt ?? undefined,
+      verifiedVia: p.verifiedVia ?? undefined,
+      verificationNote: p.verificationNote ?? undefined,
     };
   }
 

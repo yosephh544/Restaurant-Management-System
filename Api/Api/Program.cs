@@ -12,6 +12,8 @@ builder.Services.AddCors(options =>
     {
         policy
             .WithOrigins(
+                "http://localhost:4200",
+                "https://localhost:4200",
                 "http://localhost:4309",
                 "https://localhost:4309",
                 "http://196.190.251.194:4309")
@@ -22,7 +24,7 @@ builder.Services.AddCors(options =>
 });
 
 builder.Services.AddJwtAuthentication(builder.Configuration);
-builder.Services.AddApplicationServices();
+builder.Services.AddApplicationServices(builder.Configuration);
 builder.Services.AddAuthorizationPolicies();
 
 builder.Services.AddControllers()

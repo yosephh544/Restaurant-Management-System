@@ -362,32 +362,85 @@ public class OrderService : IOrderService
 
     public async Task<OrderResponse> MarkAsServedAsync(Guid orderId, CancellationToken ct = default)
     {
-        var order = await _dbContext.Orders.FindAsync(new object[] { orderId }, ct)
+        var order = await _dbContext.Orders
+            .Include(o => o.OrderItems)
+            .FirstOrDefaultAsync(o => o.Id == orderId, ct)
             ?? throw new NotFoundException("Order", orderId);
 
         EnsureWaiterOwns(order);
 
-        if (order.OrderStatus != OrderStatus.Ready)
-            throw new ConflictException($"Order cannot be marked as SERVED from '{order.OrderStatus}' status. It must be in READY status.");
+        if (order.OrderStatus == OrderStatus.CancelledByKitchen)
+            throw new ConflictException("A cancelled order cannot be served.");
 
-        if (order.OrderItems.Any(i => i.ItemStatus == OrderItemStatus.Active))
+        var activeItems = order.OrderItems
+            .Where(i => i.ItemStatus != OrderItemStatus.Cancelled)
+            .ToList();
+
+        if (activeItems.Count == 0)
+            throw new ConflictException("This order has no items to serve.");
+
+        if (activeItems.Any(i => i.ItemStatus == OrderItemStatus.Active))
             throw new ConflictException("Order cannot be served until kitchen and bar have marked every item ready.");
 
-        order.OrderStatus = OrderStatus.Served;
-        order.ServedAt = DateTime.UtcNow;
-        order.UpdatedAt = DateTime.UtcNow;
+        var now = DateTime.UtcNow;
+
+        foreach (var item in activeItems.Where(i => i.ItemStatus == OrderItemStatus.Prepared))
+        {
+            item.ItemStatus = OrderItemStatus.Served;
+            item.ServedAt = now;
+            item.UpdatedAt = now;
+        }
+
+        RecalculateOrderStatus(order, now);
+        order.UpdatedAt = now;
+
+        await _dbContext.SaveChangesAsync(ct);
+        return await GetOrderByIdAsync(orderId, ct);
+    }
+
+    public async Task<OrderResponse> MarkItemServedAsync(Guid orderId, Guid itemId, CancellationToken ct = default)
+    {
+        var order = await _dbContext.Orders
+            .Include(o => o.OrderItems)
+            .FirstOrDefaultAsync(o => o.Id == orderId, ct)
+            ?? throw new NotFoundException("Order", orderId);
+
+        EnsureWaiterOwns(order);
+
+        if (order.OrderStatus == OrderStatus.CancelledByKitchen)
+            throw new ConflictException("A cancelled order cannot be served.");
+
+        var item = order.OrderItems.FirstOrDefault(i => i.Id == itemId)
+            ?? throw new NotFoundException("OrderItem", itemId);
+
+        if (item.ItemStatus == OrderItemStatus.Cancelled)
+            throw new ConflictException("This item was cancelled and cannot be served.");
+
+        if (item.ItemStatus == OrderItemStatus.Served)
+            throw new ConflictException("This item has already been served.");
+
+        if (item.ItemStatus != OrderItemStatus.Prepared)
+            throw new ConflictException("This item is still being prepared. Serve it once the kitchen or bar marks it ready.");
+
+        var now = DateTime.UtcNow;
+        item.ItemStatus = OrderItemStatus.Served;
+        item.ServedAt = now;
+        item.UpdatedAt = now;
+
+        RecalculateOrderStatus(order, now);
+        order.UpdatedAt = now;
 
         await _dbContext.SaveChangesAsync(ct);
         return await GetOrderByIdAsync(orderId, ct);
     }
 
     /// <summary>
-    /// An order is READY only when every active line (food and drink) is prepared; any
-    /// station still working keeps it PREPARING so half a ticket cannot be served.
+    /// The order is READY once every active line is ready or already served, and SERVED
+    /// once every line has been delivered. Any line still cooking keeps it PREPARING.
     /// </summary>
-    private static void RecalculateOrderStatus(Order order)
+    private static void RecalculateOrderStatus(Order order, DateTime? at = null)
     {
-        var now = DateTime.UtcNow;
+        var now = at ?? DateTime.UtcNow;
         var activeItems = order.OrderItems
             .Where(i => i.ItemStatus != OrderItemStatus.Cancelled)
             .ToList();
@@ -395,14 +448,23 @@ public class OrderService : IOrderService
         if (activeItems.Count == 0)
             return;
 
-        if (activeItems.All(i => i.ItemStatus == OrderItemStatus.Prepared))
+        if (activeItems.All(i => i.ItemStatus == OrderItemStatus.Served))
+        {
+            order.OrderStatus = OrderStatus.Served;
+            order.ServedAt ??= now;
+            return;
+        }
+
+        if (activeItems.All(i => i.ItemStatus == OrderItemStatus.Prepared || i.ItemStatus == OrderItemStatus.Served))
         {
             order.OrderStatus = OrderStatus.Ready;
             order.ReadyAt ??= now;
             return;
         }
 
-        if (activeItems.Any(i => i.ItemStatus == OrderItemStatus.Prepared || i.PreparingAt.HasValue))
+        if (activeItems.Any(i => i.ItemStatus == OrderItemStatus.Prepared
+                || i.ItemStatus == OrderItemStatus.Served
+                || i.PreparingAt.HasValue))
         {
             order.OrderStatus = OrderStatus.Preparing;
             order.PreparingAt ??= now;
@@ -450,7 +512,8 @@ public class OrderService : IOrderService
             TaxRate = i.TaxRate,
             CustomerNotes = i.CustomerNotes,
             ItemStatus = i.ItemStatus.ToString().ToUpperInvariant(),
-            Station = i.PreparationStation.ToString().ToUpperInvariant()
+            Station = i.PreparationStation.ToString().ToUpperInvariant(),
+            ServedAt = i.ServedAt
         }).ToList()
     };
 }

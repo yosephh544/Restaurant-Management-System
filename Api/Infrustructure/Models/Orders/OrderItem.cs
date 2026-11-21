@@ -34,8 +34,11 @@ public class OrderItem
     /// <summary>When the station accepted this line (station ticket moved to PREPARING).</summary>
     public DateTime? PreparingAt { get; set; }
 
-    /// <summary>When the station finished this line (station ticket moved to READY).</summary>
+    /// <summary>When the station finished this line (line marked ready).</summary>
     public DateTime? ReadyAt { get; set; }
+
+    /// <summary>When the waiter delivered this line to the table.</summary>
+    public DateTime? ServedAt { get; set; }
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

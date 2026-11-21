@@ -156,49 +156,40 @@ import { Icon } from '../../shared/icon';
           <div class="card">
             <div class="card-head">
               <div>
-                <div class="card-title">{{ 'Payment methods' | t }}</div>
-                <div class="card-sub">{{ 'Turn off a method to hide it from the payment sheet' | t }}</div>
+                <div class="card-title">{{ 'Digital payment accounts' | t }}</div>
+                <div class="card-sub">{{ 'Customers transfer the bill here, then the waiter scans their receipt' | t }}</div>
               </div>
             </div>
             <div class="card-pad stack">
               <div class="between">
-                <span class="row">
-                  <app-icon name="cash" style="color: var(--green)" />
-                  <span>
-                    <strong class="small">{{ 'Cash' | t }}</strong>
-                    <span class="tiny muted" style="display: block">{{ 'Tendered and change recorded' | t }}</span>
-                  </span>
+                <span>
+                  <strong class="small">{{ 'Cash payments' | t }}</strong>
+                  <span class="tiny muted" style="display: block">{{ 'Tendered and change recorded' | t }}</span>
                 </span>
                 <button class="switch" type="button" [class.on]="form.cash" (click)="form.cash = !form.cash"><span></span></button>
-              </div>
-              <div class="between">
-                <span class="row">
-                  <app-icon name="qr" style="color: var(--blue)" />
-                  <span>
-                    <strong class="small">{{ 'QR code' | t }}</strong>
-                    <span class="tiny muted" style="display: block">{{ 'Guest scans and confirms' | t }}</span>
-                  </span>
-                </span>
-                <button class="switch" type="button" [class.on]="form.qr" (click)="form.qr = !form.qr"><span></span></button>
-              </div>
-              <div class="between">
-                <span class="row">
-                  <app-icon name="phone" style="color: var(--amber)" />
-                  <span>
-                    <strong class="small">{{ 'Phone push' | t }}</strong>
-                    <span class="tiny muted" style="display: block">{{ 'Prompt sent to the guest phone' | t }}</span>
-                  </span>
-                </span>
-                <button class="switch" type="button" [class.on]="form.phonePay" (click)="form.phonePay = !form.phonePay"><span></span></button>
               </div>
 
               <div class="divider"></div>
 
               <div class="field">
-                <label class="label" for="secret">{{ 'Gateway webhook secret' | t }}</label>
-                <input id="secret" class="input" [(ngModel)]="form.webhookSecret" autocomplete="off" />
-                <span class="hint">{{ 'Used to verify payment callbacks. Keep it private.' | t }}</span>
+                <label class="label" for="telebirr">{{ 'Telebirr number' | t }}</label>
+                <input id="telebirr" class="input" [(ngModel)]="form.telebirr" inputmode="tel" placeholder="09xx xxx xxx" />
               </div>
+              <div class="field">
+                <label class="label" for="cbe">{{ 'CBE account number' | t }}</label>
+                <input id="cbe" class="input" [(ngModel)]="form.cbe" inputmode="numeric" placeholder="1000xxxxxxxxx" />
+              </div>
+              <div class="field">
+                <label class="label" for="account-name">{{ 'Account holder name' | t }}</label>
+                <input id="account-name" class="input" [(ngModel)]="form.accountName" />
+              </div>
+              <div class="field">
+                <label class="label" for="payment-qr">{{ 'Payment QR image link (optional)' | t }}</label>
+                <input id="payment-qr" class="input" [(ngModel)]="form.paymentQr" placeholder="https://…" />
+                <span class="hint">{{ 'Shown on the payment sheet so customers can scan the restaurant QR.' | t }}</span>
+              </div>
+
+              <p class="tiny muted">{{ 'Receipts are verified with check.et when the waiter records a payment.' | t }}</p>
             </div>
           </div>
         </aside>
@@ -247,6 +238,10 @@ export class SettingsPage {
       branch: this.form.branch.trim(),
       taxRate: Math.min(100, Math.max(0, Number(this.form.taxRate) || 0)),
       tipPresets: presets,
+      telebirr: this.form.telebirr.trim(),
+      cbe: this.form.cbe.trim(),
+      accountName: this.form.accountName.trim(),
+      paymentQr: this.form.paymentQr.trim(),
     });
     this.busy.set(false);
     if (!result.ok) {

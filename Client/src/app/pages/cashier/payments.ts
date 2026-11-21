@@ -2,7 +2,7 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { clock, dayKey, money, Payment } from '../../core/models';
+import { clock, dayKey, methodLabel as paymentMethodLabel, money, Payment } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { ConfirmDialog } from '../../shared/confirm-dialog';
@@ -63,6 +63,9 @@ import { Icon } from '../../shared/icon';
                 {{ option.label | t }}
               </button>
             }
+            <button class="chip" type="button" [class.active]="verificationOnly()" (click)="verificationOnly.set(!verificationOnly())">
+              {{ 'Unverified only' | t }}
+            </button>
           </div>
           <div class="search">
             <app-icon name="search" />
@@ -102,16 +105,28 @@ import { Icon } from '../../shared/icon';
                     <td class="muted num">{{ clock(payment.settledAt ?? payment.createdAt) }}</td>
                     <td>
                       <span class="row" style="gap: 6px">
-                        <app-icon [name]="payment.method === 'CASH' ? 'cash' : payment.method === 'QR_SCAN' ? 'qr' : 'phone'" style="font-size: 15px; color: var(--muted)" />
+                        <app-icon [name]="methodIcon(payment.method)" style="font-size: 15px; color: var(--muted)" />
                         {{ methodLabel(payment) }}
                       </span>
                     </td>
                     <td>{{ payment.waiterName || '—' }}</td>
                     <td class="t-right strong num">{{ money(payment.total) }}</td>
                     <td class="t-right muted num">{{ payment.tip ? money(payment.tip) : '—' }}</td>
-                    <td><span [class]="'pill ' + statusPill(payment)">{{ statusLabel(payment) }}</span></td>
+                    <td>
+                      <span [class]="'pill ' + statusPill(payment)">{{ statusLabel(payment) }}</span>
+                      @if (payment.verification === 'VERIFIED') {
+                        <span class="pill pill-green" style="margin-left: 4px">{{ 'Verified' | t }}</span>
+                      } @else if (payment.verification === 'UNVERIFIED') {
+                        <span class="pill pill-amber" style="margin-left: 4px">{{ 'Unverified' | t }}</span>
+                      }
+                    </td>
                     <td>
                       <div class="row" style="gap: 4px; justify-content: flex-end">
+                        @if (payment.receiptUrl) {
+                          <a class="btn btn-sm btn-ghost" [href]="payment.receiptUrl" target="_blank" rel="noopener" [title]="'Bank receipt' | t">
+                            <app-icon name="receipt" />
+                          </a>
+                        }
                         @if (payment.billId && (payment.status === 'PAID' || payment.status === 'REFUNDED')) {
                           <a class="btn btn-sm btn-ghost" [routerLink]="['/cashier/bills', payment.billId, 'receipt']" [title]="'Receipt' | t">
                             <app-icon name="printer" />
@@ -173,15 +188,16 @@ export class CashierPaymentsPage implements OnInit {
   }
 
   protected readonly scope = signal<'today' | 'all'>('today');
-  protected readonly method = signal<'ALL' | 'CASH' | 'QR_SCAN' | 'PHONE_PUSH'>('ALL');
+  protected readonly method = signal<'ALL' | 'CASH' | 'TELEBIRR' | 'CBE'>('ALL');
+  protected readonly verificationOnly = signal(false);
   protected readonly query = signal('');
   protected readonly refundTarget = signal<Payment | null>(null);
 
-  protected readonly methods: { value: 'ALL' | 'CASH' | 'QR_SCAN' | 'PHONE_PUSH'; label: string }[] = [
+  protected readonly methods: { value: 'ALL' | 'CASH' | 'TELEBIRR' | 'CBE'; label: string }[] = [
     { value: 'ALL', label: 'All methods' },
     { value: 'CASH', label: 'Cash' },
-    { value: 'QR_SCAN', label: 'QR' },
-    { value: 'PHONE_PUSH', label: 'Phone' },
+    { value: 'TELEBIRR', label: 'Telebirr' },
+    { value: 'CBE', label: 'CBE' },
   ];
 
   async ngOnInit(): Promise<void> {
@@ -195,12 +211,14 @@ export class CashierPaymentsPage implements OnInit {
       .payments()
       .filter((p) => this.scope() === 'all' || dayKey(p.createdAt) === today)
       .filter((p) => this.method() === 'ALL' || p.method === this.method())
+      .filter((p) => !this.verificationOnly() || p.verification === 'UNVERIFIED')
       .filter(
         (p) =>
           !query ||
           (p.billNumber ?? '').toLowerCase().includes(query) ||
           p.orderNumber.includes(query) ||
-          (p.waiterName ?? '').toLowerCase().includes(query),
+          (p.waiterName ?? '').toLowerCase().includes(query) ||
+          (p.receiptReference ?? '').toLowerCase().includes(query),
       );
   });
 
@@ -215,7 +233,20 @@ export class CashierPaymentsPage implements OnInit {
   });
 
   protected methodLabel(payment: Payment): string {
-    return translate(payment.method === 'CASH' ? 'Cash' : payment.method === 'QR_SCAN' ? 'QR' : 'Phone');
+    return paymentMethodLabel(payment.method);
+  }
+
+  protected methodIcon(method: string): 'cash' | 'qr' | 'phone' | 'card' {
+    switch (method) {
+      case 'CASH':
+        return 'cash';
+      case 'QR_SCAN':
+        return 'qr';
+      case 'CBE':
+        return 'card';
+      default:
+        return 'phone';
+    }
   }
 
   protected statusLabel(payment: Payment): string {

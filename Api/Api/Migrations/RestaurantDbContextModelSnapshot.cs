@@ -213,6 +213,10 @@ namespace RestaurantManagement.Api.Migrations
                         .HasColumnType("uniqueidentifier")
                         .HasDefaultValueSql("NEWSEQUENTIALID()");
 
+                    b.Property<decimal?>("AmountPaid")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
                     b.Property<decimal?>("AmountTendered")
                         .HasPrecision(10, 2)
                         .HasColumnType("decimal(10,2)");
@@ -252,6 +256,14 @@ namespace RestaurantManagement.Api.Migrations
                     b.Property<Guid>("OrderId")
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("ReceiptReference")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("ReceiptUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
                     b.Property<DateTime?>("SettledAt")
                         .HasColumnType("datetime2");
 
@@ -281,6 +293,39 @@ namespace RestaurantManagement.Api.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<string>("VerificationNote")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("VerificationStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("NotRequired");
+
+                    b.Property<decimal?>("VerifiedAmount")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
+                    b.Property<DateTime?>("VerifiedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("VerifiedBank")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
+                    b.Property<Guid?>("VerifiedById")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("VerifiedPayerName")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
+                    b.Property<string>("VerifiedVia")
+                        .HasMaxLength(40)
+                        .HasColumnType("nvarchar(40)");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BillId");
@@ -288,6 +333,12 @@ namespace RestaurantManagement.Api.Migrations
                     b.HasIndex("InitiatedById");
 
                     b.HasIndex("OrderId");
+
+                    b.HasIndex("ReceiptReference")
+                        .IsUnique()
+                        .HasFilter("[ReceiptReference] IS NOT NULL AND [Status] = 'Paid'");
+
+                    b.HasIndex("VerifiedById");
 
                     b.ToTable("payments", (string)null);
                 });
@@ -378,6 +429,10 @@ namespace RestaurantManagement.Api.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uniqueidentifier");
 
+                    b.Property<string>("AccountHolderName")
+                        .HasMaxLength(120)
+                        .HasColumnType("nvarchar(120)");
+
                     b.Property<string>("Address")
                         .HasMaxLength(250)
                         .HasColumnType("nvarchar(250)");
@@ -389,6 +444,14 @@ namespace RestaurantManagement.Api.Migrations
 
                     b.Property<bool>("CashEnabled")
                         .HasColumnType("bit");
+
+                    b.Property<string>("CbeAccountNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
+
+                    b.Property<string>("PaymentQrUrl")
+                        .HasMaxLength(400)
+                        .HasColumnType("nvarchar(400)");
 
                     b.Property<string>("Phone")
                         .HasMaxLength(30)
@@ -415,6 +478,10 @@ namespace RestaurantManagement.Api.Migrations
                     b.Property<decimal>("TaxRate")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
+
+                    b.Property<string>("TelebirrNumber")
+                        .HasMaxLength(30)
+                        .HasColumnType("nvarchar(30)");
 
                     b.Property<string>("TipPresetsCsv")
                         .IsRequired()
@@ -1017,6 +1084,9 @@ namespace RestaurantManagement.Api.Migrations
                     b.Property<DateTime?>("ReadyAt")
                         .HasColumnType("datetime2");
 
+                    b.Property<DateTime?>("ServedAt")
+                        .HasColumnType("datetime2");
+
                     b.Property<decimal>("TaxRate")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
@@ -1122,11 +1192,18 @@ namespace RestaurantManagement.Api.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.User", "VerifiedBy")
+                        .WithMany()
+                        .HasForeignKey("VerifiedById")
+                        .OnDelete(DeleteBehavior.NoAction);
+
                     b.Navigation("Bill");
 
                     b.Navigation("InitiatedBy");
 
                     b.Navigation("Order");
+
+                    b.Navigation("VerifiedBy");
                 });
 
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Billing.WaiterTip", b =>

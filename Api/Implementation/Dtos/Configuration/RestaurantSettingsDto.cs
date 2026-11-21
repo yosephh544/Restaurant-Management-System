@@ -16,6 +16,10 @@ public class RestaurantSettingsDto
     public bool Qr { get; init; }
     public bool PhonePay { get; init; }
     public string? WebhookSecret { get; init; }
+    public string? Telebirr { get; init; }
+    public string? Cbe { get; init; }
+    public string? AccountName { get; init; }
+    public string? PaymentQr { get; init; }
 }
 
 public class UpdateRestaurantSettingsRequest
@@ -48,4 +52,16 @@ public class UpdateRestaurantSettingsRequest
 
     [MaxLength(250)]
     public string? WebhookSecret { get; set; }
+
+    [MaxLength(30)]
+    public string? Telebirr { get; set; }
+
+    [MaxLength(30)]
+    public string? Cbe { get; set; }
+
+    [MaxLength(120)]
+    public string? AccountName { get; set; }
+
+    [MaxLength(400)]
+    public string? PaymentQr { get; set; }
 }

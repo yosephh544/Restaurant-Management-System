@@ -4,5 +4,6 @@ public enum OrderItemStatus
 {
     Active,
     Prepared,
-    Cancelled
+    Cancelled,
+    Served
 }

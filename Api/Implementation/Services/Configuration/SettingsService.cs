@@ -42,6 +42,10 @@ public class SettingsService : ISettingsService
         settings.QrEnabled = request.Qr;
         settings.PhonePayEnabled = request.PhonePay;
         settings.WebhookSecret = string.IsNullOrWhiteSpace(request.WebhookSecret) ? null : request.WebhookSecret.Trim();
+        settings.TelebirrNumber = string.IsNullOrWhiteSpace(request.Telebirr) ? null : request.Telebirr.Trim();
+        settings.CbeAccountNumber = string.IsNullOrWhiteSpace(request.Cbe) ? null : request.Cbe.Trim();
+        settings.AccountHolderName = string.IsNullOrWhiteSpace(request.AccountName) ? null : request.AccountName.Trim();
+        settings.PaymentQrUrl = string.IsNullOrWhiteSpace(request.PaymentQr) ? null : request.PaymentQr.Trim();
         settings.UpdatedAt = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync(ct);
@@ -66,6 +70,10 @@ public class SettingsService : ISettingsService
         Cash = settings.CashEnabled,
         Qr = settings.QrEnabled,
         PhonePay = settings.PhonePayEnabled,
-        WebhookSecret = settings.WebhookSecret
+        WebhookSecret = settings.WebhookSecret,
+        Telebirr = settings.TelebirrNumber,
+        Cbe = settings.CbeAccountNumber,
+        AccountName = settings.AccountHolderName,
+        PaymentQr = settings.PaymentQrUrl
     };
 }

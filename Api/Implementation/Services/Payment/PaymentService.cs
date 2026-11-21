@@ -24,6 +24,7 @@ public class PaymentService : IPaymentService
 {
     private readonly RestaurantDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
+    private readonly ICheckEtVerifier _checkEtVerifier;
 
     private readonly IConfiguration _configuration;
     private readonly ILogger<PaymentService> _logger;
@@ -31,11 +32,13 @@ public class PaymentService : IPaymentService
     public PaymentService(
         RestaurantDbContext dbContext,
         ICurrentUserService currentUserService,
+        ICheckEtVerifier checkEtVerifier,
         IConfiguration configuration,
         ILogger<PaymentService> logger)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
+        _checkEtVerifier = checkEtVerifier;
         _configuration = configuration;
         _logger = logger;
     }
@@ -105,9 +108,8 @@ public class PaymentService : IPaymentService
             .OrderBy(o => o.CreatedAt)
             .First();
 
-        if (string.Equals(_currentUserService.Role, Roles.Waiter, StringComparison.OrdinalIgnoreCase)
-            && session.WaiterId != initiatorId)
-            throw new ForbiddenException("You can only initiate payment for your own table sessions.");
+        if (!WaiterMayCollect(session, bill, billOrders, initiatorId))
+            throw new ForbiddenException("You can only collect payment for your own orders or table sessions.");
 
         var method = ParseMethod(request.Method);
 
@@ -196,7 +198,7 @@ public class PaymentService : IPaymentService
         _dbContext.Payments.Add(payment);
 
         if (isCash && tipAmount > 0)
-            await EnsureWaiterTipAsync(payment, session.WaiterId, ct);
+            await EnsureWaiterTipAsync(payment, ResolveTipWaiterId(session, initiatorId), ct);
 
         await _dbContext.SaveChangesAsync(ct);
 
@@ -214,6 +216,26 @@ public class PaymentService : IPaymentService
         "PHONE_PUSH" or "USSD" => PaymentMethod.PhonePush,
         _ => throw new ValidationException("Method", "Method must be CASH, QR_SCAN, PHONE_PUSH, or USSD.")
     };
+
+    /// <summary>
+    /// A table can be served by more than one waiter, so a waiter may settle it when they
+    /// opened the session, requested the bill, or own at least one unpaid order on it.
+    /// </summary>
+    private bool WaiterMayCollect(DiningSession session, Bill bill, List<Order> billOrders, Guid initiatorId)
+    {
+        if (!string.Equals(_currentUserService.Role, Roles.Waiter, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        return session.WaiterId == initiatorId
+            || bill.RequestedById == initiatorId
+            || billOrders.Any(o => o.WaiterId == initiatorId);
+    }
+
+    /// <summary>Tips follow the waiter who collected the payment, falling back to the session owner.</summary>
+    private Guid ResolveTipWaiterId(DiningSession session, Guid initiatorId) =>
+        string.Equals(_currentUserService.Role, Roles.Waiter, StringComparison.OrdinalIgnoreCase)
+            ? initiatorId
+            : session.WaiterId;
 
     private async Task EnsureWaiterTipAsync(PaymentEntity payment, Guid waiterId, CancellationToken ct)
     {
@@ -233,6 +255,243 @@ public class PaymentService : IPaymentService
             PayoutStatus = PayoutStatus.Unsettled,
             CreatedAt = DateTime.UtcNow
         });
+    }
+
+    public async Task<PaymentResponse> RecordDigitalPaymentAsync(
+        RecordDigitalPaymentRequest request,
+        CancellationToken ct = default)
+    {
+        var initiatorId = _currentUserService.UserId
+            ?? throw new UnauthorizedException("User identity could not be verified from token.");
+
+        Bill bill;
+        DiningSession session;
+        RestaurantTable table;
+        List<Order> billOrders;
+
+        if (request.BillId.HasValue)
+        {
+            bill = await _dbContext.Bills
+                .Include(b => b.DiningSession).ThenInclude(s => s.Table)
+                .Include(b => b.DiningSession).ThenInclude(s => s.Orders)
+                .FirstOrDefaultAsync(b => b.Id == request.BillId.Value, ct)
+                ?? throw new NotFoundException("Bill", request.BillId.Value);
+
+            session = bill.DiningSession;
+            table = session.Table;
+            billOrders = session.Orders
+                .Where(o => o.PaymentStatus == PaymentStatus.PaymentInitiated || o.PaymentStatus == PaymentStatus.Unpaid)
+                .ToList();
+        }
+        else if (request.OrderId.HasValue)
+        {
+            var order = await _dbContext.Orders
+                .Include(o => o.DiningSession).ThenInclude(s => s!.Bills)
+                .Include(o => o.DiningSession).ThenInclude(s => s!.Table)
+                .FirstOrDefaultAsync(o => o.Id == request.OrderId.Value, ct)
+                ?? throw new NotFoundException("Order", request.OrderId.Value);
+
+            if (!order.DiningSessionId.HasValue)
+                throw new ConflictException("Generate a table bill before recording a transfer.");
+
+            session = order.DiningSession!;
+            table = session.Table;
+            bill = session.Bills
+                .Where(b => b.Status == BillStatus.Requested || b.Status == BillStatus.PaymentInitiated)
+                .OrderByDescending(b => b.CreatedAt)
+                .FirstOrDefault()
+                ?? throw new ConflictException("Generate a table bill before recording a transfer.");
+
+            billOrders = session.Orders
+                .Where(o => o.PaymentStatus == PaymentStatus.PaymentInitiated || o.PaymentStatus == PaymentStatus.Unpaid)
+                .ToList();
+        }
+        else
+        {
+            throw new ValidationException("BillId", "A generated BillId is required.");
+        }
+
+        if (bill.Status is BillStatus.Paid or BillStatus.Refunded or BillStatus.Voided)
+            throw new ConflictException("This bill is not available for payment.");
+
+        if (session.Status != DiningSessionStatus.BillRequested)
+            throw new ConflictException("The dining session must have a generated bill before payment.");
+
+        if (billOrders.Count == 0)
+            throw new ConflictException("The bill has no unpaid orders.");
+
+        var representativeOrder = billOrders
+            .OrderBy(o => o.CreatedAt)
+            .First();
+
+        if (!WaiterMayCollect(session, bill, billOrders, initiatorId))
+            throw new ForbiddenException("You can only collect payment for your own orders or table sessions.");
+
+        var method = request.Method.Trim().ToUpperInvariant() switch
+        {
+            "TELEBIRR" => PaymentMethod.Telebirr,
+            "CBE" => PaymentMethod.Cbe,
+            _ => throw new ValidationException("Method", "Method must be TELEBIRR or CBE.")
+        };
+
+        var receiptUrl = string.IsNullOrWhiteSpace(request.ReceiptUrl) ? null : request.ReceiptUrl.Trim();
+        if (receiptUrl is not null &&
+            (!Uri.TryCreate(receiptUrl, UriKind.Absolute, out var parsedReceipt) ||
+             (parsedReceipt.Scheme != Uri.UriSchemeHttp && parsedReceipt.Scheme != Uri.UriSchemeHttps)))
+        {
+            throw new ValidationException("ReceiptUrl", "Scan the customer's receipt QR to capture a valid receipt link.");
+        }
+
+        var transactionNumber = string.IsNullOrWhiteSpace(request.TransactionNumber)
+            ? null
+            : request.TransactionNumber.Trim();
+
+        if (method == PaymentMethod.Telebirr && receiptUrl is null)
+            throw new ValidationException("ReceiptUrl", "Scan the customer's Telebirr receipt QR before recording the payment.");
+
+        if (method == PaymentMethod.Cbe && receiptUrl is null && transactionNumber is null)
+            throw new ValidationException("ReceiptUrl", "Scan the customer's CBE receipt or enter its transaction number.");
+
+        var baseAmount = Math.Round(bill.Subtotal + bill.TaxTotal - bill.DiscountAmount, 2);
+
+        if (transactionNumber is not null)
+        {
+            var clash = await _dbContext.Payments
+                .Where(p => p.ReceiptReference == transactionNumber && p.Status == PaymentGatewayStatus.Paid)
+                .Select(p => p.Order.OrderNumber)
+                .FirstOrDefaultAsync(ct);
+
+            if (clash is not null)
+                throw new ConflictException($"This transaction was already recorded for order {clash}.");
+        }
+
+        if (receiptUrl is not null)
+        {
+            var clash = await _dbContext.Payments
+                .Where(p => p.ReceiptUrl == receiptUrl && p.Status == PaymentGatewayStatus.Paid)
+                .Select(p => p.Order.OrderNumber)
+                .FirstOrDefaultAsync(ct);
+
+            if (clash is not null)
+                throw new ConflictException($"This receipt was already recorded for order {clash}.");
+        }
+
+        var settings = await _dbContext.RestaurantSettings.AsNoTracking().FirstOrDefaultAsync(ct);
+        var verification = await _checkEtVerifier.VerifyAsync(
+            receiptUrl,
+            receiptUrl is null ? (method == PaymentMethod.Cbe ? "cbe" : "telebirr") : null,
+            receiptUrl is null ? transactionNumber : null,
+            method == PaymentMethod.Cbe ? settings?.CbeAccountNumber : null,
+            ct);
+
+        if (verification.IsConfigured && !verification.Verified)
+        {
+            var reason = verification.Duplicate
+                ? "This receipt has already been verified for another payment."
+                : string.IsNullOrWhiteSpace(verification.Message)
+                    ? "check.et could not confirm this receipt."
+                    : verification.Message!;
+            throw new ConflictException(reason);
+        }
+
+        decimal? amountPaid = null;
+        if (verification.Amount.HasValue)
+            amountPaid = Math.Round(verification.Amount.Value, 2);
+        else if (request.AmountPaid.HasValue)
+            amountPaid = Math.Round(request.AmountPaid.Value, 2);
+
+        if (amountPaid.HasValue && amountPaid.Value + 0.01m < baseAmount)
+        {
+            var shortfall = Math.Round(baseAmount - amountPaid.Value, 2);
+            throw new ConflictException(
+                $"The transfer is {amountPaid.Value:0.00} ETB but the bill is {baseAmount:0.00} ETB. " +
+                $"Paid {amountPaid.Value:0.00} ETB · remaining {shortfall:0.00} ETB. " +
+                "Ask the customer for the remaining amount before accepting.");
+        }
+
+        var tipAmount = amountPaid.HasValue ? Math.Round(amountPaid.Value - baseAmount, 2) : 0m;
+        var totalAmount = Math.Round(baseAmount + tipAmount, 2);
+
+        var pendingPayments = await _dbContext.Payments
+            .Where(p => p.BillId == bill.Id && p.Status == PaymentGatewayStatus.Initiated)
+            .ToListAsync(ct);
+
+        foreach (var pending in pendingPayments)
+        {
+            pending.Status = PaymentGatewayStatus.Retracted;
+            pending.UpdatedAt = DateTime.UtcNow;
+        }
+
+        var now = DateTime.UtcNow;
+        var payerName = verification.PayerName ?? (string.IsNullOrWhiteSpace(request.PayerName) ? null : request.PayerName.Trim());
+
+        var payment = new PaymentEntity
+        {
+            Id = Guid.NewGuid(),
+            BillId = bill.Id,
+            OrderId = representativeOrder.Id,
+            InitiatedById = initiatorId,
+            Method = method,
+            TxRef = transactionNumber,
+            BaseAmount = Math.Round(baseAmount, 2),
+            TipAmount = tipAmount,
+            TotalAmount = totalAmount,
+            Status = PaymentGatewayStatus.Paid,
+            ReceiptUrl = receiptUrl,
+            ReceiptReference = transactionNumber,
+            AmountPaid = amountPaid,
+            VerificationStatus = verification.Verified
+                ? PaymentVerificationStatus.Verified
+                : PaymentVerificationStatus.Unverified,
+            VerifiedAmount = verification.Amount,
+            VerifiedPayerName = payerName,
+            VerifiedBank = verification.BankName ?? verification.Bank,
+            VerifiedAt = verification.Verified ? now : null,
+            VerifiedVia = verification.Verified ? "check.et" : null,
+            VerifiedById = verification.Verified ? initiatorId : null,
+            VerificationNote = verification.Verified
+                ? verification.Message
+                : "Recorded without check.et verification. Review the receipt before releasing tips.",
+            SettledAt = now,
+            CreatedAt = now
+        };
+
+        bill.TipAmount = tipAmount;
+        bill.GrandTotal = totalAmount;
+        bill.Status = BillStatus.Paid;
+        bill.PaidAt = now;
+
+        foreach (var order in billOrders)
+        {
+            order.TipAmount = 0;
+            order.GrandTotal = order.Subtotal + order.TaxTotal;
+            order.PaymentStatus = PaymentStatus.Paid;
+            order.UpdatedAt = now;
+        }
+
+        session.Status = DiningSessionStatus.Paid;
+        session.ClosedAt = now;
+        table.Status = TableStatus.Available;
+
+        _dbContext.Payments.Add(payment);
+
+        if (tipAmount > 0)
+            await EnsureWaiterTipAsync(payment, ResolveTipWaiterId(session, initiatorId), ct);
+
+        try
+        {
+            await _dbContext.SaveChangesAsync(ct);
+        }
+        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("IX_payments_ReceiptReference") == true)
+        {
+            throw new ConflictException("This transaction number is already attached to another payment.");
+        }
+
+        _logger.LogInformation(
+            "Digital payment {PaymentId} recorded for bill {BillNumber} via {Method} (verified: {Verified}).",
+            payment.Id, bill.BillNumber, method, verification.Verified);
+
+        return MapPaymentToResponse(payment, representativeOrder.OrderNumber);
     }
 
     public async Task HandleArifpayWebhookAsync(ArifpayWebhookPayload payload, CancellationToken ct = default)
@@ -506,6 +765,17 @@ public class PaymentService : IPaymentService
             CustomerPhone = payment.CustomerPhone,
             AmountTendered = payment.AmountTendered,
             ChangeGiven = payment.ChangeGiven,
+            ReceiptUrl = payment.ReceiptUrl,
+            ReceiptReference = payment.ReceiptReference,
+            AmountPaid = payment.AmountPaid,
+            VerificationStatus = payment.VerificationStatus,
+            VerifiedAmount = payment.VerifiedAmount,
+            VerifiedPayerName = payment.VerifiedPayerName,
+            VerifiedBank = payment.VerifiedBank,
+            VerifiedAt = payment.VerifiedAt,
+            VerifiedVia = payment.VerifiedVia,
+            VerifiedById = payment.VerifiedById,
+            VerificationNote = payment.VerificationNote,
             TransferredFromPaymentId = payment.Id,
             // Keep the original sale date so revenue stays in the period it was earned.
             CreatedAt = payment.CreatedAt
@@ -585,7 +855,13 @@ public class PaymentService : IPaymentService
             if (normalized is "QR" or "QR_SCAN") query = query.Where(p => p.Method == PaymentMethod.QrScan);
             else if (normalized is "PHONE" or "PHONE_PUSH" or "USSD") query = query.Where(p => p.Method == PaymentMethod.PhonePush);
             else if (normalized == "CASH") query = query.Where(p => p.Method == PaymentMethod.Cash);
+            else if (normalized == "TELEBIRR") query = query.Where(p => p.Method == PaymentMethod.Telebirr);
+            else if (normalized == "CBE") query = query.Where(p => p.Method == PaymentMethod.Cbe);
         }
+
+        if (!string.IsNullOrWhiteSpace(request.Verification) &&
+            Enum.TryParse<PaymentVerificationStatus>(request.Verification, true, out var verificationStatus))
+            query = query.Where(p => p.VerificationStatus == verificationStatus);
 
         if (request.WaiterId.HasValue)
             query = query.Where(p => p.Order.WaiterId == request.WaiterId.Value);
@@ -625,6 +901,16 @@ public class PaymentService : IPaymentService
             AmountTendered = p.AmountTendered,
             ChangeGiven = p.ChangeGiven,
             CustomerPhone = p.CustomerPhone,
+            ReceiptUrl = p.ReceiptUrl,
+            ReceiptReference = p.ReceiptReference,
+            AmountPaid = p.AmountPaid,
+            VerificationStatus = ToApiVerification(p.VerificationStatus),
+            VerifiedAmount = p.VerifiedAmount,
+            VerifiedPayerName = p.VerifiedPayerName,
+            VerifiedBank = p.VerifiedBank,
+            VerifiedAt = p.VerifiedAt,
+            VerifiedVia = p.VerifiedVia,
+            VerificationNote = p.VerificationNote,
             CreatedAt = p.CreatedAt,
             SettledAt = p.SettledAt,
             Actor = p.InitiatedBy?.FullName ?? "System",
@@ -709,7 +995,17 @@ public class PaymentService : IPaymentService
         PaymentMethod.Cash => "CASH",
         PaymentMethod.QrScan => "QR_SCAN",
         PaymentMethod.PhonePush => "PHONE_PUSH",
+        PaymentMethod.Telebirr => "TELEBIRR",
+        PaymentMethod.Cbe => "CBE",
         _ => method.ToString().ToUpperInvariant()
+    };
+
+    private static string ToApiVerification(PaymentVerificationStatus status) => status switch
+    {
+        PaymentVerificationStatus.Verified => "VERIFIED",
+        PaymentVerificationStatus.Unverified => "UNVERIFIED",
+        PaymentVerificationStatus.Failed => "FAILED",
+        _ => "NOT_REQUIRED"
     };
 
     private static PaymentResponse MapPaymentToResponse(PaymentEntity p, string orderNumber, string? qrData = null) => new()
@@ -726,6 +1022,16 @@ public class PaymentService : IPaymentService
         QrData = qrData,
         AmountTendered = p.AmountTendered,
         ChangeGiven = p.ChangeGiven,
+        ReceiptUrl = p.ReceiptUrl,
+        ReceiptReference = p.ReceiptReference,
+        AmountPaid = p.AmountPaid,
+        VerificationStatus = ToApiVerification(p.VerificationStatus),
+        VerifiedAmount = p.VerifiedAmount,
+        VerifiedPayerName = p.VerifiedPayerName,
+        VerifiedBank = p.VerifiedBank,
+        VerifiedAt = p.VerifiedAt,
+        VerifiedVia = p.VerifiedVia,
+        VerificationNote = p.VerificationNote,
         CreatedAt = p.CreatedAt,
         SettledAt = p.SettledAt
     };

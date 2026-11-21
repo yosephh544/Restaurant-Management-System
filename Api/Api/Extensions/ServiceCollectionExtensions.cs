@@ -123,9 +123,26 @@ public static class ServiceCollectionExtensions
         return services;
     }
 
-    public static IServiceCollection AddApplicationServices(this IServiceCollection services)
+    public static IServiceCollection AddApplicationServices(
+        this IServiceCollection services,
+        IConfiguration configuration)
     {
         services.AddHttpContextAccessor();
+
+        // check.et receipt verification. The API key lives in configuration/env only.
+        services.AddHttpClient<ICheckEtVerifier, CheckEtVerifier>((sp, client) =>
+        {
+            var config = sp.GetRequiredService<IConfiguration>();
+            var baseUrl = config["CheckEt:BaseUrl"];
+            if (string.IsNullOrWhiteSpace(baseUrl))
+                baseUrl = "https://api.check.et";
+            if (!baseUrl.EndsWith('/'))
+                baseUrl += "/";
+
+            client.BaseAddress = new Uri(baseUrl);
+            var timeoutSeconds = config.GetValue<int?>("CheckEt:TimeoutSeconds") ?? 20;
+            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(timeoutSeconds, 3, 60));
+        });
 
         // Common
         services.AddScoped<IJwtTokenService, JwtTokenService>();

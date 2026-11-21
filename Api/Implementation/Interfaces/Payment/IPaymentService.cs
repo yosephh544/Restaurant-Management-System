@@ -7,6 +7,12 @@ namespace RestaurantManagement.Implementation.Interfaces.Payment;
 public interface IPaymentService
 {
     Task<PaymentResponse> InitiatePaymentAsync(InitiatePaymentRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Records a customer Telebirr/CBE transfer to the restaurant account, verifies
+    /// the receipt with check.et, and settles the bill on success.
+    /// </summary>
+    Task<PaymentResponse> RecordDigitalPaymentAsync(RecordDigitalPaymentRequest request, CancellationToken ct = default);
     Task HandleArifpayWebhookAsync(ArifpayWebhookPayload payload, CancellationToken ct = default);
     Task<PaymentStatusResponse> GetPaymentStatusAsync(Guid paymentId, CancellationToken ct = default);
     Task<PaymentResponse> RetractPaymentAsync(Guid paymentId, CancellationToken ct = default);

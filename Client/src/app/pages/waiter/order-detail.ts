@@ -122,12 +122,23 @@ import { PaySheet } from '../../shared/pay-sheet';
                         {{ money(line.unitPrice) }} ETB {{ 'each' | t }} · {{ 'tax' | t }} {{ line.taxRate }}%
                         @if (line.status === 'CANCELLED') {
                           · <span style="color: var(--red)">{{ 'cancelled' | t }}</span>
+                        } @else if (line.status === 'SERVED') {
+                          · <span style="color: var(--blue)">{{ 'served' | t }}</span>
+                          @if (line.servedAt) {
+                            {{ clock(line.servedAt) }}
+                          }
                         } @else if (line.status === 'PREPARED') {
                           · <span style="color: var(--green)">{{ 'prepared' | t }}</span>
                         }
                       </div>
                       @if (line.notes) {
                         <div class="line-note">{{ line.notes }}</div>
+                      }
+                      @if (line.status === 'PREPARED') {
+                        <button class="btn btn-sm btn-secondary" type="button" style="margin-top: 6px"
+                                [disabled]="!!serving()" (click)="serveLine(line.id)">
+                          <app-icon name="check" /> {{ serving() === line.id ? ('Working…' | t) : ('Serve' | t) }}
+                        </button>
                       }
                     </div>
                     <span class="qty-tag">×{{ line.qty }}</span>
@@ -169,8 +180,24 @@ import { PaySheet } from '../../shared/pay-sheet';
                   <div class="stack mt-3">
                     <div class="between small"><span class="muted">{{ 'Method' | t }}</span><span class="strong">{{ methodLabel(p.method) }}</span></div>
                     <div class="between small"><span class="muted">{{ 'Tip' | t }}</span><span class="strong">{{ money(p.tip) }} ETB</span></div>
+                    @if (isDigitalMethod(p.method)) {
+                      <div class="between small">
+                        <span class="muted">{{ 'Verification' | t }}</span>
+                        <span class="strong" [style.color]="p.verification === 'VERIFIED' ? 'var(--green)' : 'var(--amber)'">
+                          {{ p.verification === 'VERIFIED' ? ('Verified with check.et' | t) : ('Unverified' | t) }}
+                        </span>
+                      </div>
+                      @if (p.verifiedPayer) {
+                        <div class="between small"><span class="muted">{{ 'Payer' | t }}</span><span class="strong">{{ p.verifiedPayer }}</span></div>
+                      }
+                    }
                     <div class="between small"><span class="muted">{{ 'Settled' | t }}</span><span class="strong">{{ clock(p.settledAt) }}</span></div>
                   </div>
+                  @if (p.receiptUrl) {
+                    <a class="btn btn-secondary btn-block mt-3" [href]="p.receiptUrl" target="_blank" rel="noopener">
+                      <app-icon name="receipt" /> {{ 'Open bank receipt' | t }}
+                    </a>
+                  }
                 } @else if (p.status === 'INITIATED') {
                   <div class="pending-box" style="margin-top: 0">
                     <div class="row">
@@ -307,6 +334,7 @@ export class OrderDetailPage implements OnInit {
   protected readonly showAdd = signal(false);
   protected readonly addQuery = signal('');
   protected readonly busy = signal(false);
+  protected readonly serving = signal<string | null>(null);
 
   protected readonly order = computed(() => this.store.order(this.id));
   protected readonly tableId = computed(() => {
@@ -407,6 +435,10 @@ export class OrderDetailPage implements OnInit {
     return translate(METHOD_LABEL[method as keyof typeof METHOD_LABEL] ?? method);
   }
 
+  protected isDigitalMethod(method: string): boolean {
+    return method === 'TELEBIRR' || method === 'CBE';
+  }
+
   protected cancelSummary(): string {
     const whole = this.store.issues().find((i) => i.orderId === this.id && i.item === 'Whole order');
     const item = this.store.issues().find((i) => i.orderId === this.id);
@@ -425,6 +457,14 @@ export class OrderDetailPage implements OnInit {
     const result = await this.store.serveOrder(this.id);
     this.busy.set(false);
     this.toast.show(result.ok ? translate('Order marked served') : result.error, result.ok ? 'success' : 'error');
+  }
+
+  protected async serveLine(itemId: string): Promise<void> {
+    if (this.serving()) return;
+    this.serving.set(itemId);
+    const result = await this.store.serveItem(this.id, itemId);
+    this.serving.set(null);
+    this.toast.show(result.ok ? translate('Item served') : result.error, result.ok ? 'success' : 'error');
   }
 
   protected async addItem(menuId: string): Promise<void> {

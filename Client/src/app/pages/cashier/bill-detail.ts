@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { ageLabel, Bill, BillStatus, billIsOpen, clock, money, orderStatusLabel, Payment } from '../../core/models';
+import { ageLabel, Bill, BillStatus, billIsOpen, clock, methodLabel as paymentMethodLabel, money, orderStatusLabel, Payment } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { ConfirmDialog } from '../../shared/confirm-dialog';
@@ -135,6 +135,33 @@ import { PaySheet } from '../../shared/pay-sheet';
                     </div>
                   </div>
 
+                  @if (isDigitalMethod(p.method)) {
+                    <div class="pending-box" style="margin-top: 12px">
+                      <div class="row" style="align-items: flex-start">
+                        <app-icon
+                          [name]="p.verification === 'VERIFIED' ? 'check-circle' : 'alert-circle'"
+                          [style.color]="p.verification === 'VERIFIED' ? 'var(--green)' : 'var(--amber)'"
+                        />
+                        <div>
+                          <strong [style.color]="p.verification === 'VERIFIED' ? 'var(--green)' : 'var(--amber)'">
+                            {{ p.verification === 'VERIFIED' ? ('Verified with check.et' | t) : ('Unverified transfer' | t) }}
+                          </strong>
+                          <p>
+                            @if (p.verifiedPayer) {
+                              {{ 'Payer' | t }}: {{ p.verifiedPayer }} ·
+                            }
+                            {{ (p.verification === 'VERIFIED' ? p.verificationNote : '') || ('Review the receipt before releasing tips.' | t) }}
+                          </p>
+                        </div>
+                      </div>
+                      @if (p.receiptUrl) {
+                        <a class="btn btn-secondary btn-sm" [href]="p.receiptUrl" target="_blank" rel="noopener">
+                          <app-icon name="receipt" /> {{ 'Open bank receipt' | t }}
+                        </a>
+                      }
+                    </div>
+                  }
+
                   <div class="stack mt-3">
                     <div class="between small"><span class="muted">{{ 'Tip' | t }}</span><span class="strong">{{ money(p.tip) }} ETB</span></div>
                     @if (p.method === 'CASH') {
@@ -143,6 +170,9 @@ import { PaySheet } from '../../shared/pay-sheet';
                     }
                     @if (p.phone) {
                       <div class="between small"><span class="muted">{{ 'Phone' | t }}</span><span class="strong">{{ p.phone }}</span></div>
+                    }
+                    @if (p.receiptReference) {
+                      <div class="between small"><span class="muted">{{ 'Transaction no.' | t }}</span><span class="strong">{{ p.receiptReference }}</span></div>
                     }
                     <div class="between small"><span class="muted">{{ 'Taken by' | t }}</span><span class="strong">{{ p.actor }}</span></div>
                     <div class="between small"><span class="muted">{{ 'Tip payout' | t }}</span><span class="strong">{{ p.tipPaidOut ? ('Paid out' | t) : ('Unsettled' | t) }}</span></div>
@@ -173,7 +203,7 @@ import { PaySheet } from '../../shared/pay-sheet';
                   </div>
                   <p class="tiny muted mt-3">{{ 'The provider has not settled this payment yet.' | t }}</p>
                 } @else if (canCollect()) {
-                  <p class="small muted" style="margin-bottom: 12px"> {{ "Collect cash, send a QR code, or push a payment prompt to the guest's phone." | t }} </p>
+                  <p class="small muted" style="margin-bottom: 12px"> {{ 'Collect cash or record a Telebirr/CBE transfer to the restaurant account.' | t }} </p>
                   <button class="btn btn-primary btn-block" type="button" (click)="showPay.set(true)">
                     <app-icon name="cash" /> {{ 'Collect' | t }} {{ money(b.total) }} ETB
                   </button>
@@ -417,7 +447,11 @@ export class BillDetailPage implements OnInit {
   }
 
   protected methodLabel(method: string): string {
-    return translate(method === 'CASH' ? 'Cash' : method === 'QR_SCAN' ? 'QR code' : 'Phone push');
+    return paymentMethodLabel(method);
+  }
+
+  protected isDigitalMethod(method: string): boolean {
+    return method === 'TELEBIRR' || method === 'CBE';
   }
 
   protected itemCount(): number {

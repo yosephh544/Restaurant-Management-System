@@ -137,7 +137,7 @@ export type PaymentStatus =
   | 'TRANSFERRED'
   | 'REFUNDPENDING'
   | 'REFUNDED';
-export type ItemStatus = 'ACTIVE' | 'PREPARED' | 'CANCELLED';
+export type ItemStatus = 'ACTIVE' | 'PREPARED' | 'CANCELLED' | 'SERVED';
 
 export interface OrderLine {
   id: string;
@@ -148,6 +148,7 @@ export interface OrderLine {
   taxRate: number;
   notes?: string;
   status: ItemStatus;
+  servedAt?: string;
   lineTotal: number;
 }
 
@@ -212,8 +213,9 @@ export interface Bill {
   items: BillItem[];
 }
 
-export type PayMethod = 'CASH' | 'QR_SCAN' | 'PHONE_PUSH';
+export type PayMethod = 'CASH' | 'QR_SCAN' | 'PHONE_PUSH' | 'TELEBIRR' | 'CBE';
 export type PayState = 'INITIATED' | 'PAID' | 'FAILED' | 'RETRACTED' | 'TRANSFERRED' | 'REFUNDED';
+export type VerificationState = 'NOT_REQUIRED' | 'UNVERIFIED' | 'VERIFIED' | 'FAILED';
 
 export const PAY_STATE_LABEL: Record<PayState, string> = {
   INITIATED: 'Initiated',
@@ -228,6 +230,15 @@ export const METHOD_LABEL: Record<PayMethod, string> = {
   CASH: 'Cash',
   QR_SCAN: 'QR scan',
   PHONE_PUSH: 'Phone push',
+  TELEBIRR: 'Telebirr',
+  CBE: 'CBE',
+};
+
+export const VERIFICATION_LABEL: Record<VerificationState, string> = {
+  NOT_REQUIRED: 'Not required',
+  UNVERIFIED: 'Unverified',
+  VERIFIED: 'Verified',
+  FAILED: 'Verification failed',
 };
 
 export function payStateLabel(status: PayState): string {
@@ -236,6 +247,10 @@ export function payStateLabel(status: PayState): string {
 
 export function methodLabel(method: string): string {
   return translate(METHOD_LABEL[method as PayMethod] ?? method);
+}
+
+export function verificationLabel(status: VerificationState | string): string {
+  return translate(VERIFICATION_LABEL[status as VerificationState] ?? status);
 }
 
 export interface Payment {
@@ -259,6 +274,16 @@ export interface Payment {
   actor: string;
   tipPaidOut: boolean;
   qrData?: string;
+  receiptUrl?: string;
+  receiptReference?: string;
+  amountPaid?: number;
+  verification: VerificationState;
+  verifiedAmount?: number;
+  verifiedPayer?: string;
+  verifiedBank?: string;
+  verifiedAt?: string;
+  verifiedVia?: string;
+  verificationNote?: string;
 }
 
 export interface PaymentStatusInfo {
@@ -436,6 +461,10 @@ export interface Settings {
   qr: boolean;
   phonePay: boolean;
   webhookSecret: string;
+  telebirr: string;
+  cbe: string;
+  accountName: string;
+  paymentQr: string;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -451,6 +480,10 @@ export const DEFAULT_SETTINGS: Settings = {
   qr: true,
   phonePay: true,
   webhookSecret: '',
+  telebirr: '',
+  cbe: '',
+  accountName: '',
+  paymentQr: '',
 };
 
 export interface SalesSummary {

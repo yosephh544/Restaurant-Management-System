@@ -73,7 +73,16 @@ import { IssueDialog } from '../../shared/issue-dialog';
                       }
                     </div>
                   </div>
-                  <span class="tiny muted">{{ item.status === 'CANCELLED' ? ('Removed' | t) : item.status === 'PREPARED' ? ('Prepared' | t) : isBar ? ('To prepare' | t) : ('To cook' | t) }}</span>
+                  <div class="row" style="gap: 10px">
+                    <span class="tiny muted">{{ item.status === 'CANCELLED' ? ('Removed' | t) : item.status === 'PREPARED' ? ('Prepared' | t) : isBar ? ('To prepare' | t) : ('To cook' | t) }}</span>
+                    @if (item.status === 'ACTIVE' && t.status !== 'PENDING') {
+                      <button class="btn btn-sm btn-secondary" type="button"
+                              [disabled]="itemBusy() === item.id"
+                              (click)="readyItem(item)">
+                        {{ itemBusy() === item.id ? ('Working…' | t) : ('Ready' | t) }}
+                      </button>
+                    }
+                  </div>
                 </div>
               }
             </div>
@@ -124,6 +133,7 @@ export class KitchenTicketPage implements OnInit, OnDestroy {
   protected readonly clock = clock;
   protected readonly showIssue = signal(false);
   protected readonly busy = signal(false);
+  protected readonly itemBusy = signal<string | null>(null);
   protected readonly now = signal(Date.now());
   private readonly timer = window.setInterval(() => this.now.set(Date.now()), 20000);
 
@@ -154,11 +164,20 @@ export class KitchenTicketPage implements OnInit, OnDestroy {
     const ticket = this.ticket();
     if (!ticket || this.busy()) return;
     this.busy.set(true);
-    const next = ticket.status === 'PENDING' ? 'PREPARING' : 'READY';
+    const next: 'PREPARING' | 'READY' = ticket.status === 'PENDING' ? 'PREPARING' : 'READY';
     const result = this.isBar
       ? await this.store.barStatus(ticket.id, next)
       : await this.store.kitchenStatus(ticket.id, next);
     this.busy.set(false);
+    if (!result.ok) this.toast.show(result.error, 'error');
+  }
+
+  protected async readyItem(item: KitchenTicket['items'][number]): Promise<void> {
+    const ticket = this.ticket();
+    if (!ticket || this.itemBusy()) return;
+    this.itemBusy.set(item.id);
+    const result = await this.store.readyItem(ticket.id, item.id, this.isBar ? 'BAR' : 'KITCHEN');
+    this.itemBusy.set(null);
     if (!result.ok) this.toast.show(result.error, 'error');
   }
 }

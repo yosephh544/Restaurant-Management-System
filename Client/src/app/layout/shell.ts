@@ -228,6 +228,7 @@ export class Shell {
 
     const items: NavItem[] = [
       { label: t('Overview'), path: '/manager', icon: 'home' },
+      { label: t('Payments'), path: '/cashier/payments', icon: 'card' },
       { label: t('Reports'), path: '/manager/reports', icon: 'chart' },
       { label: t('Staff'), path: '/manager/staff', icon: 'users' },
       { label: t('Shifts'), path: '/manager/shifts', icon: 'clock' },

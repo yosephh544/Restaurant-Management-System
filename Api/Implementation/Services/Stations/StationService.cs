@@ -35,7 +35,8 @@ public class StationService : IStationService
     public async Task<PagedResponse<StationQueueItemResponse>> GetQueueAsync(PreparationStation station, PagedRequest request, CancellationToken ct = default)
     {
         // READY station tickets stay on the board until a waiter collects them.
-        // Only orders that still have active lines for this station are shown.
+        // Served lines leave the board; only orders that still have work for this
+        // station are shown.
         // Explicit comparisons: EF Core's JSON-based Contains translation is rejected by this SQL Server.
         var query = _dbContext.Orders
             .AsNoTracking()
@@ -43,7 +44,8 @@ public class StationService : IStationService
                     || o.OrderStatus == OrderStatus.Preparing
                     || o.OrderStatus == OrderStatus.Ready)
                 && o.OrderItems.Any(i => i.PreparationStation == station
-                    && i.ItemStatus != OrderItemStatus.Cancelled))
+                    && i.ItemStatus != OrderItemStatus.Cancelled
+                    && i.ItemStatus != OrderItemStatus.Served))
             .Include(o => o.Waiter)
             .Include(o => o.OrderItems)
                 .ThenInclude(i => i.MenuItem)
@@ -54,7 +56,7 @@ public class StationService : IStationService
         var queueItems = paged.Data.Select(o =>
         {
             var stationItems = o.OrderItems
-                .Where(i => i.PreparationStation == station)
+                .Where(i => i.PreparationStation == station && i.ItemStatus != OrderItemStatus.Served)
                 .ToList();
 
             return new StationQueueItemResponse
@@ -107,15 +109,17 @@ public class StationService : IStationService
 
         if (request.Status.Equals("PREPARING", StringComparison.OrdinalIgnoreCase))
         {
-            if (activeItems.All(i => i.ItemStatus == OrderItemStatus.Prepared))
+            if (activeItems.All(i => i.ItemStatus != OrderItemStatus.Active))
                 throw new ConflictException($"All {StationName(station)} items on this order are already ready.");
 
-            foreach (var item in activeItems.Where(i => i.PreparingAt is null))
+            foreach (var item in activeItems.Where(i => i.ItemStatus == OrderItemStatus.Active && i.PreparingAt is null))
                 item.PreparingAt = now;
         }
         else if (request.Status.Equals("READY", StringComparison.OrdinalIgnoreCase))
         {
-            foreach (var item in activeItems)
+            // Bulk convenience: finish whatever is still cooking; already ready or
+            // served lines are left untouched.
+            foreach (var item in activeItems.Where(i => i.ItemStatus == OrderItemStatus.Active))
             {
                 item.ItemStatus = OrderItemStatus.Prepared;
                 item.PreparingAt ??= now;
@@ -131,6 +135,57 @@ public class StationService : IStationService
         RecalculateOrderStatus(order, now);
 
         order.UpdatedAt = now;
+        await _dbContext.SaveChangesAsync(ct);
+
+        return await _orderService.GetOrderByIdAsync(orderId, ct);
+    }
+
+    public async Task<OrderResponse> UpdateItemStatusAsync(PreparationStation station, Guid orderId, Guid itemId, UpdateStationOrderStatusRequest request, CancellationToken ct = default)
+    {
+        var order = await _dbContext.Orders
+            .Include(o => o.OrderItems)
+            .FirstOrDefaultAsync(o => o.Id == orderId, ct)
+            ?? throw new NotFoundException("Order", orderId);
+
+        if (order.OrderStatus == OrderStatus.CancelledByKitchen)
+            throw new ConflictException("Cannot update status of a cancelled order.");
+
+        if (order.OrderStatus == OrderStatus.Served)
+            throw new ConflictException("Cannot update status of an already served order.");
+
+        var item = order.OrderItems.FirstOrDefault(i => i.Id == itemId)
+            ?? throw new NotFoundException("OrderItem", itemId);
+
+        if (item.PreparationStation != station)
+            throw new ForbiddenException($"This item is handled by the {StationName(Other(station))}, not the {StationName(station)}.");
+
+        if (item.ItemStatus == OrderItemStatus.Cancelled)
+            throw new ConflictException("This item was cancelled and cannot be prepared.");
+
+        if (item.ItemStatus == OrderItemStatus.Served)
+            throw new ConflictException("This item has already been served.");
+
+        var now = DateTime.UtcNow;
+
+        if (request.Status.Equals("PREPARING", StringComparison.OrdinalIgnoreCase))
+        {
+            item.PreparingAt ??= now;
+        }
+        else if (request.Status.Equals("READY", StringComparison.OrdinalIgnoreCase))
+        {
+            item.ItemStatus = OrderItemStatus.Prepared;
+            item.PreparingAt ??= now;
+            item.ReadyAt ??= now;
+        }
+        else
+        {
+            throw new ValidationException("Status", "Status must be PREPARING or READY.");
+        }
+
+        item.UpdatedAt = now;
+        RecalculateOrderStatus(order, now);
+        order.UpdatedAt = now;
+
         await _dbContext.SaveChangesAsync(ct);
 
         return await _orderService.GetOrderByIdAsync(orderId, ct);
@@ -163,6 +218,9 @@ public class StationService : IStationService
         if (!Enum.TryParse<CancellationReasonCode>(reasonCodeStr, true, out var reasonCode))
             reasonCode = CancellationReasonCode.Other;
 
+        if (order.OrderItems.Any(i => i.ItemStatus == OrderItemStatus.Served))
+            throw new ConflictException("Some items on this order were already served; process a customer return instead of cancelling.");
+
         // Partial cancellation (single item) vs Full order cancellation
         if (request.OrderItemId.HasValue)
         {
@@ -174,6 +232,9 @@ public class StationService : IStationService
 
             if (item.ItemStatus == OrderItemStatus.Cancelled)
                 throw new ConflictException("Order item is already cancelled.");
+
+            if (item.ItemStatus == OrderItemStatus.Served)
+                throw new ConflictException("Served items cannot be cancelled. Process a customer return instead.");
 
             // Reverse the cancelled line (and its snapshotted tax) from the bill.
             var (lineSubtotal, lineTax, _) = TaxPricing.Split(
@@ -240,9 +301,14 @@ public class StationService : IStationService
 
     private static OrderStatus ResolveStationStatus(IReadOnlyCollection<OrderItem> stationItems)
     {
-        var active = stationItems.Where(i => i.ItemStatus != OrderItemStatus.Cancelled).ToList();
+        var active = stationItems
+            .Where(i => i.ItemStatus != OrderItemStatus.Cancelled && i.ItemStatus != OrderItemStatus.Served)
+            .ToList();
 
-        if (active.Count > 0 && active.All(i => i.ItemStatus == OrderItemStatus.Prepared))
+        if (active.Count == 0)
+            return OrderStatus.Ready;
+
+        if (active.All(i => i.ItemStatus == OrderItemStatus.Prepared))
             return OrderStatus.Ready;
 
         if (active.Any(i => i.ItemStatus == OrderItemStatus.Prepared || i.PreparingAt.HasValue))
@@ -252,8 +318,8 @@ public class StationService : IStationService
     }
 
     /// <summary>
-    /// The order only reaches READY once every station has finished; any station in
-    /// progress keeps it PREPARING so waiters cannot serve half a ticket.
+    /// The order reaches READY once every line is ready (or already served) and SERVED
+    /// once every line has been delivered. Any line still cooking keeps it PREPARING.
     /// </summary>
     private static void RecalculateOrderStatus(Order order, DateTime now)
     {
@@ -264,14 +330,23 @@ public class StationService : IStationService
         if (activeItems.Count == 0)
             return;
 
-        if (activeItems.All(i => i.ItemStatus == OrderItemStatus.Prepared))
+        if (activeItems.All(i => i.ItemStatus == OrderItemStatus.Served))
+        {
+            order.OrderStatus = OrderStatus.Served;
+            order.ServedAt ??= now;
+            return;
+        }
+
+        if (activeItems.All(i => i.ItemStatus == OrderItemStatus.Prepared || i.ItemStatus == OrderItemStatus.Served))
         {
             order.OrderStatus = OrderStatus.Ready;
             order.ReadyAt ??= now;
             return;
         }
 
-        if (activeItems.Any(i => i.ItemStatus == OrderItemStatus.Prepared || i.PreparingAt.HasValue))
+        if (activeItems.Any(i => i.ItemStatus == OrderItemStatus.Prepared
+                || i.ItemStatus == OrderItemStatus.Served
+                || i.PreparingAt.HasValue))
         {
             order.OrderStatus = OrderStatus.Preparing;
             order.PreparingAt ??= now;

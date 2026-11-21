@@ -42,6 +42,15 @@ public class BarController : ApiControllerBase
         => OkResponse(await _stationService.UpdateOrderStatusAsync(PreparationStation.Bar, orderId, request, ct), $"Order status transitioned to {request.Status}.");
 
     /// <summary>
+    /// Marks a single drink line PREPARING or READY so drinks can reach the table before the food.
+    /// </summary>
+    [HttpPatch("orders/{orderId:guid}/items/{itemId:guid}/status")]
+    [Permission(Permissions.BarUpdate)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<OrderResponse>), 200)]
+    public async Task<IActionResult> UpdateItemStatus([FromRoute] Guid orderId, [FromRoute] Guid itemId, [FromBody] UpdateStationOrderStatusRequest request, CancellationToken ct)
+        => OkResponse(await _stationService.UpdateItemStatusAsync(PreparationStation.Bar, orderId, itemId, request, ct), $"Item status transitioned to {request.Status}.");
+
+    /// <summary>
     /// Cancels a PENDING/PREPARING drink ticket (or line item) with a mandatory reason_code and note.
     /// </summary>
     [HttpPost("orders/{orderId:guid}/cancel")]

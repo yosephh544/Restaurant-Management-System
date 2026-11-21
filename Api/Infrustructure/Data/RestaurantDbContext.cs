@@ -87,6 +87,10 @@ public class RestaurantDbContext : DbContext
             entity.Property(s => s.ServiceCharge).HasPrecision(5, 2);
             entity.Property(s => s.TipPresetsCsv).HasMaxLength(100);
             entity.Property(s => s.WebhookSecret).HasMaxLength(250);
+            entity.Property(s => s.TelebirrNumber).HasMaxLength(30);
+            entity.Property(s => s.CbeAccountNumber).HasMaxLength(30);
+            entity.Property(s => s.AccountHolderName).HasMaxLength(120);
+            entity.Property(s => s.PaymentQrUrl).HasMaxLength(400);
         });
 
         modelBuilder.Entity<RestaurantTable>(entity =>
@@ -463,6 +467,27 @@ public class RestaurantDbContext : DbContext
             entity.Property(p => p.ChangeGiven).HasPrecision(10, 2);
             entity.Property(p => p.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
 
+            entity.Property(p => p.VerificationStatus)
+                  .IsRequired()
+                  .HasConversion<string>()
+                  .HasMaxLength(20)
+                  .HasDefaultValue(PaymentVerificationStatus.NotRequired);
+
+            entity.Property(p => p.ReceiptUrl).HasMaxLength(500);
+            entity.Property(p => p.ReceiptReference).HasMaxLength(120);
+            entity.Property(p => p.AmountPaid).HasPrecision(10, 2);
+            entity.Property(p => p.VerifiedAmount).HasPrecision(10, 2);
+            entity.Property(p => p.VerifiedPayerName).HasMaxLength(120);
+            entity.Property(p => p.VerifiedBank).HasMaxLength(40);
+            entity.Property(p => p.VerifiedVia).HasMaxLength(40);
+            entity.Property(p => p.VerificationNote).HasMaxLength(300);
+
+            // A bank receipt may only settle one payment; transfers clone the reference
+            // for audit, so uniqueness applies to settled records only.
+            entity.HasIndex(p => p.ReceiptReference)
+                  .IsUnique()
+                  .HasFilter("[ReceiptReference] IS NOT NULL AND [Status] = 'Paid'");
+
             entity.HasOne(p => p.Order)
                   .WithMany(o => o.Payments)
                   .HasForeignKey(p => p.OrderId)
@@ -478,6 +503,12 @@ public class RestaurantDbContext : DbContext
                   .WithMany(u => u.PaymentsInitiated)
                   .HasForeignKey(p => p.InitiatedById)
                   .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(p => p.VerifiedBy)
+                  .WithMany()
+                  .HasForeignKey(p => p.VerifiedById)
+                  .IsRequired(false)
+                  .OnDelete(DeleteBehavior.NoAction);
         });
 
         // ═══════════════════════════════════════════════════════════════════════

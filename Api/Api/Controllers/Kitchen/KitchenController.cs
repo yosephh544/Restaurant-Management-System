@@ -42,6 +42,15 @@ public class KitchenController : ApiControllerBase
         => OkResponse(await _stationService.UpdateOrderStatusAsync(PreparationStation.Kitchen, orderId, request, ct), $"Order status transitioned to {request.Status}.");
 
     /// <summary>
+    /// Marks a single food line PREPARING or READY so tickets can leave the pass line by line.
+    /// </summary>
+    [HttpPatch("orders/{orderId:guid}/items/{itemId:guid}/status")]
+    [Permission(Permissions.KitchenUpdate)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<OrderResponse>), 200)]
+    public async Task<IActionResult> UpdateItemStatus([FromRoute] Guid orderId, [FromRoute] Guid itemId, [FromBody] UpdateStationOrderStatusRequest request, CancellationToken ct)
+        => OkResponse(await _stationService.UpdateItemStatusAsync(PreparationStation.Kitchen, orderId, itemId, request, ct), $"Item status transitioned to {request.Status}.");
+
+    /// <summary>
     /// Cancels a PENDING/PREPARING food ticket (or line item) with a mandatory reason_code and note; reverses the ticket before payment is taken.
     /// </summary>
     [HttpPost("orders/{orderId:guid}/cancel")]
