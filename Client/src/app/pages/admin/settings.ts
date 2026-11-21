@@ -73,6 +73,14 @@ import { Icon } from '../../shared/icon';
                   <span class="hint">Comma-separated. Shown as quick buttons on the payment sheet.</span>
                 </div>
               </div>
+
+              <div class="between" style="margin-top: 14px">
+                <span>
+                  <strong class="small">Prices include tax</strong>
+                  <span class="hint" style="display: block">Menu prices are gross amounts and tax is calculated inside the displayed price.</span>
+                </span>
+                <button class="switch" type="button" [class.on]="form.pricesIncludeTax" (click)="form.pricesIncludeTax = !form.pricesIncludeTax"><span></span></button>
+              </div>
             </div>
           </div>
 

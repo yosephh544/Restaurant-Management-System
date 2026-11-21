@@ -28,6 +28,15 @@ public class OrderItem
 
     public OrderItemStatus ItemStatus { get; set; } = OrderItemStatus.Active;
 
+    /// <summary>Preparation area that owns this line; fixed at order time based on the menu category.</summary>
+    public PreparationStation PreparationStation { get; set; } = PreparationStation.Kitchen;
+
+    /// <summary>When the station accepted this line (station ticket moved to PREPARING).</summary>
+    public DateTime? PreparingAt { get; set; }
+
+    /// <summary>When the station finished this line (station ticket moved to READY).</summary>
+    public DateTime? ReadyAt { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 

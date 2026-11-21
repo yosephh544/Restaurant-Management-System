@@ -113,7 +113,7 @@ import { Icon } from '../../shared/icon';
               @if (mode() === 'PIN') {
                 <span>Use your password if you have not set a PIN.</span>
               } @else {
-                <span>Waiters and kitchen staff can switch to Device PIN.</span>
+                <span>Waiter, kitchen and bar staff can switch to Device PIN.</span>
               }
             </div>
 
@@ -174,7 +174,10 @@ export class LoginPage {
         return;
       }
       const redirect = this.route.snapshot.queryParamMap.get('redirect');
-      await this.router.navigateByUrl(redirect && redirect.startsWith('/') ? redirect : this.auth.home());
+      await this.router.navigateByUrl(
+        redirect && redirect.startsWith('/') ? redirect : this.auth.home(),
+        { replaceUrl: true },
+      );
     } finally {
       this.busy.set(false);
     }

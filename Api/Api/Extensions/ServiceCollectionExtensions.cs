@@ -10,10 +10,11 @@ using RestaurantManagement.Implementation.Interfaces.Billing;
 using RestaurantManagement.Implementation.Interfaces.Common;
 using RestaurantManagement.Implementation.Interfaces.Issues;
 using RestaurantManagement.Implementation.Interfaces.Configuration;
-using RestaurantManagement.Implementation.Interfaces.Kitchen;
+using RestaurantManagement.Implementation.Interfaces.Stations;
 using RestaurantManagement.Implementation.Interfaces.Menu;
 using RestaurantManagement.Implementation.Interfaces.Orders;
 using RestaurantManagement.Implementation.Interfaces.Payment;
+using RestaurantManagement.Implementation.Interfaces.Shifts;
 using RestaurantManagement.Implementation.Services.Audit;
 using RestaurantManagement.Implementation.Services.Authentication;
 using RestaurantManagement.Implementation.Services.Authorization;
@@ -21,10 +22,11 @@ using RestaurantManagement.Implementation.Services.Billing;
 using RestaurantManagement.Implementation.Services.Issues;
 using RestaurantManagement.Implementation.Services.Common;
 using RestaurantManagement.Implementation.Services.Configuration;
-using RestaurantManagement.Implementation.Services.Kitchen;
+using RestaurantManagement.Implementation.Services.Stations;
 using RestaurantManagement.Implementation.Services.Menu;
 using RestaurantManagement.Implementation.Services.Orders;
 using RestaurantManagement.Implementation.Services.Payment;
+using RestaurantManagement.Implementation.Services.Shifts;
 using RestaurantManagement.Infrustructure.Data;
 using Microsoft.AspNetCore.Authorization;
 using RestaurantManagement.Api.Authorization;
@@ -74,7 +76,10 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
-        var secret = configuration["Jwt:Key"] ?? "super_secret_restaurant_management_jwt_key_2026_@!";
+        var secret = configuration["Jwt:Key"]?.Trim();
+        if (string.IsNullOrWhiteSpace(secret) || secret.Length < 32)
+            throw new InvalidOperationException("Jwt:Key must be configured with at least 32 characters.");
+
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
 
         services.AddAuthentication(options =>
@@ -110,7 +115,7 @@ public static class ServiceCollectionExtensions
             {
                 Title = "Majete Corner Restaurant Management API",
                 Version = "v1.0",
-                Description = "RMS v1.0 API — Authentication, Staff Management, Digital Menu, Orders, Kitchen KDS, ArifPay Payments, and Management Reports."
+                Description = "RMS v1.0 API — Authentication, Staff Management, Digital Menu, Orders, Kitchen KDS, Bar, ArifPay Payments, and Management Reports."
             });
 
             c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -155,13 +160,14 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IMenuService, MenuService>();
         services.AddScoped<IOrderService, OrderService>();
-        services.AddScoped<IKitchenService, KitchenService>();
+        services.AddScoped<IStationService, StationService>();
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IBillingService, BillingService>();
         services.AddScoped<ISettingsService, SettingsService>();
         services.AddScoped<IIssueService, IssueService>();
         services.AddScoped<IAuditService, AuditService>();
+        services.AddScoped<IShiftService, ShiftService>();
 
         return services;
     }

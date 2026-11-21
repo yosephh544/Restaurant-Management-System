@@ -6,5 +6,6 @@ public enum UserRole
     Kitchen,
     Cashier,
     Manager,
-    Owner
+    Owner,
+    Bartender
 }

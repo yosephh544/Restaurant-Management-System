@@ -33,7 +33,7 @@ public static class DatabaseSeeder
 
         var permissions = await db.Permissions.ToDictionaryAsync(p => p.Name, p => p.Id, ct);
 
-        foreach (var roleName in new[] { "Owner", "Manager", "Cashier", "Waiter", "Kitchen" })
+        foreach (var roleName in new[] { "Owner", "Manager", "Cashier", "Waiter", "Kitchen", Roles.Bartender })
         {
             if (!await db.Roles.AnyAsync(r => r.Name == roleName, ct))
                 db.Roles.Add(new Role { Id = Guid.NewGuid(), Name = roleName, Description = $"{roleName} role", IsActive = true });
@@ -50,6 +50,7 @@ public static class DatabaseSeeder
         await EnsureRolePermissionsAsync(roles["Manager"], new[]
         {
             Permissions.UsersView, Permissions.UsersCreate, Permissions.UsersUpdate, Permissions.UsersManageStatus,
+            Permissions.ShiftsView, Permissions.ShiftsManage,
             Permissions.MenuView, Permissions.CategoriesManage, Permissions.ItemsManage, Permissions.AvailabilityManage,
             Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems, Permissions.OrdersReorder, Permissions.OrdersServe,
             Permissions.KitchenView, Permissions.KitchenUpdate, Permissions.KitchenCancel,
@@ -78,7 +79,16 @@ public static class DatabaseSeeder
             Permissions.MenuView, Permissions.AvailabilityManage, Permissions.KitchenView, Permissions.KitchenUpdate, Permissions.KitchenCancel
         }, permissions, db, ct);
 
+        await EnsureRolePermissionsAsync(roles[Roles.Bartender], new[]
+        {
+            Permissions.MenuView, Permissions.AvailabilityManage, Permissions.BarView, Permissions.BarUpdate, Permissions.BarCancel
+        }, permissions, db, ct);
+
         await db.SaveChangesAsync(ct);
+
+        var morningShift = await EnsureShiftAsync(db, "Morning", 7 * 60, 15 * 60, ct);
+        await EnsureShiftAsync(db, "Afternoon", 15 * 60, 21 * 60, ct);
+        await EnsureShiftAsync(db, "Late Night", 21 * 60, 3 * 60, ct);
 
         if (!await db.RestaurantSettings.AnyAsync(ct))
         {
@@ -88,6 +98,7 @@ public static class DatabaseSeeder
                 RestaurantName = "Majete Corner",
                 BranchName = "Main Branch",
                 TaxRate = 15m,
+                PricesIncludeTax = false,
                 ServiceCharge = 0m,
                 TipPresetsCsv = "0,10,15,20",
                 CashEnabled = true,
@@ -128,6 +139,51 @@ public static class DatabaseSeeder
         }
 
         await db.SaveChangesAsync(ct);
+
+        // Existing floor staff predate shift gating. Give them the Morning shift
+        // so nobody is locked out; the Owner corrects afternoon staff afterwards.
+        var unassigned = await db.Users
+            .Include(u => u.RoleEntity)
+            .Where(u => u.DefaultShiftId == null)
+            .ToListAsync(ct);
+
+        foreach (var user in unassigned)
+        {
+            var roleName = user.RoleEntity?.Name ?? user.Role.ToString();
+            if (string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(roleName, Roles.Manager, StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            user.DefaultShiftId = morningShift.Id;
+            user.UpdatedAt = DateTime.UtcNow;
+        }
+
+        await db.SaveChangesAsync(ct);
+    }
+
+    private static async Task<Shift> EnsureShiftAsync(
+        RestaurantDbContext db,
+        string name,
+        int startMinutes,
+        int endMinutes,
+        CancellationToken ct)
+    {
+        var shift = await db.Shifts.FirstOrDefaultAsync(s => s.Name == name, ct);
+        if (shift is not null)
+            return shift;
+
+        shift = new Shift
+        {
+            Id = Guid.NewGuid(),
+            Name = name,
+            StartMinutes = startMinutes,
+            EndMinutes = endMinutes,
+            IsActive = true,
+            CreatedAt = DateTime.UtcNow
+        };
+        db.Shifts.Add(shift);
+        await db.SaveChangesAsync(ct);
+        return shift;
     }
 
     private static async Task EnsureRolePermissionsAsync(

@@ -1,0 +1,4 @@
+
+# Runtime menu image uploads
+Api/Api/wwwroot/uploads/menu/*
+!Api/Api/wwwroot/uploads/menu/.gitkeep

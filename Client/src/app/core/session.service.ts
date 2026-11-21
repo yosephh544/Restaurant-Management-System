@@ -1,14 +1,17 @@
 import { computed, Injectable, signal } from '@angular/core';
 import { Role, roleFrom, StaffUser } from './models';
 
+export interface EncryptedApiProfile {
+  id: string;
+  fullName: string;
+  role: string;
+  permissions: string;
+}
+
 export interface ApiProfile {
   id: string;
   fullName: string;
-  username: string;
-  phone?: string | null;
   role: string;
-  isActive: boolean;
-  createdAt: string;
   permissions: string[];
 }
 
@@ -36,17 +39,16 @@ export class SessionService {
     return {
       id: profile.id,
       name: profile.fullName,
-      username: profile.username,
-      phone: profile.phone ?? undefined,
+      username: '',
+      phone: undefined,
       role: roleFrom(profile.role),
-      active: profile.isActive,
-      createdAt: profile.createdAt,
+      active: true,
+      createdAt: '',
     };
   });
 
   set(session: Session): void {
     this.session.set(session);
-    localStorage.setItem(SESSION_KEY, JSON.stringify(session));
   }
 
   updateProfile(profile: ApiProfile): void {
@@ -63,7 +65,6 @@ export class SessionService {
 
   clear(): void {
     this.session.set(null);
-    localStorage.removeItem(SESSION_KEY);
   }
 
   hasPermission(permission: string): boolean {
@@ -75,11 +76,9 @@ export class SessionService {
   }
 
   private restore(): Session | null {
-    try {
-      const raw = localStorage.getItem(SESSION_KEY);
-      return raw ? (JSON.parse(raw) as Session) : null;
-    } catch {
-      return null;
-    }
+    // Sessions are intentionally kept only in memory. Opening or refreshing
+    // the client must always start from the login page, not a previous user's dashboard.
+    localStorage.removeItem(SESSION_KEY);
+    return null;
   }
 }

@@ -2,6 +2,7 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MenuItem, money } from '../../core/models';
+import { assetUrl } from '../../core/api.config';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -69,8 +70,12 @@ interface CartLine {
             <div class="menu-grid">
               @for (item of filteredMenu(); track item.id) {
                 <button class="menu-card" type="button" [disabled]="!item.available" (click)="add(item)">
-                  <span class="menu-thumb" style="display: grid; place-items: center; color: var(--muted)">
-                    <app-icon name="utensils" style="font-size: 26px" />
+                  <span class="menu-thumb" [class.has-image]="item.imageUrl">
+                    @if (item.imageUrl) {
+                      <img [src]="assetUrl(item.imageUrl)" [alt]="item.name" loading="lazy" />
+                    } @else {
+                      <app-icon name="utensils" style="font-size: 26px" />
+                    }
                     @if (item.available) {
                       <span class="menu-add"><app-icon name="plus" /></span>
                     }
@@ -191,6 +196,7 @@ export class NewOrderPage implements OnInit {
   private readonly toast = inject(ToastService);
 
   protected readonly money = money;
+  protected readonly assetUrl = assetUrl;
   protected readonly tables = this.store.tables;
   protected readonly menu = this.store.menu;
 
@@ -205,7 +211,15 @@ export class NewOrderPage implements OnInit {
 
   protected readonly canManageTables = computed(() => this.store.can('tables.manage'));
 
-  protected readonly categories = computed(() => ['All', ...this.store.menuCategories().map((c) => c.name)]);
+  protected readonly categories = computed(() => {
+    const used = new Set(this.menu().map((item) => item.category));
+    return [
+      'All',
+      ...this.store.menuCategories()
+        .filter((category) => used.has(category.name))
+        .map((category) => category.name),
+    ];
+  });
 
   protected readonly filteredMenu = computed(() => {
     const query = this.query().trim().toLowerCase();
@@ -216,15 +230,40 @@ export class NewOrderPage implements OnInit {
       .sort((a, b) => Number(b.available) - Number(a.available));
   });
 
-  protected readonly subtotal = computed(() =>
-    Math.round(this.cart().reduce((sum, l) => sum + l.price * l.qty, 0) * 100) / 100,
-  );
+  protected readonly subtotal = computed(() => {
+    const gross = this.cart().reduce((sum, l) => sum + l.price * l.qty, 0);
+    if (this.store.settings().pricesIncludeTax) {
+      const tax = this.cart().reduce((sum, l) => {
+        const lineGross = l.price * l.qty;
+        const net = l.taxRate >= -100
+          ? lineGross / (1 + l.taxRate / 100)
+          : lineGross;
+        return sum + (lineGross - net);
+      }, 0);
+      return Math.round((gross - tax) * 100) / 100;
+    }
+    return Math.round(gross * 100) / 100;
+  });
 
-  protected readonly tax = computed(() =>
-    Math.round(this.cart().reduce((sum, l) => sum + (l.price * l.qty * l.taxRate) / 100, 0) * 100) / 100,
-  );
+  protected readonly tax = computed(() => {
+    if (this.store.settings().pricesIncludeTax) {
+      return Math.round(this.cart().reduce((sum, l) => {
+        const lineGross = l.price * l.qty;
+        const net = l.taxRate >= -100
+          ? lineGross / (1 + l.taxRate / 100)
+          : lineGross;
+        return sum + (lineGross - net);
+      }, 0) * 100) / 100;
+    }
+    return Math.round(this.cart().reduce((sum, l) => sum + (l.price * l.qty * l.taxRate) / 100, 0) * 100) / 100;
+  });
 
-  protected readonly total = computed(() => Math.round((this.subtotal() + this.tax()) * 100) / 100);
+  protected readonly total = computed(() => {
+    if (this.store.settings().pricesIncludeTax) {
+      return Math.round(this.cart().reduce((sum, l) => sum + l.price * l.qty, 0) * 100) / 100;
+    }
+    return Math.round((this.subtotal() + this.tax()) * 100) / 100;
+  });
 
   async ngOnInit(): Promise<void> {
     await Promise.all([this.store.loadTables(), this.store.loadMenu()]);

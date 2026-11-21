@@ -8,6 +8,10 @@ public static class Permissions
     public const string UsersManageStatus = "users.status.manage";
     public const string RolesManage = "roles.manage";
 
+    public const string ShiftsView = "shifts.view";
+    public const string ShiftsManage = "shifts.manage";
+    public const string ShiftsConfigure = "shifts.configure";
+
     public const string MenuView = "menu.view";
     public const string CategoriesManage = "menu.categories.manage";
     public const string ItemsManage = "menu.items.manage";
@@ -22,6 +26,10 @@ public static class Permissions
     public const string KitchenView = "kitchen.view";
     public const string KitchenUpdate = "kitchen.update";
     public const string KitchenCancel = "kitchen.cancel";
+
+    public const string BarView = "bar.view";
+    public const string BarUpdate = "bar.update";
+    public const string BarCancel = "bar.cancel";
 
     public const string PaymentsInitiate = "payments.initiate";
     public const string PaymentsView = "payments.view";

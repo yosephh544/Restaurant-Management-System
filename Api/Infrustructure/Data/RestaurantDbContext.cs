@@ -7,6 +7,7 @@ using RestaurantManagement.Infrustructure.Models.Configuration;
 using RestaurantManagement.Infrustructure.Enums.Identity;
 using RestaurantManagement.Infrustructure.Enums.Orders;
 using RestaurantManagement.Infrustructure.Enums.Billing;
+using RestaurantManagement.Infrustructure.Enums.Menu;
 
 namespace RestaurantManagement.Infrustructure.Data;
 
@@ -18,6 +19,8 @@ public class RestaurantDbContext : DbContext
     // ── Identity ────────────────────────────────────────────────────────────
     public DbSet<User> Users { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
+    public DbSet<Shift> Shifts { get; set; }
+    public DbSet<ShiftException> ShiftExceptions { get; set; }
 
     // ── Menu Catalog ─────────────────────────────────────────────────────────
     public DbSet<MenuCategory> MenuCategories { get; set; }
@@ -54,6 +57,8 @@ public class RestaurantDbContext : DbContext
         // ── Schema table naming (snake_case to match documentation) ───────────
         modelBuilder.Entity<User>().ToTable("users");
         modelBuilder.Entity<RefreshToken>().ToTable("refresh_tokens");
+        modelBuilder.Entity<Shift>().ToTable("shifts");
+        modelBuilder.Entity<ShiftException>().ToTable("shift_exceptions");
         modelBuilder.Entity<MenuCategory>().ToTable("menu_categories");
         modelBuilder.Entity<MenuItem>().ToTable("menu_items");
         modelBuilder.Entity<Order>().ToTable("orders");
@@ -163,6 +168,55 @@ public class RestaurantDbContext : DbContext
                   .WithMany(r => r.Users)
                   .HasForeignKey(u => u.RoleId)
                   .OnDelete(DeleteBehavior.Restrict);
+
+            entity.Property(u => u.DefaultShiftId).IsRequired(false);
+            entity.HasIndex(u => u.DefaultShiftId);
+            entity.HasOne(u => u.DefaultShift)
+                  .WithMany(s => s.DefaultStaff)
+                  .HasForeignKey(u => u.DefaultShiftId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        // ═══════════════════════════════════════════════════════════════════════
+        // SHIFTS
+        // ═══════════════════════════════════════════════════════════════════════
+        modelBuilder.Entity<Shift>(entity =>
+        {
+            entity.HasKey(s => s.Id);
+            entity.Property(s => s.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+            entity.Property(s => s.Name).IsRequired().HasMaxLength(80);
+            entity.HasIndex(s => s.Name).IsUnique();
+
+            entity.Property(s => s.StartMinutes).IsRequired();
+            entity.Property(s => s.EndMinutes).IsRequired();
+            entity.Property(s => s.IsActive).HasDefaultValue(true);
+            entity.Property(s => s.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+        });
+
+        modelBuilder.Entity<ShiftException>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+            entity.Property(e => e.ShiftDate).IsRequired().HasColumnType("date");
+            entity.Property(e => e.Kind).IsRequired().HasConversion<string>().HasMaxLength(20);
+            entity.Property(e => e.Note).HasMaxLength(300);
+            entity.Property(e => e.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasIndex(e => new { e.UserId, e.ShiftDate, e.ShiftId, e.Kind }).IsUnique();
+            entity.HasIndex(e => e.ShiftDate);
+            entity.HasIndex(e => e.ShiftId);
+
+            entity.HasOne(e => e.User)
+                  .WithMany(u => u.ShiftExceptions)
+                  .HasForeignKey(e => e.UserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+
+            entity.HasOne(e => e.Shift)
+                  .WithMany(s => s.Exceptions)
+                  .HasForeignKey(e => e.ShiftId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -197,8 +251,20 @@ public class RestaurantDbContext : DbContext
 
             entity.Property(c => c.Name).IsRequired().HasMaxLength(100);
             entity.Property(c => c.Description).HasMaxLength(500);
+            entity.Property(c => c.Type)
+                  .HasConversion<int>()
+                  .HasDefaultValue(MenuCategoryType.Food)
+                  .HasSentinel(MenuCategoryType.Food);
             entity.Property(c => c.IsActive).HasDefaultValue(true);
             entity.Property(c => c.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasIndex(c => c.ParentCategoryId);
+            entity.HasIndex(c => c.Type);
+
+            entity.HasOne(c => c.ParentCategory)
+                  .WithMany(c => c.Children)
+                  .HasForeignKey(c => c.ParentCategoryId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
 
         // ═══════════════════════════════════════════════════════════════════════
@@ -214,7 +280,17 @@ public class RestaurantDbContext : DbContext
             entity.Property(m => m.TaxRate).HasPrecision(5, 2);
             entity.Property(m => m.IsAvailable).HasDefaultValue(true);
             entity.Property(m => m.ImageUrl).HasMaxLength(500);
+            entity.Property(m => m.FastingType).HasConversion<int>().HasDefaultValue(MenuItemFastingType.NotApplicable);
+            entity.Property(m => m.AlcoholType).HasConversion<int>().HasDefaultValue(MenuItemAlcoholType.NotApplicable);
+            entity.Property(m => m.DisplayOrder).HasDefaultValue(0);
+            entity.Property(m => m.IsFeatured).HasDefaultValue(false);
+            entity.Property(m => m.SKU).HasMaxLength(64);
             entity.Property(m => m.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasIndex(m => m.SKU).IsUnique().HasFilter("[SKU] IS NOT NULL");
+            entity.HasIndex(m => m.FastingType);
+            entity.HasIndex(m => m.AlcoholType);
+            entity.HasIndex(m => new { m.CategoryId, m.DisplayOrder });
 
             entity.HasOne(m => m.Category)
                   .WithMany(c => c.MenuItems)
@@ -287,6 +363,13 @@ public class RestaurantDbContext : DbContext
                   .IsRequired()
                   .HasConversion<string>()
                   .HasMaxLength(20);
+
+            entity.Property(oi => oi.PreparationStation)
+                  .HasConversion<int>()
+                  .HasDefaultValue(PreparationStation.Kitchen)
+                  .HasSentinel(PreparationStation.Kitchen);
+
+            entity.HasIndex(oi => oi.PreparationStation);
 
             entity.Property(oi => oi.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
 

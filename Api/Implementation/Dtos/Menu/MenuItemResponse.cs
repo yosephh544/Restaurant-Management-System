@@ -1,3 +1,5 @@
+using RestaurantManagement.Infrustructure.Enums.Menu;
+
 namespace RestaurantManagement.Implementation.Dtos.Menu;
 
 public class MenuItemResponse
@@ -11,6 +13,18 @@ public class MenuItemResponse
     public decimal TaxRate { get; init; }
     public bool IsAvailable { get; init; }
     public string? ImageUrl { get; init; }
+
+    /// <summary>Fasting classification (0 = not applicable, 1 = fasting, 2 = non-fasting).</summary>
+    public MenuItemFastingType FastingType { get; init; }
+
+    /// <summary>Alcohol classification (0 = not applicable, 1 = non-alcoholic, 2 = alcoholic).</summary>
+    public MenuItemAlcoholType AlcoholType { get; init; }
+
+    public int DisplayOrder { get; init; }
+    public bool IsFeatured { get; init; }
+    public int? PreparationTimeMinutes { get; init; }
+    public string? SKU { get; init; }
+
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
 }

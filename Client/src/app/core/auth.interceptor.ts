@@ -17,16 +17,20 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const http = inject(HttpClient);
   const router = inject(Router);
 
-  const isAuthCall = request.url.startsWith(`${API_BASE_URL}/auth/`);
+  // Only credential-issuing endpoints are anonymous. Authenticated endpoints such
+  // as /auth/me and /auth/logout still need the bearer token attached.
+  const isPublicAuthCall = ['/auth/login', '/auth/pin-login', '/auth/refresh'].some((path) =>
+    request.url.startsWith(`${API_BASE_URL}${path}`),
+  );
   const token = session.accessToken();
-  const authorized = token && !isAuthCall
+  const authorized = token && !isPublicAuthCall
     ? request.clone({ setHeaders: { Authorization: `Bearer ${token}` } })
     : request;
 
   return next(authorized).pipe(
     catchError((error: HttpErrorResponse) => {
       const refreshToken = session.refreshToken();
-      if (error.status !== 401 || isAuthCall || !refreshToken) {
+      if (error.status !== 401 || isPublicAuthCall || !refreshToken) {
         return throwError(() => error);
       }
 

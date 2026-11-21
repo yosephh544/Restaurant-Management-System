@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using RestaurantManagement.Infrustructure.Enums.Menu;
 
 namespace RestaurantManagement.Implementation.Dtos.Menu;
 
@@ -23,6 +24,26 @@ public class CreateMenuItemRequest
 
     [MaxLength(500)]
     public string? ImageUrl { get; set; }
+
+    /// <summary>Fasting classification; required for food items, NotApplicable for beverages.</summary>
+    [EnumDataType(typeof(MenuItemFastingType), ErrorMessage = "Choose a valid fasting classification.")]
+    public MenuItemFastingType FastingType { get; set; } = MenuItemFastingType.NotApplicable;
+
+    /// <summary>Alcohol classification; only Cold Drinks items may use a non-default value.</summary>
+    [EnumDataType(typeof(MenuItemAlcoholType), ErrorMessage = "Choose a valid alcohol classification.")]
+    public MenuItemAlcoholType AlcoholType { get; set; } = MenuItemAlcoholType.NotApplicable;
+
+    /// <summary>Manual ordering within the category.</summary>
+    public int DisplayOrder { get; set; } = 0;
+
+    /// <summary>Highlight this item on customer-facing menus.</summary>
+    public bool IsFeatured { get; set; }
+
+    [Range(1, 1440, ErrorMessage = "Preparation time must be between 1 and 1440 minutes.")]
+    public int? PreparationTimeMinutes { get; set; }
+
+    [MaxLength(64, ErrorMessage = "SKU cannot exceed 64 characters.")]
+    public string? SKU { get; set; }
 
     public Guid? V2RecipeId { get; set; }
 }

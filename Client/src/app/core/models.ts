@@ -1,4 +1,4 @@
-export type Role = 'OWNER' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'KITCHEN';
+export type Role = 'OWNER' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'BARTENDER';
 
 export const ROLE_LABEL: Record<Role, string> = {
   OWNER: 'Owner',
@@ -6,6 +6,7 @@ export const ROLE_LABEL: Record<Role, string> = {
   CASHIER: 'Cashier',
   WAITER: 'Waiter',
   KITCHEN: 'Kitchen',
+  BARTENDER: 'Bartender',
 };
 
 export function roleFrom(value: string | null | undefined): Role {
@@ -21,7 +22,107 @@ export interface StaffUser {
   role: Role;
   active: boolean;
   createdAt: string;
+  defaultShift?: DefaultShiftSummary | null;
 }
+
+export interface DefaultShiftSummary {
+  id: string;
+  name: string;
+  startMinutes: number;
+  endMinutes: number;
+  crossesMidnight: boolean;
+}
+
+export interface ShiftDefinition {
+  id: string;
+  name: string;
+  startMinutes: number;
+  endMinutes: number;
+  isActive: boolean;
+  crossesMidnight: boolean;
+}
+
+export interface ShiftStaff {
+  userId: string;
+  fullName: string;
+  username: string;
+  role: Role;
+  isExtra: boolean;
+  canSignInNow: boolean;
+}
+
+export interface ShiftColumn {
+  shiftId: string;
+  name: string;
+  startMinutes: number;
+  endMinutes: number;
+  crossesMidnight: boolean;
+  staff: ShiftStaff[];
+}
+
+export interface ShiftException {
+  id: string;
+  userId: string;
+  fullName: string;
+  shiftId: string;
+  shiftName: string;
+  kind: 'OFF' | 'EXTRA';
+  note?: string;
+}
+
+export interface ShiftDay {
+  date: string;
+  shifts: ShiftColumn[];
+  exceptions: ShiftException[];
+}
+
+export interface MyShiftWindow {
+  shiftId: string;
+  name: string;
+  date: string;
+  startMinutes: number;
+  endMinutes: number;
+  crossesMidnight: boolean;
+  isExtra: boolean;
+  startsAt: string;
+  endsAt: string;
+}
+
+export interface MyShift {
+  shiftRequired: boolean;
+  unrestricted: boolean;
+  canSignInNow: boolean;
+  shifts: MyShiftWindow[];
+  message?: string;
+}
+
+export function minutesLabel(totalMinutes: number): string {
+  const normalized = ((Math.round(totalMinutes) % 1440) + 1440) % 1440;
+  const hour24 = Math.floor(normalized / 60);
+  const hour = hour24 % 12 || 12;
+  const minute = String(normalized % 60).padStart(2, '0');
+  return `${hour}:${minute} ${hour24 >= 12 ? 'PM' : 'AM'}`;
+}
+
+export function shiftRange(startMinutes: number, endMinutes: number): string {
+  return `${minutesLabel(startMinutes)} – ${minutesLabel(endMinutes)}`;
+}
+
+export function localDateKey(value: Date): string {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, '0');
+  const day = String(value.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+export function dateFromKey(key: string): Date {
+  return new Date(`${key}T00:00:00`);
+}
+
+export function shiftDayLabel(key: string): string {
+  return dateFromKey(key).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
 
 export type OrderStatus = 'PENDING' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLEDBYKITCHEN';
 export type PaymentStatus =
@@ -59,6 +160,7 @@ export interface Order {
   tax: number;
   tip: number;
   total: number;
+  pricesIncludeTax: boolean;
   notes?: string;
   createdAt: string;
   preparingAt?: string;
@@ -159,6 +261,45 @@ export interface TipEntry {
   paidOutAt?: string;
 }
 
+/** Mirrors RestaurantManagement.Infrustructure.Enums.Menu.MenuCategoryType. */
+export enum MenuCategoryType {
+  Food = 1,
+  Beverage = 2,
+  Extra = 3,
+}
+
+export const MENU_CATEGORY_TYPE_LABEL: Record<MenuCategoryType, string> = {
+  [MenuCategoryType.Food]: 'Food',
+  [MenuCategoryType.Beverage]: 'Beverage',
+  [MenuCategoryType.Extra]: 'Extra',
+};
+
+/** Mirrors RestaurantManagement.Infrustructure.Enums.Menu.MenuItemFastingType. */
+export enum MenuItemFastingType {
+  NotApplicable = 0,
+  Fasting = 1,
+  NonFasting = 2,
+}
+
+export const FASTING_TYPE_LABEL: Record<MenuItemFastingType, string> = {
+  [MenuItemFastingType.NotApplicable]: 'Not applicable',
+  [MenuItemFastingType.Fasting]: 'Fasting',
+  [MenuItemFastingType.NonFasting]: 'Non-fasting',
+};
+
+/** Mirrors RestaurantManagement.Infrustructure.Enums.Menu.MenuItemAlcoholType. */
+export enum MenuItemAlcoholType {
+  NotApplicable = 0,
+  NonAlcoholic = 1,
+  Alcoholic = 2,
+}
+
+export const ALCOHOL_TYPE_LABEL: Record<MenuItemAlcoholType, string> = {
+  [MenuItemAlcoholType.NotApplicable]: 'Not applicable',
+  [MenuItemAlcoholType.NonAlcoholic]: 'Non-alcoholic',
+  [MenuItemAlcoholType.Alcoholic]: 'Alcoholic',
+};
+
 export interface MenuItem {
   id: string;
   categoryId: string;
@@ -169,12 +310,22 @@ export interface MenuItem {
   taxRate: number;
   available: boolean;
   imageUrl?: string;
+  fastingType: MenuItemFastingType;
+  alcoholType: MenuItemAlcoholType;
+  displayOrder: number;
+  featured: boolean;
+  preparationTimeMinutes?: number;
+  sku?: string;
 }
 
 export interface MenuCategory {
   id: string;
+  parentCategoryId?: string;
+  parentCategoryName?: string;
   name: string;
   description?: string;
+  type: MenuCategoryType;
+  allowsAlcoholClassification: boolean;
   displayOrder: number;
   active: boolean;
   items: MenuItem[];
@@ -257,6 +408,7 @@ export interface Settings {
   phone: string;
   address: string;
   taxRate: number;
+  pricesIncludeTax: boolean;
   serviceCharge: number;
   tipPresets: number[];
   cash: boolean;
@@ -271,6 +423,7 @@ export const DEFAULT_SETTINGS: Settings = {
   phone: '',
   address: '',
   taxRate: 0,
+  pricesIncludeTax: false,
   serviceCharge: 0,
   tipPresets: [],
   cash: true,

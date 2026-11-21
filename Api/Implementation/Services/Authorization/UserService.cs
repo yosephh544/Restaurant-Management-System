@@ -46,6 +46,8 @@ public class UserService : IUserService
         var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == roleName && r.IsActive, ct)
             ?? throw new ValidationException("Role", "Role does not exist or is inactive.");
 
+        var defaultShift = await ResolveDefaultShiftAsync(request.DefaultShiftId, roleName, ct);
+
         var user = new User
         {
             Id = Guid.NewGuid(),
@@ -55,6 +57,8 @@ public class UserService : IUserService
             Role = ParseLegacyRole(roleName),
             RoleId = role.Id,
             RoleEntity = role,
+            DefaultShiftId = defaultShift?.Id,
+            DefaultShift = defaultShift,
             PinHash = string.IsNullOrWhiteSpace(request.Pin) ? null : BCrypt.Net.BCrypt.HashPassword(request.Pin),
             PasswordHash = string.IsNullOrWhiteSpace(request.Password) ? null : BCrypt.Net.BCrypt.HashPassword(request.Password),
             IsActive = true,
@@ -68,7 +72,7 @@ public class UserService : IUserService
 
     public async Task<PagedResponse<UserResponse>> GetUsersAsync(UserListRequest request, CancellationToken ct = default)
     {
-        var query = _dbContext.Users.AsNoTracking().Include(u => u.RoleEntity).AsQueryable();
+        var query = _dbContext.Users.AsNoTracking().Include(u => u.RoleEntity).Include(u => u.DefaultShift).AsQueryable();
         if (!string.IsNullOrWhiteSpace(request.Role))
             query = query.Where(u => u.RoleEntity != null && u.RoleEntity.Name == request.Role);
         if (request.IsActive.HasValue)
@@ -89,14 +93,20 @@ public class UserService : IUserService
 
     public async Task<UserResponse> GetUserByIdAsync(Guid userId, CancellationToken ct = default)
     {
-        var user = await _dbContext.Users.Include(u => u.RoleEntity).FirstOrDefaultAsync(u => u.Id == userId, ct)
+        var user = await _dbContext.Users
+            .Include(u => u.RoleEntity)
+            .Include(u => u.DefaultShift)
+            .FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException("User", userId);
         return MapToResponse(user);
     }
 
     public async Task<UserResponse> UpdateUserAsync(Guid userId, UpdateUserRequest request, CancellationToken ct = default)
     {
-        var user = await _dbContext.Users.Include(u => u.RoleEntity).FirstOrDefaultAsync(u => u.Id == userId, ct)
+        var user = await _dbContext.Users
+            .Include(u => u.RoleEntity)
+            .Include(u => u.DefaultShift)
+            .FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException("User", userId);
 
         if (IsOwnerAccount(user) && !IsOwner)
@@ -131,6 +141,25 @@ public class UserService : IUserService
             user.RoleEntity = role;
             user.Role = ParseLegacyRole(roleName);
         }
+
+        var finalRoleName = user.RoleEntity?.Name ?? user.Role.ToString();
+        if (request.ClearDefaultShift && request.DefaultShiftId.HasValue)
+            throw new ValidationException("DefaultShiftId", "Provide a shift or clear it, not both.");
+
+        if (string.Equals(finalRoleName, Roles.Owner, StringComparison.OrdinalIgnoreCase) &&
+            request.DefaultShiftId.HasValue)
+            throw new ValidationException("DefaultShiftId", "Owners are not scheduled for shifts.");
+
+        var requestedShiftId = string.Equals(finalRoleName, Roles.Owner, StringComparison.OrdinalIgnoreCase)
+            ? null
+            : request.ClearDefaultShift
+                ? null
+                : request.DefaultShiftId ?? user.DefaultShiftId;
+
+        var defaultShift = await ResolveDefaultShiftAsync(requestedShiftId, finalRoleName, ct);
+        user.DefaultShiftId = defaultShift?.Id;
+        user.DefaultShift = defaultShift;
+
         if (!string.IsNullOrWhiteSpace(request.Pin)) user.PinHash = BCrypt.Net.BCrypt.HashPassword(request.Pin);
         if (!string.IsNullOrWhiteSpace(request.Password)) user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
         user.UpdatedAt = DateTime.UtcNow;
@@ -140,7 +169,10 @@ public class UserService : IUserService
 
     public async Task<UserResponse> UpdateUserStatusAsync(Guid userId, UpdateUserStatusRequest request, CancellationToken ct = default)
     {
-        var user = await _dbContext.Users.Include(u => u.RoleEntity).FirstOrDefaultAsync(u => u.Id == userId, ct)
+        var user = await _dbContext.Users
+            .Include(u => u.RoleEntity)
+            .Include(u => u.DefaultShift)
+            .FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException("User", userId);
 
         if (IsOwnerAccount(user) && !IsOwner)
@@ -166,6 +198,31 @@ public class UserService : IUserService
         return MapToResponse(user);
     }
 
+    private async Task<Shift?> ResolveDefaultShiftAsync(Guid? shiftId, string roleName, CancellationToken ct)
+    {
+        if (string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase))
+        {
+            if (shiftId.HasValue)
+                throw new ValidationException("DefaultShiftId", "Owners are not scheduled for shifts.");
+            return null;
+        }
+
+        if (shiftId is not Guid id)
+        {
+            if (!string.Equals(roleName, Roles.Manager, StringComparison.OrdinalIgnoreCase))
+                throw new ValidationException("DefaultShiftId", "A default shift is required for this role.");
+            return null;
+        }
+
+        var shift = await _dbContext.Shifts.FirstOrDefaultAsync(s => s.Id == id, ct)
+            ?? throw new ValidationException("DefaultShiftId", "The selected shift does not exist.");
+
+        if (!shift.IsActive)
+            throw new ValidationException("DefaultShiftId", "The selected shift is inactive.");
+
+        return shift;
+    }
+
     private static UserResponse MapToResponse(User user) => new()
     {
         Id = user.Id,
@@ -175,6 +232,15 @@ public class UserService : IUserService
         Role = user.RoleEntity?.Name ?? user.Role.ToString(),
         IsActive = user.IsActive,
         CreatedAt = user.CreatedAt,
-        UpdatedAt = user.UpdatedAt
+        UpdatedAt = user.UpdatedAt,
+        DefaultShift = user.DefaultShift is null
+            ? null
+            : new UserDefaultShiftResponse
+            {
+                Id = user.DefaultShift.Id,
+                Name = user.DefaultShift.Name,
+                StartMinutes = user.DefaultShift.StartMinutes,
+                EndMinutes = user.DefaultShift.EndMinutes
+            }
     };
 }

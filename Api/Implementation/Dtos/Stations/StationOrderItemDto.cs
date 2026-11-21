@@ -1,6 +1,6 @@
-namespace RestaurantManagement.Implementation.Dtos.Kitchen;
+namespace RestaurantManagement.Implementation.Dtos.Stations;
 
-public class KitchenOrderItemDto
+public class StationOrderItemDto
 {
     public Guid Id { get; init; }
     public Guid MenuItemId { get; init; }

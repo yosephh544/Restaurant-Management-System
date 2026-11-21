@@ -8,6 +8,7 @@ using RestaurantManagement.Infrustructure.Common.Extensions;
 using RestaurantManagement.Infrustructure.Common.Responses;
 using RestaurantManagement.Infrustructure.Data;
 using RestaurantManagement.Infrustructure.Enums.Billing;
+using RestaurantManagement.Infrustructure.Enums.Menu;
 using RestaurantManagement.Infrustructure.Enums.Orders;
 using RestaurantManagement.Infrustructure.Models.Billing;
 using RestaurantManagement.Infrustructure.Models.Orders;
@@ -43,9 +44,11 @@ public class OrderService : IOrderService
         if (request.Items == null || !request.Items.Any())
             throw new ValidationException(ErrorMessages.EmptyOrder);
 
-        // Load the catalog and match in memory: EF Core's OPENJSON translation of list Contains
-        // is rejected by this SQL Server instance.
+        // Load the catalog (with category type for kitchen/bar routing) and match in memory:
+        // EF Core's OPENJSON translation of list Contains is rejected by this SQL Server instance.
         var menuItems = await _dbContext.MenuItems
+            .AsNoTracking()
+            .Include(m => m.Category)
             .ToDictionaryAsync(m => m.Id, ct);
 
         // Atomic check: All items must exist and be available
@@ -60,6 +63,8 @@ public class OrderService : IOrderService
 
         var orderId = Guid.NewGuid();
         var orderNumber = GenerateOrderNumber();
+        var settings = await _dbContext.RestaurantSettings.AsNoTracking().FirstOrDefaultAsync(ct);
+        var pricesIncludeTax = settings?.PricesIncludeTax ?? false;
 
         var order = new Order
         {
@@ -69,6 +74,7 @@ public class OrderService : IOrderService
             WaiterId = waiterId,
             OrderStatus = OrderStatus.Pending,
             PaymentStatus = PaymentStatus.Unpaid,
+            PricesIncludeTax = pricesIncludeTax,
             CustomerNotes = request.CustomerNotes,
             CreatedAt = DateTime.UtcNow
         };
@@ -79,10 +85,13 @@ public class OrderService : IOrderService
         foreach (var reqItem in request.Items)
         {
             var menuItem = menuItems[reqItem.MenuItemId];
-            var itemTotal = menuItem.UnitPrice * reqItem.Quantity;
-            var itemTax = itemTotal * (menuItem.TaxRate / 100m);
+            var (net, itemTax, _) = TaxPricing.Split(
+                menuItem.UnitPrice,
+                reqItem.Quantity,
+                menuItem.TaxRate,
+                pricesIncludeTax);
 
-            subtotal += itemTotal;
+            subtotal += net;
             taxTotal += itemTax;
 
             order.OrderItems.Add(new OrderItem
@@ -95,6 +104,7 @@ public class OrderService : IOrderService
                 TaxRate = menuItem.TaxRate,     // Tax snapshot
                 CustomerNotes = reqItem.CustomerNotes,
                 ItemStatus = OrderItemStatus.Active,
+                PreparationStation = PreparationStations.FromCategoryType(menuItem.Category?.Type ?? MenuCategoryType.Food),
                 CreatedAt = DateTime.UtcNow
             });
         }
@@ -230,9 +240,11 @@ public class OrderService : IOrderService
         if (order.OrderStatus == OrderStatus.Served)
             throw new ConflictException("Cannot add items to an order that has already been served.");
 
-        // Load the catalog and match in memory: EF Core's OPENJSON translation of list Contains
-        // is rejected by this SQL Server instance.
+        // Load the catalog (with category type for kitchen/bar routing) and match in memory:
+        // EF Core's OPENJSON translation of list Contains is rejected by this SQL Server instance.
         var menuItems = await _dbContext.MenuItems
+            .AsNoTracking()
+            .Include(m => m.Category)
             .ToDictionaryAsync(m => m.Id, ct);
 
         foreach (var reqItem in request.Items)
@@ -243,10 +255,13 @@ public class OrderService : IOrderService
             if (!menuItem.IsAvailable)
                 throw new ConflictException($"Menu item '{menuItem.Name}' is currently out of stock.");
 
-            var itemTotal = menuItem.UnitPrice * reqItem.Quantity;
-            var itemTax = itemTotal * (menuItem.TaxRate / 100m);
+            var (net, itemTax, _) = TaxPricing.Split(
+                menuItem.UnitPrice,
+                reqItem.Quantity,
+                menuItem.TaxRate,
+                order.PricesIncludeTax);
 
-            order.Subtotal += itemTotal;
+            order.Subtotal += net;
             order.TaxTotal += itemTax;
 
             order.OrderItems.Add(new OrderItem
@@ -259,6 +274,7 @@ public class OrderService : IOrderService
                 TaxRate = menuItem.TaxRate,
                 CustomerNotes = reqItem.CustomerNotes,
                 ItemStatus = OrderItemStatus.Active,
+                PreparationStation = PreparationStations.FromCategoryType(menuItem.Category?.Type ?? MenuCategoryType.Food),
                 CreatedAt = DateTime.UtcNow
             });
         }
@@ -267,6 +283,11 @@ public class OrderService : IOrderService
         order.TaxTotal = Math.Round(order.TaxTotal, 2);
         order.GrandTotal = Math.Round(order.Subtotal + order.TaxTotal + order.TipAmount, 2);
         order.UpdatedAt = DateTime.UtcNow;
+
+        // New lines may belong to the other station; a READY/PREPARING ticket must
+        // drop back until every station has finished its share again.
+        if (order.OrderStatus is OrderStatus.Ready or OrderStatus.Preparing)
+            RecalculateOrderStatus(order);
 
         // Check if the dining session is still active before allowing item addition
         if (order.DiningSessionId.HasValue)
@@ -349,12 +370,46 @@ public class OrderService : IOrderService
         if (order.OrderStatus != OrderStatus.Ready)
             throw new ConflictException($"Order cannot be marked as SERVED from '{order.OrderStatus}' status. It must be in READY status.");
 
+        if (order.OrderItems.Any(i => i.ItemStatus == OrderItemStatus.Active))
+            throw new ConflictException("Order cannot be served until kitchen and bar have marked every item ready.");
+
         order.OrderStatus = OrderStatus.Served;
         order.ServedAt = DateTime.UtcNow;
         order.UpdatedAt = DateTime.UtcNow;
 
         await _dbContext.SaveChangesAsync(ct);
         return await GetOrderByIdAsync(orderId, ct);
+    }
+
+    /// <summary>
+    /// An order is READY only when every active line (food and drink) is prepared; any
+    /// station still working keeps it PREPARING so half a ticket cannot be served.
+    /// </summary>
+    private static void RecalculateOrderStatus(Order order)
+    {
+        var now = DateTime.UtcNow;
+        var activeItems = order.OrderItems
+            .Where(i => i.ItemStatus != OrderItemStatus.Cancelled)
+            .ToList();
+
+        if (activeItems.Count == 0)
+            return;
+
+        if (activeItems.All(i => i.ItemStatus == OrderItemStatus.Prepared))
+        {
+            order.OrderStatus = OrderStatus.Ready;
+            order.ReadyAt ??= now;
+            return;
+        }
+
+        if (activeItems.Any(i => i.ItemStatus == OrderItemStatus.Prepared || i.PreparingAt.HasValue))
+        {
+            order.OrderStatus = OrderStatus.Preparing;
+            order.PreparingAt ??= now;
+            return;
+        }
+
+        order.OrderStatus = OrderStatus.Pending;
     }
 
     private static string GenerateOrderNumber()
@@ -378,6 +433,7 @@ public class OrderService : IOrderService
         TaxTotal = order.TaxTotal,
         TipAmount = order.TipAmount,
         GrandTotal = order.GrandTotal,
+        PricesIncludeTax = order.PricesIncludeTax,
         CustomerNotes = order.CustomerNotes,
         CreatedAt = order.CreatedAt,
         UpdatedAt = order.UpdatedAt,
@@ -393,7 +449,8 @@ public class OrderService : IOrderService
             UnitPrice = i.UnitPrice,
             TaxRate = i.TaxRate,
             CustomerNotes = i.CustomerNotes,
-            ItemStatus = i.ItemStatus.ToString().ToUpperInvariant()
+            ItemStatus = i.ItemStatus.ToString().ToUpperInvariant(),
+            Station = i.PreparationStation.ToString().ToUpperInvariant()
         }).ToList()
     };
 }

@@ -13,7 +13,12 @@ builder.Services.AddAuthorizationPolicies();
 builder.Services.AddControllers()
     .AddJsonOptions(options => options.JsonSerializerOptions.Converters.Add(new UtcDateTimeConverter()));
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerWithJwt();
+
+// Swagger is a development-only tool; it is never registered or served in production.
+if (builder.Environment.IsDevelopment())
+{
+    builder.Services.AddSwaggerWithJwt();
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -24,6 +29,9 @@ await DatabaseSeeder.SeedOwnerAsync(app.Services);
 // ── Middleware pipeline ───────────────────────────────────────────────────────
 // Must be first to catch unhandled exceptions across all subsequent middleware
 app.UseGlobalExceptionHandler();
+
+// Menu photos are written to wwwroot/uploads/menu at runtime.
+app.UseStaticFiles();
 
 if (app.Environment.IsDevelopment())
 {

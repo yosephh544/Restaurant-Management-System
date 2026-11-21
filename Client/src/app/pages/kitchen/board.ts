@@ -1,5 +1,5 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { KitchenTicket } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
@@ -13,9 +13,9 @@ import { IssueDialog } from '../../shared/issue-dialog';
     <div class="page">
       <div class="page-head">
         <div>
-          <div class="eyebrow">Kitchen display · {{ station() }}</div>
-          <h1 class="page-title">Kitchen board</h1>
-          <p class="page-sub">Tickets appear the moment a waiter sends them. Work oldest first.</p>
+          <div class="eyebrow">{{ isBar ? 'Bar display' : 'Kitchen display' }} · {{ station() }}</div>
+          <h1 class="page-title">{{ isBar ? 'Bar board' : 'Kitchen board' }}</h1>
+          <p class="page-sub">{{ isBar ? 'Drink tickets appear the moment an order is sent. Keep the bar moving.' : 'Tickets appear the moment a waiter sends them. Work oldest first.' }}</p>
         </div>
         <div class="head-actions">
           <div class="branch-btn" style="cursor: default">
@@ -36,14 +36,14 @@ import { IssueDialog } from '../../shared/issue-dialog';
           <div class="stat-foot">Waiting for accept</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon" style="background: var(--orange-soft); color: var(--orange)"><app-icon name="utensils" /></div>
+          <div class="stat-icon" style="background: var(--orange-soft); color: var(--orange)"><app-icon [name]="isBar ? 'glass' : 'utensils'" /></div>
           <div class="stat-label">Preparing</div>
           <div class="stat-value">{{ counts().preparing }}</div>
-          <div class="stat-foot">On the line</div>
+          <div class="stat-foot">{{ isBar ? 'On the bar' : 'On the line' }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="check-circle" /></div>
-          <div class="stat-label">At the pass</div>
+          <div class="stat-label">{{ isBar ? 'At the bar' : 'At the pass' }}</div>
           <div class="stat-value">{{ counts().ready }}</div>
           <div class="stat-foot">Waiting for waiter</div>
         </div>
@@ -60,7 +60,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
           @for (ticket of queue(); track ticket.id) {
             <article [class]="'ticket ticket-' + ticket.status.toLowerCase()">
               <div class="ticket-head">
-                <a class="ticket-num" [routerLink]="['/kitchen', ticket.id]">#{{ ticket.number }}</a>
+                <a class="ticket-num" [routerLink]="[stationPath, ticket.id]">#{{ ticket.number }}</a>
                 <span class="ticket-table">Table {{ ticket.table }}</span>
                 <span [class]="'ticket-time ' + timerTone(ticket)">
                   <app-icon name="clock" /> {{ elapsed(ticket) }} min
@@ -106,7 +106,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
         <div class="card empty" style="padding: 54px 20px">
           <app-icon name="check-circle" style="color: var(--green)" />
           <strong>Line is clear</strong>
-          <p>No new or preparing tickets. New orders will appear here automatically.</p>
+          <p>No new or preparing {{ isBar ? 'drink' : '' }} tickets. New orders will appear here automatically.</p>
         </div>
       }
 
@@ -114,14 +114,14 @@ import { IssueDialog } from '../../shared/issue-dialog';
         <div class="card mt-4">
           <div class="card-head">
             <div>
-              <div class="card-title">At the pass</div>
-              <div class="card-sub">Plated and waiting for the waiter to pick up</div>
+              <div class="card-title">{{ isBar ? 'At the bar' : 'At the pass' }}</div>
+              <div class="card-sub">{{ isBar ? 'Poured and waiting for the waiter to pick up' : 'Plated and waiting for the waiter to pick up' }}</div>
             </div>
             <span class="pill pill-green no-dot">{{ ready().length }} waiting</span>
           </div>
           <div class="list">
             @for (ticket of ready(); track ticket.id) {
-              <a class="list-row" [routerLink]="['/kitchen', ticket.id]">
+              <a class="list-row" [routerLink]="[stationPath, ticket.id]">
                 <span class="ticket-num" style="font-size: 16px">#{{ ticket.number }}</span>
                 <div class="list-main">
                   <strong>Table {{ ticket.table }}</strong>
@@ -137,17 +137,22 @@ import { IssueDialog } from '../../shared/issue-dialog';
     </div>
 
     @if (issueTicket(); as ticket) {
-      <app-issue-dialog [ticket]="ticket" (closed)="issueTicket.set(null)" />
+      <app-issue-dialog [ticket]="ticket" [station]="isBar ? 'BAR' : 'KITCHEN'" (closed)="issueTicket.set(null)" />
     }
   `,
 })
 export class KitchenBoardPage implements OnInit, OnDestroy {
   private readonly store = inject(Store);
   private readonly toast = inject(ToastService);
+  private readonly route = inject(ActivatedRoute);
+
+  protected readonly isBar = this.route.snapshot.data['station'] === 'BAR';
+  protected readonly stationPath = this.isBar ? '/bar' : '/kitchen';
 
   protected readonly station = computed(() => {
     const branch = this.store.settings().branch;
-    return branch ? `${branch} kitchen` : 'kitchen';
+    const suffix = this.isBar ? 'bar' : 'kitchen';
+    return branch ? `${branch} ${suffix}` : suffix;
   });
   protected readonly issueTicket = signal<KitchenTicket | null>(null);
   protected readonly busy = signal<string | null>(null);
@@ -155,11 +160,15 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
 
   private readonly timer = window.setInterval(() => {
     this.now.set(Date.now());
-    void this.store.loadKitchen();
+    void this.loadStation();
   }, 20000);
 
-  protected readonly queue = computed(() => this.store.kitchenQueue());
-  protected readonly ready = computed(() => this.store.kitchenTickets().filter((t) => t.status === 'READY'));
+  protected readonly queue = computed(() =>
+    this.isBar ? this.store.barQueue() : this.store.kitchenQueue(),
+  );
+  protected readonly ready = computed(() =>
+    (this.isBar ? this.store.barTickets() : this.store.kitchenTickets()).filter((t) => t.status === 'READY'),
+  );
 
   protected readonly counts = computed(() => ({
     new: this.queue().filter((t) => t.status === 'PENDING').length,
@@ -178,7 +187,11 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
   );
 
   async ngOnInit(): Promise<void> {
-    await this.store.loadKitchen();
+    await this.loadStation();
+  }
+
+  private loadStation(): Promise<void> {
+    return this.isBar ? this.store.loadBar() : this.store.loadKitchen();
   }
 
   ngOnDestroy(): void {
@@ -199,13 +212,16 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
   protected async advance(ticket: KitchenTicket): Promise<void> {
     if (this.busy()) return;
     this.busy.set(ticket.id);
-    const result = await this.store.kitchenStatus(ticket.id, ticket.status === 'PENDING' ? 'PREPARING' : 'READY');
+    const next = ticket.status === 'PENDING' ? 'PREPARING' : 'READY';
+    const result = this.isBar
+      ? await this.store.barStatus(ticket.id, next)
+      : await this.store.kitchenStatus(ticket.id, next);
     this.busy.set(null);
     if (!result.ok) this.toast.show(result.error, 'error');
   }
 
   protected async refresh(): Promise<void> {
     this.now.set(Date.now());
-    await this.store.loadKitchen();
+    await this.loadStation();
   }
 }

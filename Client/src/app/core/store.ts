@@ -13,7 +13,11 @@ import {
   KitchenTicket,
   KitchenTurnaround,
   MenuCategory,
+  MenuCategoryType,
   MenuItem,
+  MenuItemAlcoholType,
+  MenuItemFastingType,
+  MyShift,
   Order,
   OrderLine,
   OrderStatus,
@@ -26,6 +30,8 @@ import {
   roleFrom,
   SalesSummary,
   Settings,
+  ShiftDay,
+  ShiftDefinition,
   StaffUser,
   Table,
   TipEntry,
@@ -33,7 +39,7 @@ import {
 } from './models';
 import { SessionService } from './session.service';
 
-export type Result<T = void> = { ok: true; data: T } | { ok: false; error: string };
+export type Result<T = void> = { ok: true; data: T } | { ok: false, error: string };
 
 export interface DraftLine {
   menuItemId: string;
@@ -63,6 +69,20 @@ export interface MenuItemInput {
   price: number;
   taxRate: number;
   available: boolean;
+  fastingType?: MenuItemFastingType;
+  alcoholType?: MenuItemAlcoholType;
+  displayOrder?: number;
+  featured?: boolean;
+  preparationTimeMinutes?: number;
+  sku?: string;
+}
+
+export interface MenuCategoryInput {
+  name: string;
+  description?: string;
+  parentCategoryId?: string | null;
+  type: MenuCategoryType;
+  displayOrder?: number;
 }
 
 export interface UserInput {
@@ -73,6 +93,24 @@ export interface UserInput {
   role: string;
   pin?: string;
   password?: string;
+  defaultShiftId?: string;
+  clearDefaultShift?: boolean;
+}
+
+export interface ShiftInput {
+  id?: string;
+  name: string;
+  startMinutes: number;
+  endMinutes: number;
+  isActive: boolean;
+}
+
+interface UserDefaultShiftDto {
+  id: string;
+  name: string;
+  startMinutes: number;
+  endMinutes: number;
+  crossesMidnight: boolean;
 }
 
 interface UserDto {
@@ -83,7 +121,25 @@ interface UserDto {
   role: string;
   isActive: boolean;
   createdAt: string;
+  defaultShift?: UserDefaultShiftDto | null;
 }
+
+interface ShiftDto {
+  id: string;
+  name: string;
+  startMinutes: number;
+  endMinutes: number;
+  isActive: boolean;
+  crossesMidnight: boolean;
+}
+
+interface ShiftDayDto {
+  date: string;
+  shifts: ShiftDay['shifts'];
+  exceptions: ShiftDay['exceptions'];
+}
+
+interface MyShiftDto extends MyShift {}
 
 interface OrderItemDto {
   id: string;
@@ -109,6 +165,7 @@ interface OrderDto {
   taxTotal: number;
   tipAmount: number;
   grandTotal: number;
+  pricesIncludeTax: boolean;
   customerNotes?: string | null;
   createdAt: string;
   preparingAt?: string | null;
@@ -198,12 +255,22 @@ interface MenuItemDto {
   taxRate: number;
   isAvailable: boolean;
   imageUrl?: string | null;
+  fastingType: MenuItemFastingType;
+  alcoholType: MenuItemAlcoholType;
+  displayOrder: number;
+  isFeatured: boolean;
+  preparationTimeMinutes?: number | null;
+  sku?: string | null;
 }
 
 interface MenuCategoryDto {
   id: string;
+  parentCategoryId?: string | null;
+  parentCategoryName?: string | null;
   name: string;
   description?: string | null;
+  type: MenuCategoryType;
+  allowsAlcoholClassification: boolean;
   displayOrder: number;
   isActive: boolean;
   items: MenuItemDto[];
@@ -232,8 +299,10 @@ interface KitchenTicketDto {
   orderNumber: string;
   tableNumber: string;
   waiterName: string;
+  station: string;
   orderStatus: OrderStatus;
   paymentStatus: PaymentStatus;
+  stationStatus: OrderStatus;
   createdAt: string;
   elapsedMinutes: number;
   items: KitchenItemDto[];
@@ -270,6 +339,7 @@ interface SettingsDto {
   phone?: string | null;
   address?: string | null;
   taxRate: number;
+  pricesIncludeTax: boolean;
   serviceCharge: number;
   tipPresets: number[];
   cash: boolean;
@@ -288,12 +358,16 @@ export class Store {
   readonly menuCategories = signal<MenuCategory[]>([]);
   readonly orders = signal<Order[]>([]);
   readonly kitchenTickets = signal<KitchenTicket[]>([]);
+  readonly barTickets = signal<KitchenTicket[]>([]);
   readonly bills = signal<Bill[]>([]);
   readonly payments = signal<Payment[]>([]);
   readonly tips = signal<TipEntry[]>([]);
   readonly issues = signal<Issue[]>([]);
   readonly audit = signal<AuditEvent[]>([]);
   readonly users = signal<StaffUser[]>([]);
+  readonly shifts = signal<ShiftDefinition[]>([]);
+  readonly shiftSchedule = signal<ShiftDay[]>([]);
+  readonly myShift = signal<MyShift | null>(null);
   readonly reports = signal<Reports>({
     summary: null,
     waiters: [],
@@ -302,11 +376,16 @@ export class Store {
   });
   readonly loaded = signal(false);
   readonly refreshing = signal(false);
+  private scheduleRange: { from: string; to: string } | null = null;
 
   readonly menu = computed<MenuItem[]>(() => this.menuCategories().flatMap((c) => c.items));
 
   readonly kitchenQueue = computed(() =>
     this.kitchenTickets().filter((t) => t.status === 'PENDING' || t.status === 'PREPARING'),
+  );
+
+  readonly barQueue = computed(() =>
+    this.barTickets().filter((t) => t.status === 'PENDING' || t.status === 'PREPARING'),
   );
 
   readonly readyOrders = computed(() => this.orders().filter((o) => o.status === 'READY'));
@@ -340,15 +419,17 @@ export class Store {
   async refreshAll(): Promise<void> {
     if (this.refreshing()) return;
     this.refreshing.set(true);
-    const jobs: Promise<unknown>[] = [this.loadSettings()];
+    const jobs: Promise<unknown>[] = [this.loadSettings(), this.loadMyShift()];
     if (this.can('tables.view')) jobs.push(this.loadTables());
     if (this.can('menu.view')) jobs.push(this.loadMenu());
     if (this.can('orders.view')) jobs.push(this.loadOrders(), this.loadIssues());
     if (this.can('kitchen.view')) jobs.push(this.loadKitchen());
+    if (this.can('bar.view')) jobs.push(this.loadBar());
     if (this.can('payments.view')) jobs.push(this.loadBills(), this.loadPayments());
     if (this.can('tips.view')) jobs.push(this.loadTips());
     if (this.can('reports.view')) jobs.push(this.loadAudit());
     if (this.can('users.view')) jobs.push(this.loadUsers());
+    if (this.can('shifts.view')) jobs.push(this.loadShifts());
     await Promise.allSettled(jobs);
     this.loaded.set(true);
     this.refreshing.set(false);
@@ -363,6 +444,7 @@ export class Store {
         phone: dto.phone ?? '',
         address: dto.address ?? '',
         taxRate: dto.taxRate,
+        pricesIncludeTax: dto.pricesIncludeTax,
         serviceCharge: dto.serviceCharge,
         tipPresets: dto.tipPresets ?? [],
         cash: dto.cash,
@@ -395,8 +477,12 @@ export class Store {
       this.menuCategories.set(
         data.map((c) => ({
           id: c.id,
+          parentCategoryId: c.parentCategoryId ?? undefined,
+          parentCategoryName: c.parentCategoryName ?? undefined,
           name: c.name,
           description: c.description ?? undefined,
+          type: c.type,
+          allowsAlcoholClassification: c.allowsAlcoholClassification,
           displayOrder: c.displayOrder,
           active: c.isActive,
           items: c.items.map((i) => this.mapMenuItem(i)),
@@ -415,29 +501,38 @@ export class Store {
   async loadKitchen(): Promise<void> {
     await this.guard(async () => {
       const data = await this.api.getAll<KitchenTicketDto>('/kitchen/queue');
-      this.kitchenTickets.set(
-        data
-          .map((t) => ({
-            id: t.orderId,
-            number: t.orderNumber,
-            table: t.tableNumber,
-            waiterName: t.waiterName,
-            status: t.orderStatus,
-            paymentStatus: t.paymentStatus,
-            createdAt: t.createdAt,
-            elapsedMinutes: t.elapsedMinutes,
-            items: t.items.map((i) => ({
-              id: i.id,
-              menuItemId: i.menuItemId,
-              name: i.menuItemName,
-              qty: i.quantity,
-              notes: i.customerNotes ?? undefined,
-              status: i.itemStatus,
-            })),
-          }))
-          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()),
-      );
+      this.kitchenTickets.set(this.mapStationTickets(data));
     });
+  }
+
+  async loadBar(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.getAll<KitchenTicketDto>('/bar/queue');
+      this.barTickets.set(this.mapStationTickets(data));
+    });
+  }
+
+  private mapStationTickets(data: KitchenTicketDto[]): KitchenTicket[] {
+    return data
+      .map((t) => ({
+        id: t.orderId,
+        number: t.orderNumber,
+        table: t.tableNumber,
+        waiterName: t.waiterName,
+        status: t.stationStatus,
+        paymentStatus: t.paymentStatus,
+        createdAt: t.createdAt,
+        elapsedMinutes: t.elapsedMinutes,
+        items: t.items.map((i) => ({
+          id: i.id,
+          menuItemId: i.menuItemId,
+          name: i.menuItemName,
+          qty: i.quantity,
+          notes: i.customerNotes ?? undefined,
+          status: i.itemStatus,
+        })),
+      }))
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }
 
   async loadBills(): Promise<void> {
@@ -527,6 +622,106 @@ export class Store {
     await this.guard(async () => {
       const data = await this.api.getAll<UserDto>('/users');
       this.users.set(data.map((u) => this.mapUser(u)));
+    });
+  }
+
+  async loadShifts(): Promise<void> {
+    await this.guard(async () => {
+      const data = await this.api.get<ShiftDto[]>('/shifts');
+      this.shifts.set(
+        data.map((s) => ({
+          id: s.id,
+          name: s.name,
+          startMinutes: s.startMinutes,
+          endMinutes: s.endMinutes,
+          isActive: s.isActive,
+          crossesMidnight: s.crossesMidnight,
+        })),
+      );
+    });
+  }
+
+  async loadShiftSchedule(from: string, to: string): Promise<void> {
+    this.scheduleRange = { from, to };
+    await this.guard(async () => {
+      const data = await this.api.get<ShiftDayDto[]>('/shifts/schedule', { from, to });
+      this.shiftSchedule.set(data);
+    });
+  }
+
+  async loadMyShift(): Promise<void> {
+    await this.guard(async () => {
+      this.myShift.set(await this.api.get<MyShiftDto>('/shifts/me'));
+    });
+  }
+
+  async saveShift(input: ShiftInput): Promise<Result> {
+    return await this.guard(async () => {
+      const body = {
+        name: input.name,
+        startMinutes: input.startMinutes,
+        endMinutes: input.endMinutes,
+        isActive: input.isActive,
+      };
+      if (input.id) await this.api.put(`/shifts/${input.id}`, body);
+      else await this.api.post('/shifts', body);
+      await this.loadShifts();
+      await this.reloadShiftSchedule();
+    });
+  }
+
+  async deleteShift(shiftId: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.delete(`/shifts/${shiftId}`);
+      await this.loadShifts();
+      await this.reloadShiftSchedule();
+    });
+  }
+
+  async markShiftOff(date: string, userId: string, shiftId: string, note = ''): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch('/shifts/off', { date, userId, shiftId, note: note || null });
+      await this.reloadShiftSchedule();
+    });
+  }
+
+  async coverShift(
+    date: string,
+    absentUserId: string,
+    coverUserId: string,
+    shiftId?: string,
+    note = '',
+  ): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch('/shifts/cover', {
+        date,
+        absentUserId,
+        coverUserId,
+        shiftId: shiftId ?? null,
+        note: note || null,
+      });
+      await this.reloadShiftSchedule();
+    });
+  }
+
+  async swapShifts(date: string, userAId: string, userBId: string, note = ''): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch('/shifts/swap', { date, userAId, userBId, note: note || null });
+      await this.reloadShiftSchedule();
+    });
+  }
+
+  async resetShiftDay(date: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch('/shifts/reset', { date });
+      await this.reloadShiftSchedule();
+    });
+  }
+
+  async deleteShiftException(exceptionId: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.delete(`/shifts/exceptions/${exceptionId}`);
+      await this.reloadShiftSchedule();
     });
   }
 
@@ -659,7 +854,7 @@ export class Store {
   }
 
   /* ------------------------------------------------------------------ */
-  /* Kitchen                                                             */
+  /* Stations (kitchen + bar)                                            */
   /* ------------------------------------------------------------------ */
 
   async kitchenStatus(orderId: string, status: 'PREPARING' | 'READY'): Promise<Result> {
@@ -682,6 +877,29 @@ export class Store {
         orderItemId: orderItemId ?? null,
       });
       await Promise.all([this.loadKitchen(), this.loadOrders(), this.loadIssues()]);
+    });
+  }
+
+  async barStatus(orderId: string, status: 'PREPARING' | 'READY'): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch(`/bar/orders/${orderId}/status`, { status });
+      await Promise.all([this.loadBar(), this.loadOrders()]);
+    });
+  }
+
+  async cancelBar(
+    orderId: string,
+    reason: IssueReason,
+    note: string,
+    orderItemId?: string,
+  ): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.post(`/bar/orders/${orderId}/cancel`, {
+        reasonCode: reason,
+        reasonNote: note || null,
+        orderItemId: orderItemId ?? null,
+      });
+      await Promise.all([this.loadBar(), this.loadOrders(), this.loadIssues()]);
     });
   }
 
@@ -794,7 +1012,7 @@ export class Store {
   /* Menu                                                                */
   /* ------------------------------------------------------------------ */
 
-  async saveMenuItem(input: MenuItemInput): Promise<Result> {
+  async saveMenuItem(input: MenuItemInput): Promise<Result<MenuItem>> {
     return await this.guard(async () => {
       const body = {
         categoryId: input.categoryId,
@@ -803,20 +1021,46 @@ export class Store {
         unitPrice: input.price,
         taxRate: input.taxRate,
         isAvailable: input.available,
+        fastingType: input.fastingType ?? MenuItemFastingType.NotApplicable,
+        alcoholType: input.alcoholType ?? MenuItemAlcoholType.NotApplicable,
+        displayOrder: input.displayOrder ?? 0,
+        isFeatured: input.featured ?? false,
+        preparationTimeMinutes: input.preparationTimeMinutes ?? null,
+        sku: input.sku?.trim() || null,
       };
-      if (input.id) {
-        await this.api.patch(`/menu/items/${input.id}`, body);
-      } else {
-        await this.api.post('/menu/items', body);
-      }
+      const dto = input.id
+        ? await this.api.patch<MenuItemDto>(`/menu/items/${input.id}`, body)
+        : await this.api.post<MenuItemDto>('/menu/items', body);
+      await this.loadMenu();
+      return this.mapMenuItem(dto);
+    });
+  }
+
+  async uploadMenuItemImage(itemId: string, file: File): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.upload<MenuItemDto>(`/menu/items/${itemId}/image`, file);
       await this.loadMenu();
     });
   }
 
-  async createCategory(name: string, description = ''): Promise<Result> {
+  async removeMenuItemImage(itemId: string): Promise<Result> {
     return await this.guard(async () => {
-      const nextOrder = this.menuCategories().reduce((max, c) => Math.max(max, c.displayOrder), 0) + 1;
-      await this.api.post('/menu/categories', { name, description: description || null, displayOrder: nextOrder });
+      await this.api.delete<MenuItemDto>(`/menu/items/${itemId}/image`);
+      await this.loadMenu();
+    });
+  }
+
+  async createCategory(input: MenuCategoryInput): Promise<Result> {
+    return await this.guard(async () => {
+      const nextOrder = input.displayOrder ??
+        this.menuCategories().reduce((max, c) => Math.max(max, c.displayOrder), 0) + 1;
+      await this.api.post('/menu/categories', {
+        name: input.name,
+        description: input.description || null,
+        parentCategoryId: input.parentCategoryId ?? null,
+        type: input.type,
+        displayOrder: nextOrder,
+      });
       await this.loadMenu();
     });
   }
@@ -849,6 +1093,8 @@ export class Store {
           role: input.role,
           pin: input.pin || undefined,
           password: input.password || undefined,
+          defaultShiftId: input.defaultShiftId || undefined,
+          clearDefaultShift: input.clearDefaultShift ?? false,
         });
       } else {
         await this.api.post('/users', {
@@ -858,9 +1104,10 @@ export class Store {
           role: input.role,
           pin: input.pin || null,
           password: input.password || null,
+          defaultShiftId: input.defaultShiftId || null,
         });
       }
-      await this.loadUsers();
+      await Promise.all([this.loadUsers(), this.reloadShiftSchedule()]);
     });
   }
 
@@ -879,6 +1126,7 @@ export class Store {
         phone: settings.phone || null,
         address: settings.address || null,
         taxRate: settings.taxRate,
+        pricesIncludeTax: settings.pricesIncludeTax,
         serviceCharge: settings.serviceCharge,
         tipPresets: settings.tipPresets,
         cash: settings.cash,
@@ -892,6 +1140,7 @@ export class Store {
         phone: saved.phone ?? '',
         address: saved.address ?? '',
         taxRate: saved.taxRate,
+        pricesIncludeTax: saved.pricesIncludeTax,
         serviceCharge: saved.serviceCharge,
         tipPresets: saved.tipPresets ?? [],
         cash: saved.cash,
@@ -908,12 +1157,17 @@ export class Store {
     this.menuCategories.set([]);
     this.orders.set([]);
     this.kitchenTickets.set([]);
+    this.barTickets.set([]);
     this.bills.set([]);
     this.payments.set([]);
     this.tips.set([]);
     this.issues.set([]);
     this.audit.set([]);
     this.users.set([]);
+    this.shifts.set([]);
+    this.shiftSchedule.set([]);
+    this.myShift.set(null);
+    this.scheduleRange = null;
     this.reports.set({ summary: null, waiters: [], cancellations: null, turnaround: null });
     this.loaded.set(false);
   }
@@ -924,6 +1178,11 @@ export class Store {
 
   private async reloadBilling(): Promise<void> {
     await Promise.all([this.loadPayments(), this.loadBills(), this.loadOrders(), this.loadTips()]);
+  }
+
+  private async reloadShiftSchedule(): Promise<void> {
+    const range = this.scheduleRange;
+    if (range) await this.loadShiftSchedule(range.from, range.to);
   }
 
   private async guard<T>(work: () => Promise<T>): Promise<Result<T>> {
@@ -952,6 +1211,15 @@ export class Store {
       role: roleFrom(u.role),
       active: u.isActive,
       createdAt: u.createdAt,
+      defaultShift: u.defaultShift
+        ? {
+            id: u.defaultShift.id,
+            name: u.defaultShift.name,
+            startMinutes: u.defaultShift.startMinutes,
+            endMinutes: u.defaultShift.endMinutes,
+            crossesMidnight: u.defaultShift.crossesMidnight,
+          }
+        : null,
     };
   }
 
@@ -969,6 +1237,7 @@ export class Store {
       tax: o.taxTotal,
       tip: o.tipAmount,
       total: o.grandTotal,
+      pricesIncludeTax: o.pricesIncludeTax,
       notes: o.customerNotes ?? undefined,
       createdAt: o.createdAt,
       preparingAt: o.preparingAt ?? undefined,
@@ -1055,6 +1324,12 @@ export class Store {
       taxRate: i.taxRate,
       available: i.isAvailable,
       imageUrl: i.imageUrl ?? undefined,
+      fastingType: i.fastingType,
+      alcoholType: i.alcoholType,
+      displayOrder: i.displayOrder,
+      featured: i.isFeatured,
+      preparationTimeMinutes: i.preparationTimeMinutes ?? undefined,
+      sku: i.sku ?? undefined,
     };
   }
 }

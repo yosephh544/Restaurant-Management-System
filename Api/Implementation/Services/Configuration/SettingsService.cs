@@ -35,6 +35,7 @@ public class SettingsService : ISettingsService
         settings.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
         settings.Address = string.IsNullOrWhiteSpace(request.Address) ? null : request.Address.Trim();
         settings.TaxRate = request.TaxRate;
+        settings.PricesIncludeTax = request.PricesIncludeTax;
         settings.ServiceCharge = request.ServiceCharge;
         settings.TipPresetsCsv = string.Join(',', request.TipPresets.Select(p => p.ToString("0.##")));
         settings.CashEnabled = request.Cash;
@@ -54,6 +55,7 @@ public class SettingsService : ISettingsService
         Phone = settings.Phone,
         Address = settings.Address,
         TaxRate = settings.TaxRate,
+        PricesIncludeTax = settings.PricesIncludeTax,
         ServiceCharge = settings.ServiceCharge,
         TipPresets = settings.TipPresetsCsv
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
