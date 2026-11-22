@@ -81,8 +81,8 @@ public class ShiftService : IShiftService
 
         if (shift.IsActive && !request.IsActive)
         {
-            var assigned = await _dbContext.Users
-                .CountAsync(u => u.IsActive && u.DefaultShiftId == shiftId, ct);
+            var assigned = await _dbContext.UserShifts
+                .CountAsync(us => us.ShiftId == shiftId && us.User.IsActive, ct);
 
             if (assigned > 0)
                 throw new ValidationException("Shift",
@@ -104,7 +104,7 @@ public class ShiftService : IShiftService
         var shift = await _dbContext.Shifts.FirstOrDefaultAsync(s => s.Id == shiftId, ct)
             ?? throw new NotFoundException("Shift", shiftId);
 
-        var inUse = await _dbContext.Users.AnyAsync(u => u.DefaultShiftId == shiftId, ct) ||
+        var inUse = await _dbContext.UserShifts.AnyAsync(us => us.ShiftId == shiftId, ct) ||
                     await _dbContext.ShiftExceptions.AnyAsync(e => e.ShiftId == shiftId, ct);
 
         if (inUse)
@@ -134,7 +134,7 @@ public class ShiftService : IShiftService
         var users = await _dbContext.Users
             .AsNoTracking()
             .Include(u => u.RoleEntity)
-            .Include(u => u.DefaultShift)
+            .Include(u => u.ShiftAssignments).ThenInclude(a => a.Shift)
             .Where(u => u.IsActive &&
                         (u.RoleEntity == null || u.RoleEntity.Name != Roles.Owner))
             .ToListAsync(ct);
@@ -171,9 +171,17 @@ public class ShiftService : IShiftService
             {
                 var assignments = new List<ShiftAssignment>();
 
-                if (user.DefaultShift is { IsActive: true } defaultShift &&
-                    !off.Contains((user.Id, defaultShift.Id)))
+                var defaults = user.ShiftAssignments
+                    .Select(a => a.Shift)
+                    .Where(shift => shift is { IsActive: true })
+                    .OrderBy(shift => shift.StartMinutes)
+                    .ThenBy(shift => shift.Name);
+
+                foreach (var defaultShift in defaults)
                 {
+                    if (off.Contains((user.Id, defaultShift.Id)))
+                        continue;
+
                     assignments.Add(new ShiftAssignment(defaultShift, false));
                 }
 
@@ -236,7 +244,7 @@ public class ShiftService : IShiftService
         var user = await _dbContext.Users
             .AsNoTracking()
             .Include(u => u.RoleEntity)
-            .Include(u => u.DefaultShift)
+            .Include(u => u.ShiftAssignments).ThenInclude(a => a.Shift)
             .FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException(ErrorMessages.UserNotFound);
 
@@ -244,6 +252,7 @@ public class ShiftService : IShiftService
             throw new ForbiddenException(ErrorMessages.UserDeactivated);
 
         var roleName = user.RoleEntity?.Name ?? user.Role.ToString();
+        var hasAssignments = user.ShiftAssignments.Count > 0;
 
         if (string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase))
         {
@@ -256,8 +265,7 @@ public class ShiftService : IShiftService
             };
         }
 
-        if (string.Equals(roleName, Roles.Manager, StringComparison.OrdinalIgnoreCase) &&
-            user.DefaultShiftId is null)
+        if (string.Equals(roleName, Roles.Manager, StringComparison.OrdinalIgnoreCase) && !hasAssignments)
         {
             return new MyShiftResponse
             {
@@ -268,13 +276,13 @@ public class ShiftService : IShiftService
             };
         }
 
-        if (user.DefaultShiftId is null)
+        if (!hasAssignments)
         {
             return new MyShiftResponse
             {
                 ShiftRequired = true,
                 CanSignInNow = false,
-                Message = "No shift is assigned to your account. Ask the owner to assign your default shift."
+                Message = "No shift is assigned to your account. Ask the owner to assign your shift."
             };
         }
 
@@ -375,31 +383,64 @@ public class ShiftService : IShiftService
         await _dbContext.SaveChangesAsync(ct);
     }
 
+    public async Task AssignAsync(AddShiftAssignmentRequest request, CancellationToken ct = default)
+    {
+        var user = await GetRosterUserAsync(request.UserId, ct);
+        var shift = await _dbContext.Shifts.FirstOrDefaultAsync(s => s.Id == request.ShiftId, ct)
+            ?? throw new NotFoundException("Shift", request.ShiftId);
+
+        if (!shift.IsActive)
+            throw new ValidationException("Shift", "This shift is inactive and cannot be assigned.");
+
+        var assignments = await GetEffectiveAssignmentsAsync(user, request.Date, ct);
+        if (assignments.Any(a => a.Shift.Id == shift.Id))
+            throw new ConflictException("This staff member is already scheduled for that shift on that date.");
+
+        await AddAssignmentAsync(user, request.Date, shift.Id, request.Note, ct);
+        await _dbContext.SaveChangesAsync(ct);
+    }
+
     public async Task SwapAsync(SwapShiftsRequest request, CancellationToken ct = default)
     {
         if (request.UserAId == request.UserBId)
             throw new ValidationException("Shift", "Choose two different staff members to swap.");
 
+        var dates = request.Dates.Distinct().OrderBy(date => date).ToList();
+        if (dates.Count == 0)
+            throw new ValidationException("Dates", "Choose at least one date to swap.");
+        if (dates.Count > 31)
+            throw new ValidationException("Dates", "A swap cannot cover more than 31 days.");
+
         var userA = await GetRosterUserAsync(request.UserAId, ct);
         var userB = await GetRosterUserAsync(request.UserBId, ct);
 
-        var assignmentsA = await GetEffectiveAssignmentsAsync(userA, request.Date, ct);
-        var assignmentsB = await GetEffectiveAssignmentsAsync(userB, request.Date, ct);
+        var plans = new List<(DateOnly Date, Shift ShiftA, Shift ShiftB)>();
+        foreach (var date in dates)
+        {
+            var assignmentsA = await GetEffectiveAssignmentsAsync(userA, date, ct);
+            var assignmentsB = await GetEffectiveAssignmentsAsync(userB, date, ct);
 
-        if (assignmentsA.Count != 1 || assignmentsB.Count != 1)
-            throw new ValidationException("Shift",
-                "A swap requires each staff member to have exactly one shift on that date. Use Cover instead.");
+            if (assignmentsA.Count != 1 || assignmentsB.Count != 1)
+                throw new ValidationException("Shift",
+                    $"On {date:yyyy-MM-dd} each staff member must have exactly one shift to swap. Use Cover instead.");
 
-        var shiftA = assignmentsA[0].Shift;
-        var shiftB = assignmentsB[0].Shift;
-        if (shiftA.Id == shiftB.Id)
-            throw new ValidationException("Shift", "Both staff members are already on the same shift.");
+            var shiftA = assignmentsA[0].Shift;
+            var shiftB = assignmentsB[0].Shift;
+            if (shiftA.Id == shiftB.Id)
+                throw new ValidationException("Shift",
+                    $"Both staff members are already on the same shift on {date:yyyy-MM-dd}.");
 
-        await RemoveAssignmentAsync(userA, request.Date, shiftA.Id, request.Note, ct);
-        await AddAssignmentAsync(userA, request.Date, shiftB.Id, request.Note, ct);
+            plans.Add((date, shiftA, shiftB));
+        }
 
-        await RemoveAssignmentAsync(userB, request.Date, shiftB.Id, request.Note, ct);
-        await AddAssignmentAsync(userB, request.Date, shiftA.Id, request.Note, ct);
+        foreach (var plan in plans)
+        {
+            await RemoveAssignmentAsync(userA, plan.Date, plan.ShiftA.Id, request.Note, ct);
+            await AddAssignmentAsync(userA, plan.Date, plan.ShiftB.Id, request.Note, ct);
+
+            await RemoveAssignmentAsync(userB, plan.Date, plan.ShiftB.Id, request.Note, ct);
+            await AddAssignmentAsync(userB, plan.Date, plan.ShiftA.Id, request.Note, ct);
+        }
 
         await _dbContext.SaveChangesAsync(ct);
     }
@@ -433,13 +474,14 @@ public class ShiftService : IShiftService
         if (string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase))
             return;
 
-        if (string.Equals(roleName, Roles.Manager, StringComparison.OrdinalIgnoreCase) &&
-            user.DefaultShiftId is null)
+        var hasAssignments = await _dbContext.UserShifts.AnyAsync(us => us.UserId == user.Id, ct);
+
+        if (string.Equals(roleName, Roles.Manager, StringComparison.OrdinalIgnoreCase) && !hasAssignments)
             return;
 
-        if (user.DefaultShiftId is null)
+        if (!hasAssignments)
             throw new ForbiddenException(
-                "No shift is assigned to your account. Ask the owner to assign your default shift.");
+                "No shift is assigned to your account. Ask the owner to assign your shift.");
 
         var today = EatToday();
         var assignments = await LoadEffectiveAssignmentsAsync(user, new[] { today, today.AddDays(-1) }, ct);
@@ -474,13 +516,12 @@ public class ShiftService : IShiftService
         if (result.Count == 0)
             return result;
 
-        var defaultShift = user.DefaultShift;
-        if (defaultShift is null && user.DefaultShiftId is Guid defaultShiftId)
-        {
-            defaultShift = await _dbContext.Shifts
-                .AsNoTracking()
-                .FirstOrDefaultAsync(s => s.Id == defaultShiftId, ct);
-        }
+        var defaultShifts = await _dbContext.UserShifts
+            .AsNoTracking()
+            .Include(us => us.Shift)
+            .Where(us => us.UserId == user.Id)
+            .Select(us => us.Shift)
+            .ToListAsync(ct);
 
         var from = result.Keys.Min();
         var to = result.Keys.Max();
@@ -500,8 +541,11 @@ public class ShiftService : IShiftService
 
             var assignments = result[date];
 
-            if (defaultShift is { IsActive: true } && !off.Contains(defaultShift.Id))
-                assignments.Add(new ShiftAssignment(defaultShift, false));
+            foreach (var defaultShift in defaultShifts.Where(s => s.IsActive && !off.Contains(s.Id)))
+            {
+                if (assignments.All(a => a.Shift.Id != defaultShift.Id))
+                    assignments.Add(new ShiftAssignment(defaultShift, false));
+            }
 
             foreach (var extra in exceptions.Where(e =>
                          e.ShiftDate == date &&
@@ -548,8 +592,10 @@ public class ShiftService : IShiftService
         CancellationToken ct)
     {
         var cleanedNote = NormalizeNote(note);
+        var isDefault = await _dbContext.UserShifts
+            .AnyAsync(us => us.UserId == user.Id && us.ShiftId == shiftId, ct);
 
-        if (user.DefaultShiftId == shiftId)
+        if (isDefault)
         {
             var extras = await _dbContext.ShiftExceptions
                 .Where(e => e.UserId == user.Id && e.ShiftDate == date && e.ShiftId == shiftId &&
@@ -594,6 +640,8 @@ public class ShiftService : IShiftService
         CancellationToken ct)
     {
         var cleanedNote = NormalizeNote(note);
+        var isDefault = await _dbContext.UserShifts
+            .AnyAsync(us => us.UserId == user.Id && us.ShiftId == shiftId, ct);
 
         var off = await _dbContext.ShiftExceptions
             .Where(e => e.UserId == user.Id && e.ShiftDate == date && e.ShiftId == shiftId &&
@@ -601,7 +649,7 @@ public class ShiftService : IShiftService
             .ToListAsync(ct);
         _dbContext.ShiftExceptions.RemoveRange(off);
 
-        if (user.DefaultShiftId == shiftId)
+        if (isDefault)
         {
             var duplicateExtras = await _dbContext.ShiftExceptions
                 .Where(e => e.UserId == user.Id && e.ShiftDate == date && e.ShiftId == shiftId &&
@@ -636,7 +684,7 @@ public class ShiftService : IShiftService
     {
         var user = await _dbContext.Users
             .Include(u => u.RoleEntity)
-            .Include(u => u.DefaultShift)
+            .Include(u => u.ShiftAssignments).ThenInclude(a => a.Shift)
             .FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException(ErrorMessages.UserNotFound);
 

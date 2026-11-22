@@ -14,6 +14,7 @@ public interface IShiftService
     Task<MyShiftResponse> GetMyShiftAsync(CancellationToken ct = default);
 
     Task MarkOffAsync(MarkShiftOffRequest request, CancellationToken ct = default);
+    Task AssignAsync(AddShiftAssignmentRequest request, CancellationToken ct = default);
     Task CoverAsync(CoverShiftRequest request, CancellationToken ct = default);
     Task SwapAsync(SwapShiftsRequest request, CancellationToken ct = default);
     Task ResetDayAsync(ResetShiftDayRequest request, CancellationToken ct = default);

@@ -39,11 +39,10 @@ public class User
     public bool IsActive { get; set; } = true;
 
     /// <summary>
-    /// Recurring shift used for sign-in gating. Owners have none; Managers may
-    /// have none, which keeps them unrestricted. Other roles must have one.
+    /// Recurring shifts used for sign-in gating. Owners have none; Managers may
+    /// have none, which keeps them unrestricted. Other roles must have at least one.
     /// </summary>
-    public Guid? DefaultShiftId { get; set; }
-    public Shift? DefaultShift { get; set; }
+    public ICollection<UserShift> ShiftAssignments { get; set; } = new List<UserShift>();
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

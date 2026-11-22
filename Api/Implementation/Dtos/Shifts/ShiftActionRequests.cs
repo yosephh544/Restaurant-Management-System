@@ -23,9 +23,25 @@ public class CoverShiftRequest
     public string? Note { get; set; }
 }
 
-public class SwapShiftsRequest
+/// <summary>
+/// Adds a staff member to a shift for a date, even when nobody else is
+/// scheduled in that shift (an additional cover assignment).
+/// </summary>
+public class AddShiftAssignmentRequest
 {
     public DateOnly Date { get; set; }
+    public Guid UserId { get; set; }
+    public Guid ShiftId { get; set; }
+
+    [MaxLength(300, ErrorMessage = "Note cannot exceed 300 characters.")]
+    public string? Note { get; set; }
+}
+
+public class SwapShiftsRequest
+{
+    /// <summary>One or more dates on which the two staff members exchange shifts.</summary>
+    public List<DateOnly> Dates { get; set; } = new();
+
     public Guid UserAId { get; set; }
     public Guid UserBId { get; set; }
 

@@ -28,7 +28,7 @@ export interface StaffUser {
   role: Role;
   active: boolean;
   createdAt: string;
-  defaultShift?: DefaultShiftSummary | null;
+  defaultShifts: DefaultShiftSummary[];
 }
 
 export interface DefaultShiftSummary {

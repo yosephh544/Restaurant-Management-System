@@ -3817,3 +3817,79 @@ svg {
     padding: 8px 13px;
   }
 }
+
+/* Multi-shift picker (user form) */
+.shift-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 8px;
+}
+
+.shift-option {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--card);
+  cursor: pointer;
+  min-width: 0;
+}
+
+.shift-option.checked {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+}
+
+.shift-option input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--brand);
+  flex: none;
+}
+
+.shift-option > span {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.shift-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+/* Swap multi-day picker */
+.swap-days {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.swap-day {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--card);
+  cursor: pointer;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.swap-day.checked {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand-dark);
+}
+
+.swap-day input {
+  width: 14px;
+  height: 14px;
+  accent-color: var(--brand);
+}

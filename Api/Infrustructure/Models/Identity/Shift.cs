@@ -15,6 +15,6 @@ public class Shift
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
-    public ICollection<User> DefaultStaff { get; set; } = new List<User>();
+    public ICollection<UserShift> StaffAssignments { get; set; } = new List<UserShift>();
     public ICollection<ShiftException> Exceptions { get; set; } = new List<ShiftException>();
 }

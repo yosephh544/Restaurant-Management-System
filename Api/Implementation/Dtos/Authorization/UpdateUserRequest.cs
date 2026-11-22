@@ -24,9 +24,6 @@ public class UpdateUserRequest
     [MinLength(6, ErrorMessage = "Password must be at least 6 characters.")]
     public string? Password { get; set; }
 
-    /// <summary>New default shift. Omit to leave unchanged.</summary>
-    public Guid? DefaultShiftId { get; set; }
-
-    /// <summary>Set to true to remove the default shift (Managers only).</summary>
-    public bool ClearDefaultShift { get; set; }
+    /// <summary>Replacement set of default shifts. Omit to leave the current assignments unchanged.</summary>
+    public List<Guid>? ShiftIds { get; set; }
 }

@@ -101,8 +101,7 @@ export interface UserInput {
   role: string;
   pin?: string;
   password?: string;
-  defaultShiftId?: string;
-  clearDefaultShift?: boolean;
+  shiftIds?: string[];
 }
 
 export interface ShiftInput {
@@ -129,7 +128,7 @@ interface UserDto {
   role: string;
   isActive: boolean;
   createdAt: string;
-  defaultShift?: UserDefaultShiftDto | null;
+  defaultShifts?: UserDefaultShiftDto[] | null;
 }
 
 interface ShiftDto {
@@ -757,9 +756,16 @@ export class Store {
     });
   }
 
-  async swapShifts(date: string, userAId: string, userBId: string, note = ''): Promise<Result> {
+  async assignShift(date: string, userId: string, shiftId: string, note = ''): Promise<Result> {
     return await this.guard(async () => {
-      await this.api.patch('/shifts/swap', { date, userAId, userBId, note: note || null });
+      await this.api.patch('/shifts/assign', { date, userId, shiftId, note: note || null });
+      await this.reloadShiftSchedule();
+    });
+  }
+
+  async swapShifts(dates: string[], userAId: string, userBId: string, note = ''): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch('/shifts/swap', { dates, userAId, userBId, note: note || null });
       await this.reloadShiftSchedule();
     });
   }
@@ -1202,8 +1208,7 @@ export class Store {
           role: input.role,
           pin: input.pin || undefined,
           password: input.password || undefined,
-          defaultShiftId: input.defaultShiftId || undefined,
-          clearDefaultShift: input.clearDefaultShift ?? false,
+          shiftIds: input.shiftIds,
         });
       } else {
         await this.api.post('/users', {
@@ -1213,7 +1218,7 @@ export class Store {
           role: input.role,
           pin: input.pin || null,
           password: input.password || null,
-          defaultShiftId: input.defaultShiftId || null,
+          shiftIds: input.shiftIds ?? [],
         });
       }
       await Promise.all([this.loadUsers(), this.reloadShiftSchedule()]);
@@ -1330,15 +1335,13 @@ export class Store {
       role: roleFrom(u.role),
       active: u.isActive,
       createdAt: u.createdAt,
-      defaultShift: u.defaultShift
-        ? {
-            id: u.defaultShift.id,
-            name: u.defaultShift.name,
-            startMinutes: u.defaultShift.startMinutes,
-            endMinutes: u.defaultShift.endMinutes,
-            crossesMidnight: u.defaultShift.crossesMidnight,
-          }
-        : null,
+      defaultShifts: (u.defaultShifts ?? []).map((shift) => ({
+        id: shift.id,
+        name: shift.name,
+        startMinutes: shift.startMinutes,
+        endMinutes: shift.endMinutes,
+        crossesMidnight: shift.crossesMidnight,
+      })),
     };
   }
 

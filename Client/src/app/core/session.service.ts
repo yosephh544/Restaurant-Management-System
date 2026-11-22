@@ -44,6 +44,7 @@ export class SessionService {
       role: roleFrom(profile.role),
       active: true,
       createdAt: '',
+      defaultShifts: [],
     };
   });
 

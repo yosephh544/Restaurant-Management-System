@@ -21,6 +21,7 @@ public class RestaurantDbContext : DbContext
     public DbSet<RefreshToken> RefreshTokens { get; set; }
     public DbSet<PasswordResetRequest> PasswordResetRequests { get; set; }
     public DbSet<Shift> Shifts { get; set; }
+    public DbSet<UserShift> UserShifts { get; set; }
     public DbSet<ShiftException> ShiftExceptions { get; set; }
 
     // ── Menu Catalog ─────────────────────────────────────────────────────────
@@ -184,13 +185,22 @@ public class RestaurantDbContext : DbContext
                   .WithMany(r => r.Users)
                   .HasForeignKey(u => u.RoleId)
                   .OnDelete(DeleteBehavior.Restrict);
+        });
 
-            entity.Property(u => u.DefaultShiftId).IsRequired(false);
-            entity.HasIndex(u => u.DefaultShiftId);
-            entity.HasOne(u => u.DefaultShift)
-                  .WithMany(s => s.DefaultStaff)
-                  .HasForeignKey(u => u.DefaultShiftId)
-                  .OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<UserShift>(entity =>
+        {
+            entity.ToTable("user_shifts");
+            entity.HasKey(x => new { x.UserId, x.ShiftId });
+
+            entity.HasOne(x => x.User)
+                  .WithMany(u => u.ShiftAssignments)
+                  .HasForeignKey(x => x.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(x => x.Shift)
+                  .WithMany(s => s.StaffAssignments)
+                  .HasForeignKey(x => x.ShiftId)
+                  .OnDelete(DeleteBehavior.Cascade);
         });
 
         // ═══════════════════════════════════════════════════════════════════════

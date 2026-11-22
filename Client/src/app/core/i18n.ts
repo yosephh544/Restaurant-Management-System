@@ -994,6 +994,23 @@ const AM: Record<string, string> = {
   'Reset request dismissed': 'የዳግም ማስጀመሪያ ጥያቄ ተዘግቷል',
   'Code copied': 'ኮዱ ተቀድቷል',
   'Copy failed. Read the code aloud instead.': 'መቅዳት አልተሳካም። ኮዱን ጮክ ብለው ያንብቡ።',
+  'Default shifts': 'ነባሪ ፈረቃዎች',
+  'No active shifts are configured yet.': 'እስካሁን ንቁ ፈረቃዎች አልተዘጋጁም።',
+  'Leave all unchecked so this manager can sign in at any time. Selecting shifts restricts their sign-in to those windows.': 'ሁሉንም ሳይመርጡ ይተዉት እንዲህ ያለው አስተዳዳሪ በማንኛውም ጊዜ መግባት ይችላል። ፈረቃዎችን መምረጥ መግቢያውን በእነዚያ ጊዜያት ብቻ ይገድባል።',
+  'Select every shift this staff member works. They can sign in within any selected window (15 minutes early to 60 minutes late).': 'ይህ ሰራተኛ የሚሰራባቸውን ፈረቃዎች ሁሉ ይምረጡ። በተመረጠው ጊዜ ውስጥ መግባት ይችላል (ከ15 ደቂቃ በፊት እስከ 60 ደቂቃ በኋላ)።',
+  'Choose at least one default shift for this staff member.': 'ለዚህ ሰራተኛ ቢያንስ አንድ ነባሪ ፈረቃ ይምረጡ።',
+  'Add staff': 'ሰራተኛ ጨምር',
+  'Assign staff': 'ሰራተኛ መድብ',
+  'Add staff to shift': 'ሰራተኛ ወደ ፈረቃ ጨምር',
+  'Staff member': 'ሰራተኛ',
+  'Add to shift': 'ወደ ፈረቃ ጨምር',
+  'Staff added to {shift}': 'ሰራተኛ ወደ {shift} ተጨምሯል',
+  'Add a staff member to this shift, even if it is not their default.': 'የነባሪ ፈረቃቸው ባይሆንም ሰራተኛ ወደዚህ ፈረቃ ይጨምሩ።',
+  'Every active staff member is already on this shift.': 'ሁሉም ንቁ ሰራተኞች አስቀድመው በዚህ ፈረቃ ላይ ናቸው።',
+  'Days to swap': 'የሚለዋወጡ ቀናት',
+  'selected': 'ተመርጠዋል',
+  'Swap two staff members who each have exactly one shift on every selected day. Pick one or more days.': 'በተመረጠው እያንዳንዱ ቀን አንድ ፈረቃ ብቻ ያላቸውን ሁለት ሰራተኞች ይለዋወጡ። አንድ ወይም ከዚያ በላይ ቀናትን ይምረጡ።',
+  'No staff have a single shift on every selected day, so there is nothing to swap.': 'በተመረጡት ቀናት ሁሉ አንድ ፈረቃ ብቻ ያላቸው ሰራተኞች ስለሌሉ የሚለዋወጥ ነገር የለም።',
 };
 
 let active: I18nService | null = null;

@@ -786,9 +786,6 @@ namespace RestaurantManagement.Api.Migrations
                         .HasColumnType("datetime2")
                         .HasDefaultValueSql("GETUTCDATE()");
 
-                    b.Property<Guid?>("DefaultShiftId")
-                        .HasColumnType("uniqueidentifier");
-
                     b.Property<string>("FullName")
                         .IsRequired()
                         .HasMaxLength(120)
@@ -829,14 +826,27 @@ namespace RestaurantManagement.Api.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DefaultShiftId");
-
                     b.HasIndex("RoleId");
 
                     b.HasIndex("Username")
                         .IsUnique();
 
                     b.ToTable("users", (string)null);
+                });
+
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.UserShift", b =>
+                {
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("ShiftId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("UserId", "ShiftId");
+
+                    b.HasIndex("ShiftId");
+
+                    b.ToTable("user_shifts", (string)null);
                 });
 
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Menu.MenuCategory", b =>
@@ -1391,19 +1401,31 @@ namespace RestaurantManagement.Api.Migrations
 
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.User", b =>
                 {
-                    b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.Shift", "DefaultShift")
-                        .WithMany("DefaultStaff")
-                        .HasForeignKey("DefaultShiftId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.Role", "RoleEntity")
                         .WithMany("Users")
                         .HasForeignKey("RoleId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.Navigation("DefaultShift");
-
                     b.Navigation("RoleEntity");
+                });
+
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.UserShift", b =>
+                {
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.Shift", "Shift")
+                        .WithMany("StaffAssignments")
+                        .HasForeignKey("ShiftId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.User", "User")
+                        .WithMany("ShiftAssignments")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Shift");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Menu.MenuCategory", b =>
@@ -1549,9 +1571,9 @@ namespace RestaurantManagement.Api.Migrations
 
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.Shift", b =>
                 {
-                    b.Navigation("DefaultStaff");
-
                     b.Navigation("Exceptions");
+
+                    b.Navigation("StaffAssignments");
                 });
 
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.User", b =>
@@ -1565,6 +1587,8 @@ namespace RestaurantManagement.Api.Migrations
                     b.Navigation("PaymentsInitiated");
 
                     b.Navigation("RefreshTokens");
+
+                    b.Navigation("ShiftAssignments");
 
                     b.Navigation("ShiftExceptions");
 

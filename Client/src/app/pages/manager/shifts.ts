@@ -8,6 +8,7 @@ import {
   ROLE_LABEL,
   Role,
   ShiftColumn,
+  ShiftDay,
   ShiftDefinition,
   ShiftStaff,
   shiftRange,
@@ -30,6 +31,13 @@ interface SwapOption {
   shiftId: string;
   shiftName: string;
   role: Role;
+}
+
+interface SwapSnapshot {
+  userId: string;
+  fullName: string;
+  role: Role;
+  shifts: Map<string, { shiftId: string; shiftName: string }>;
 }
 
 interface ShiftDraft {
@@ -93,7 +101,14 @@ interface ShiftDraft {
                     }
                   </div>
                 </div>
-                <span class="pill pill-grey no-dot">{{ column.staff.length }}</span>
+                <div class="row" style="gap: 6px">
+                  <span class="pill pill-grey no-dot">{{ column.staff.length }}</span>
+                  @if (canManage()) {
+                    <button class="btn btn-sm btn-ghost" type="button" (click)="openAssign(column)">
+                      <app-icon name="plus" /> {{ 'Add staff' | t }}
+                    </button>
+                  }
+                </div>
               </div>
 
               <div class="shift-staff-list">
@@ -123,7 +138,12 @@ interface ShiftDraft {
                   <div class="empty" style="padding: 22px 10px">
                     <app-icon name="clock" />
                     <strong>{{ 'Nobody assigned' | t }}</strong>
-                    <p>{{ 'Use Cover on another staff member to fill this shift.' | t }}</p>
+                    <p>{{ 'Add a staff member to this shift, even if it is not their default.' | t }}</p>
+                    @if (canManage()) {
+                      <button class="btn btn-sm btn-secondary" type="button" (click)="openAssign(column)">
+                        <app-icon name="plus" /> {{ 'Assign staff' | t }}
+                      </button>
+                    }
                   </div>
                 }
               </div>
@@ -317,18 +337,75 @@ interface ShiftDraft {
       </div>
     }
 
-    @if (swapOpen()) {
-      <div class="modal-backdrop" (click)="swapOpen.set(false)">
+    @if (assignOpen()) {
+      <div class="modal-backdrop" (click)="assignOpen.set(false)">
         <div class="modal" (click)="$event.stopPropagation()">
           <div class="modal-head">
             <div>
+              <h3>{{ 'Add staff to shift' | t }}</h3>
+              <p>{{ assignShift()?.name }} · {{ dayLabel(selectedDate()) }}</p>
+            </div>
+            <button class="modal-close" type="button" (click)="assignOpen.set(false)"><app-icon name="x" /></button>
+          </div>
+          <div class="modal-body">
+            <div class="field">
+              <label class="label" for="assign-user">{{ 'Staff member' | t }}</label>
+              <select id="assign-user" class="select" [ngModel]="assignUserId()" (ngModelChange)="assignUserId.set($event)">
+                <option value="">{{ 'Select a staff member' | t }}</option>
+                @for (candidate of assignCandidates(); track candidate.id) {
+                  <option [value]="candidate.id">{{ candidate.name }} · {{ roleLabel(candidate.role) }}</option>
+                }
+              </select>
+              @if (!assignCandidates().length) {
+                <p class="tiny muted" style="margin: 6px 0 0">
+                  {{ 'Every active staff member is already on this shift.' | t }}
+                </p>
+              }
+            </div>
+            <div class="field mt-3">
+              <label class="label" for="assign-note">{{ 'Note (optional)' | t }}</label>
+              <input id="assign-note" class="input" [ngModel]="assignNote()" (ngModelChange)="assignNote.set($event)" maxlength="300" />
+            </div>
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost" type="button" (click)="assignOpen.set(false)">{{ 'Cancel' | t }}</button>
+            <button class="btn btn-primary" type="button" [disabled]="busy() || !assignUserId()" (click)="applyAssign()">
+              {{ busy() ? ('Saving…' | t) : ('Add to shift' | t) }}
+            </button>
+          </div>
+        </div>
+      </div>
+    }
+
+    @if (swapOpen()) {
+      <div class="modal-backdrop" (click)="swapOpen.set(false)">
+        <div class="modal" style="max-width: 620px" (click)="$event.stopPropagation()">
+          <div class="modal-head">
+            <div>
               <h3>{{ 'Swap shifts' | t }}</h3>
-              <p>{{ 'Swap two staff members who each have exactly one shift on' | t }} {{ dayLabel(selectedDate()) }}.</p>
+              <p>
+                {{ 'Swap two staff members who each have exactly one shift on every selected day. Pick one or more days.' | t }}
+              </p>
             </div>
             <button class="modal-close" type="button" (click)="swapOpen.set(false)"><app-icon name="x" /></button>
           </div>
           <div class="modal-body">
             <div class="field">
+              <label class="label">{{ 'Days to swap' | t }} · {{ swapDates().length }} {{ 'selected' | t }}</label>
+              <div class="swap-days">
+                @for (day of dayOptions(); track day.date) {
+                  <label class="swap-day" [class.checked]="swapDates().includes(day.date)">
+                    <input
+                      type="checkbox"
+                      [checked]="swapDates().includes(day.date)"
+                      (change)="toggleSwapDate(day.date)"
+                    />
+                    <span>{{ day.label }}</span>
+                  </label>
+                }
+              </div>
+            </div>
+            <div class="field mt-3">
               <label class="label" for="swap-a">{{ 'Staff member A' | t }}</label>
               <select id="swap-a" class="select" [ngModel]="swapAId()" (ngModelChange)="setSwapA($event)">
                 <option value="">{{ 'Select staff' | t }}</option>
@@ -351,7 +428,9 @@ interface ShiftDraft {
               <input id="swap-note" class="input" [ngModel]="swapNote()" (ngModelChange)="swapNote.set($event)" maxlength="300" />
             </div>
             @if (!swapCandidates().length) {
-              <p class="tiny muted mt-3">{{ 'No staff have a single shift today, so there is nothing to swap.' | t }}</p>
+              <p class="tiny muted mt-3">
+                {{ 'No staff have a single shift on every selected day, so there is nothing to swap.' | t }}
+              </p>
             }
           </div>
           <div class="modal-foot">
@@ -452,11 +531,17 @@ export class ShiftsPage implements OnInit {
   protected readonly coverUserId = signal('');
   protected readonly coverNote = signal('');
 
+  protected readonly assignOpen = signal(false);
+  protected readonly assignShift = signal<ShiftColumn | null>(null);
+  protected readonly assignUserId = signal('');
+  protected readonly assignNote = signal('');
+
   protected readonly offOpen = signal(false);
   protected readonly offTarget = signal<{ userId: string; fullName: string; shiftId: string; shiftName: string } | null>(null);
   protected readonly offNote = signal('');
 
   protected readonly swapOpen = signal(false);
+  protected readonly swapDates = signal<string[]>([]);
   protected readonly swapAId = signal('');
   protected readonly swapBId = signal('');
   protected readonly swapNote = signal('');
@@ -487,37 +572,113 @@ export class ShiftsPage implements OnInit {
       .map((user) => ({ id: user.id, name: user.name, role: translate(ROLE_LABEL[user.role]) }));
   });
 
-  protected readonly swapCandidates = computed<SwapOption[]>(() => {
+  protected readonly assignCandidates = computed(() => {
+    const column = this.assignShift();
     const day = this.selectedDay();
-    if (!day) return [];
+    if (!column || !day) return [];
 
-    const byUser = new Map<string, SwapOption[]>();
-    for (const column of day.shifts) {
-      for (const member of column.staff) {
-        const list = byUser.get(member.userId) ?? [];
-        list.push({
-          userId: member.userId,
-          fullName: member.fullName,
-          shiftId: column.shiftId,
-          shiftName: column.name,
-          role: member.role,
+    const alreadyOnShift = new Set(column.staff.map((member) => member.userId));
+
+    return this.store
+      .users()
+      .filter((user) => user.active && user.role !== 'OWNER' && !alreadyOnShift.has(user.id))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((user) => ({ id: user.id, name: user.name, role: translate(ROLE_LABEL[user.role]) }));
+  });
+
+  protected readonly swapSnapshots = computed(() => {
+    const dates = this.swapDates();
+    const schedule = this.store.shiftSchedule();
+    const result = new Map<string, SwapSnapshot>();
+    if (!dates.length || !schedule.length) return result;
+
+    const days = dates.map((date) => schedule.find((day) => day.date === date));
+    if (days.some((day) => !day)) return result;
+
+    const singleShiftUsers = (day: ShiftDay) => {
+      const byUser = new Map<string, { member: ShiftStaff; column: ShiftColumn }[]>();
+      for (const column of day.shifts) {
+        for (const member of column.staff) {
+          const list = byUser.get(member.userId) ?? [];
+          list.push({ member, column });
+          byUser.set(member.userId, list);
+        }
+      }
+
+      return new Map(
+        [...byUser]
+          .filter(([, list]) => list.length === 1)
+          .map(([userId, list]) => [userId, list[0]] as const),
+      );
+    };
+
+    const [firstDay, ...rest] = days as ShiftDay[];
+    for (const [userId, entry] of singleShiftUsers(firstDay)) {
+      result.set(userId, {
+        userId,
+        fullName: entry.member.fullName,
+        role: entry.member.role,
+        shifts: new Map([[firstDay.date, { shiftId: entry.column.shiftId, shiftName: entry.column.name }]]),
+      });
+    }
+
+    for (const day of rest) {
+      const single = singleShiftUsers(day);
+      for (const userId of [...result.keys()]) {
+        const entry = single.get(userId);
+        if (!entry) {
+          result.delete(userId);
+          continue;
+        }
+
+        result.get(userId)!.shifts.set(day.date, {
+          shiftId: entry.column.shiftId,
+          shiftName: entry.column.name,
         });
-        byUser.set(member.userId, list);
       }
     }
 
-    return [...byUser.values()]
-      .filter((list) => list.length === 1)
-      .map((list) => list[0])
+    return result;
+  });
+
+  protected readonly swapCandidates = computed<SwapOption[]>(() => {
+    const firstDate = this.swapDates()[0];
+    if (!firstDate) return [];
+
+    return [...this.swapSnapshots().values()]
+      .map((snapshot) => {
+        const shift = snapshot.shifts.get(firstDate);
+        return shift
+          ? {
+              userId: snapshot.userId,
+              fullName: snapshot.fullName,
+              shiftId: shift.shiftId,
+              shiftName: shift.shiftName,
+              role: snapshot.role,
+            }
+          : null;
+      })
+      .filter((option): option is SwapOption => option !== null)
       .sort((a, b) => a.fullName.localeCompare(b.fullName));
   });
 
   protected readonly swapOptionsForB = computed(() => {
-    const selected = this.swapCandidates().find((option) => option.userId === this.swapAId());
-    if (!selected) return this.swapCandidates();
-    return this.swapCandidates().filter(
-      (option) => option.userId !== selected.userId && option.shiftId !== selected.shiftId,
-    );
+    const candidates = this.swapCandidates();
+    const a = this.swapSnapshots().get(this.swapAId());
+    if (!a) return candidates;
+
+    return candidates.filter((option) => {
+      if (option.userId === a.userId) return false;
+
+      const b = this.swapSnapshots().get(option.userId);
+      if (!b) return false;
+
+      return this.swapDates().every((date) => {
+        const shiftA = a.shifts.get(date);
+        const shiftB = b.shifts.get(date);
+        return !!shiftA && !!shiftB && shiftA.shiftId !== shiftB.shiftId;
+      });
+    });
   });
 
   ngOnInit(): void {
@@ -574,6 +735,35 @@ export class ShiftsPage implements OnInit {
     this.toast.show(translate('Cover recorded for {shift}', { shift: target.shiftName }));
   }
 
+  protected openAssign(column: ShiftColumn): void {
+    this.assignShift.set(column);
+    this.assignUserId.set('');
+    this.assignNote.set('');
+    this.assignOpen.set(true);
+  }
+
+  protected async applyAssign(): Promise<void> {
+    const column = this.assignShift();
+    if (!column || !this.assignUserId()) return;
+
+    this.busy.set(true);
+    const result = await this.store.assignShift(
+      this.selectedDate(),
+      this.assignUserId(),
+      column.shiftId,
+      this.assignNote(),
+    );
+    this.busy.set(false);
+
+    if (!result.ok) {
+      this.toast.show(result.error, 'error');
+      return;
+    }
+
+    this.assignOpen.set(false);
+    this.toast.show(translate('Staff added to {shift}', { shift: column.name }));
+  }
+
   protected openOff(member: ShiftStaff, column: ShiftColumn): void {
     this.offTarget.set({
       userId: member.userId,
@@ -603,10 +793,23 @@ export class ShiftsPage implements OnInit {
   }
 
   protected openSwap(): void {
+    this.swapDates.set([this.selectedDate()]);
     this.swapAId.set('');
     this.swapBId.set('');
     this.swapNote.set('');
     this.swapOpen.set(true);
+  }
+
+  protected toggleSwapDate(date: string): void {
+    const selected = this.swapDates();
+    const next = selected.includes(date)
+      ? selected.filter((value) => value !== date)
+      : [...selected, date].sort();
+
+    if (!next.length) return;
+
+    this.swapDates.set(next);
+    this.swapBId.set('');
   }
 
   protected setSwapA(userId: string): void {
@@ -620,7 +823,7 @@ export class ShiftsPage implements OnInit {
     if (!a || !b) return;
 
     this.busy.set(true);
-    const result = await this.store.swapShifts(this.selectedDate(), a.userId, b.userId, this.swapNote());
+    const result = await this.store.swapShifts([...this.swapDates()], a.userId, b.userId, this.swapNote());
     this.busy.set(false);
 
     if (!result.ok) {

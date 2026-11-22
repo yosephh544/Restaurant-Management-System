@@ -10,7 +10,7 @@ public class UserResponse
     public bool IsActive { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
-    public UserDefaultShiftResponse? DefaultShift { get; init; }
+    public List<UserDefaultShiftResponse> DefaultShifts { get; init; } = new();
 }
 
 public class UserDefaultShiftResponse

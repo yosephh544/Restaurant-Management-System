@@ -142,9 +142,10 @@ public static class DatabaseSeeder
 
         // Existing floor staff predate shift gating. Give them the Morning shift
         // so nobody is locked out; the Owner corrects afternoon staff afterwards.
+        var assignedUserIds = await db.UserShifts.Select(us => us.UserId).ToHashSetAsync(ct);
         var unassigned = await db.Users
             .Include(u => u.RoleEntity)
-            .Where(u => u.DefaultShiftId == null)
+            .Where(u => !assignedUserIds.Contains(u.Id))
             .ToListAsync(ct);
 
         foreach (var user in unassigned)
@@ -154,7 +155,7 @@ public static class DatabaseSeeder
                 string.Equals(roleName, Roles.Manager, StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            user.DefaultShiftId = morningShift.Id;
+            db.UserShifts.Add(new UserShift { UserId = user.Id, ShiftId = morningShift.Id });
             user.UpdatedAt = DateTime.UtcNow;
         }
 

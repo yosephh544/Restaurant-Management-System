@@ -2,7 +2,7 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../../core/auth.service';
-import { initials, ROLE_LABEL, Role, shiftRange, StaffUser } from '../../core/models';
+import { DefaultShiftSummary, initials, ROLE_LABEL, Role, shiftRange, StaffUser } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -22,7 +22,7 @@ interface UserDraft {
   role: Role;
   password: string;
   pin: string;
-  defaultShiftId: string;
+  shiftIds: string[];
 }
 
 @Component({
@@ -114,9 +114,13 @@ interface UserDraft {
                   <td>
                     @if (member.role === 'OWNER') {
                       <span class="muted">—</span>
-                    } @else if (member.defaultShift) {
-                      <span class="pill pill-blue no-dot">{{ member.defaultShift.name }}</span><br />
-                      <span class="tiny muted">{{ shiftRange(member.defaultShift.startMinutes, member.defaultShift.endMinutes) }}</span>
+                    } @else if (member.defaultShifts.length) {
+                      <div class="shift-pills">
+                        @for (shift of member.defaultShifts; track shift.id) {
+                          <span class="pill pill-blue no-dot">{{ shift.name }}</span>
+                        }
+                      </div>
+                      <span class="tiny muted">{{ shiftSummary(member.defaultShifts) }}</span>
                     } @else if (member.role === 'MANAGER') {
                       <span class="pill pill-blue no-dot">{{ 'Any time' | t }}</span>
                     } @else {
@@ -234,23 +238,30 @@ interface UserDraft {
               </div>
               @if (draft.role !== 'OWNER') {
                 <div class="field" style="grid-column: 1 / -1">
-                  <label class="label" for="user-shift"> {{ 'Default shift' | t }} {{ draft.role === 'MANAGER' ? ('(optional)' | t) : '' }}
-                  </label>
-                  <select id="user-shift" class="select" [(ngModel)]="draft.defaultShiftId">
-                    @if (draft.role === 'MANAGER') {
-                      <option value="">{{ 'Any time — no fixed shift' | t }}</option>
-                    } @else {
-                      <option value="" disabled>{{ 'Select a shift' | t }}</option>
-                    }
+                  <label class="label"> {{ 'Default shifts' | t }} {{ draft.role === 'MANAGER' ? ('(optional)' | t) : '' }} </label>
+                  <div class="shift-picker">
                     @for (shift of activeShifts(); track shift.id) {
-                      <option [value]="shift.id">{{ shift.name }} · {{ shiftRange(shift.startMinutes, shift.endMinutes) }}</option>
+                      <label class="shift-option" [class.checked]="draft.shiftIds.includes(shift.id)">
+                        <input
+                          type="checkbox"
+                          [checked]="draft.shiftIds.includes(shift.id)"
+                          (change)="toggleShift(shift.id)"
+                        />
+                        <span>
+                          <strong>{{ shift.name }}</strong>
+                          <span class="tiny muted">{{ shiftRange(shift.startMinutes, shift.endMinutes) }}</span>
+                        </span>
+                      </label>
                     }
-                  </select>
+                  </div>
+                  @if (!activeShifts().length) {
+                    <p class="tiny muted" style="margin: 6px 0 0">{{ 'No active shifts are configured yet.' | t }}</p>
+                  }
                   <p class="tiny muted" style="margin: 6px 0 0">
                     @if (draft.role === 'MANAGER') {
-                      {{ 'Leave blank so this manager can sign in at any time. Assign a shift to restrict their sign-in window.' | t }}
+                      {{ 'Leave all unchecked so this manager can sign in at any time. Selecting shifts restricts their sign-in to those windows.' | t }}
                     } @else {
-                      {{ 'This staff member can only sign in within this shift window (15 minutes early to 60 minutes late).' | t }}
+                      {{ 'Select every shift this staff member works. They can sign in within any selected window (15 minutes early to 60 minutes late).' | t }}
                     }
                   </p>
                 </div>
@@ -355,6 +366,10 @@ export class UsersPage {
     return translate(ROLE_LABEL[role]);
   }
 
+  protected shiftSummary(shifts: DefaultShiftSummary[]): string {
+    return shifts.map((shift) => shiftRange(shift.startMinutes, shift.endMinutes)).join(' · ');
+  }
+
   protected openNew(): void {
     this.draft = this.blank();
     this.editingId.set(null);
@@ -371,19 +386,36 @@ export class UsersPage {
       role: member.role,
       password: '',
       pin: '',
-      defaultShiftId: member.defaultShift?.id ?? '',
+      shiftIds: member.defaultShifts.map((shift) => shift.id),
     };
     this.editingId.set(member.id);
     this.error.set('');
     this.modalOpen.set(true);
   }
 
+  protected toggleShift(shiftId: string): void {
+    const selected = this.draft.shiftIds.includes(shiftId);
+    this.draft = {
+      ...this.draft,
+      shiftIds: selected
+        ? this.draft.shiftIds.filter((id) => id !== shiftId)
+        : [...this.draft.shiftIds, shiftId],
+    };
+  }
+
   protected setRole(role: Role): void {
-    const fallbackShift = this.draft.defaultShiftId || this.activeShifts()[0]?.id || '';
+    const fallbackShift = this.draft.shiftIds[0] ?? this.activeShifts()[0]?.id;
     this.draft = {
       ...this.draft,
       role,
-      defaultShiftId: role === 'OWNER' ? '' : fallbackShift,
+      shiftIds:
+        role === 'OWNER'
+          ? []
+          : this.draft.shiftIds.length || role === 'MANAGER'
+            ? this.draft.shiftIds
+            : fallbackShift
+              ? [fallbackShift]
+              : [],
     };
   }
 
@@ -425,8 +457,8 @@ export class UsersPage {
       this.error.set(translate('The PIN must be 4–6 digits.'));
       return;
     }
-    if (this.draft.role !== 'OWNER' && this.draft.role !== 'MANAGER' && !this.draft.defaultShiftId) {
-      this.error.set(translate('Choose a default shift for this staff member.'));
+    if (this.draft.role !== 'OWNER' && this.draft.role !== 'MANAGER' && !this.draft.shiftIds.length) {
+      this.error.set(translate('Choose at least one default shift for this staff member.'));
       return;
     }
 
@@ -439,8 +471,7 @@ export class UsersPage {
       role: this.draft.role,
       password: password || undefined,
       pin: pin || undefined,
-      defaultShiftId: this.draft.role === 'OWNER' ? undefined : this.draft.defaultShiftId || undefined,
-      clearDefaultShift: this.draft.role === 'MANAGER' && !this.draft.defaultShiftId,
+      shiftIds: this.draft.role === 'OWNER' ? [] : this.draft.shiftIds,
     });
     this.busy.set(false);
     if (!result.ok) {
@@ -472,7 +503,7 @@ export class UsersPage {
       role: 'WAITER',
       password: '',
       pin: '',
-      defaultShiftId: this.activeShifts()[0]?.id ?? '',
+      shiftIds: this.activeShifts().length ? [this.activeShifts()[0].id] : [],
     };
   }
 }

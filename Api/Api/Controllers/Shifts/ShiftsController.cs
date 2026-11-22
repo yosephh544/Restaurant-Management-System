@@ -107,6 +107,18 @@ public class ShiftsController : ApiControllerBase
     }
 
     /// <summary>
+    /// Allocates a staff member to any shift for a single date, including shifts with no staff.
+    /// </summary>
+    [HttpPatch("assign")]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<object>), 200)]
+    [Permission(Permissions.ShiftsManage)]
+    public async Task<IActionResult> Assign([FromBody] AddShiftAssignmentRequest request, CancellationToken ct)
+    {
+        await _shiftService.AssignAsync(request, ct);
+        return NoContentResponse("Staff allocated to the shift.");
+    }
+
+    /// <summary>
     /// Assigns a covering staff member to an absent staff member's shift for a single date.
     /// </summary>
     [HttpPatch("cover")]
@@ -119,7 +131,7 @@ public class ShiftsController : ApiControllerBase
     }
 
     /// <summary>
-    /// Swaps the shifts of two staff members for a single date.
+    /// Swaps the shifts of two staff members for one or more dates.
     /// </summary>
     [HttpPatch("swap")]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<object>), 200)]
