@@ -116,6 +116,11 @@ import { IssueDialog } from '../../shared/issue-dialog';
                     <app-icon name="check" />
                     {{ busy() === ticket.id ? ('Working…' | t) : ('Accept' | t) }}
                   </button>
+                } @else if (ticket.status === 'PREPARING' && hasActive(ticket)) {
+                  <button class="btn btn-primary btn-block" type="button" [disabled]="busy() === ticket.id" (click)="readyAll(ticket)">
+                    <app-icon name="check-circle" />
+                    {{ busy() === ticket.id ? ('Working…' | t) : ('Ready all' | t) }}
+                  </button>
                 }
                 <button class="btn btn-secondary btn-block" type="button" (click)="issueTicket.set(ticket)">
                   <app-icon name="alert" /> {{ 'Report issue' | t }} </button>
@@ -261,6 +266,24 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
     this.itemBusy.set(item.id);
     const result = await this.store.readyItem(ticket.id, item.id, this.isBar ? 'BAR' : 'KITCHEN');
     this.itemBusy.set(null);
+    if (!result.ok) this.toast.show(result.error, 'error');
+  }
+
+  protected hasActive(ticket: KitchenTicket): boolean {
+    return ticket.items.some((item) => item.status === 'ACTIVE');
+  }
+
+  protected async readyAll(ticket: KitchenTicket): Promise<void> {
+    if (this.busy()) return;
+    if (!this.hasActive(ticket)) {
+      this.toast.show(translate('Every item on this ticket is already ready.'), 'error');
+      return;
+    }
+    this.busy.set(ticket.id);
+    const result = this.isBar
+      ? await this.store.barStatus(ticket.id, 'READY')
+      : await this.store.kitchenStatus(ticket.id, 'READY');
+    this.busy.set(null);
     if (!result.ok) this.toast.show(result.error, 'error');
   }
 

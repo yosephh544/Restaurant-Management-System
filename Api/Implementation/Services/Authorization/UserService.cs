@@ -153,11 +153,17 @@ public class UserService : IUserService
 
         var defaultShifts = await ResolveDefaultShiftsAsync(requestedShiftIds, finalRoleName, ct);
 
-        foreach (var assignment in user.ShiftAssignments.ToList())
+        // Diff the assignments instead of clearing them; removing and re-adding
+        // the same key in one SaveChanges trips EF's identity map.
+        var desiredIds = defaultShifts.Select(shift => shift.Id).ToHashSet();
+        foreach (var assignment in user.ShiftAssignments.Where(a => !desiredIds.Contains(a.ShiftId)).ToList())
+        {
             _dbContext.UserShifts.Remove(assignment);
-        user.ShiftAssignments.Clear();
+            user.ShiftAssignments.Remove(assignment);
+        }
 
-        foreach (var shift in defaultShifts)
+        var existingIds = user.ShiftAssignments.Select(a => a.ShiftId).ToHashSet();
+        foreach (var shift in defaultShifts.Where(shift => !existingIds.Contains(shift.Id)))
             user.ShiftAssignments.Add(new UserShift { UserId = user.Id, ShiftId = shift.Id, Shift = shift });
 
         if (!string.IsNullOrWhiteSpace(request.Pin)) user.PinHash = BCrypt.Net.BCrypt.HashPassword(request.Pin);
@@ -219,7 +225,9 @@ public class UserService : IUserService
             return new List<Shift>();
         }
 
-        var shifts = await _dbContext.Shifts.Where(s => ids.Contains(s.Id)).ToListAsync(ct);
+        // Old SQL Server compatibility levels lack OPENJSON, so filter in memory.
+        var allShifts = await _dbContext.Shifts.ToListAsync(ct);
+        var shifts = allShifts.Where(s => ids.Contains(s.Id)).ToList();
         if (shifts.Count != ids.Count)
             throw new ValidationException("ShiftIds", "One of the selected shifts does not exist.");
 

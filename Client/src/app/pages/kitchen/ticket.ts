@@ -41,9 +41,11 @@ import { IssueDialog } from '../../shared/issue-dialog';
             @if (t.status === 'PENDING' || t.status === 'PREPARING') {
               <button class="btn btn-secondary" type="button" (click)="showIssue.set(true)">
                 <app-icon name="alert" /> {{ 'Report issue' | t }} </button>
-              <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="advance()">
-                <app-icon name="check" /> {{ busy() ? ('Working…' | t) : t.status === 'PENDING' ? ('Accept ticket' | t) : ('Mark ready' | t) }}
-              </button>
+              @if (t.status === 'PENDING' || hasActiveItems()) {
+                <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="advance()">
+                  <app-icon name="check" /> {{ busy() ? ('Working…' | t) : t.status === 'PENDING' ? ('Accept ticket' | t) : ('Ready all' | t) }}
+                </button>
+              }
             }
           </div>
         </div>
@@ -168,6 +170,10 @@ export class KitchenTicketPage implements OnInit, OnDestroy {
     return tickets.find((t) => t.id === this.id);
   });
 
+  protected readonly hasActiveItems = computed(
+    () => this.ticket()?.items.some((item) => item.status === 'ACTIVE') ?? false,
+  );
+
   async ngOnInit(): Promise<void> {
     await (this.isBar ? this.store.loadBar() : this.store.loadKitchen());
   }
@@ -189,6 +195,10 @@ export class KitchenTicketPage implements OnInit, OnDestroy {
   protected async advance(): Promise<void> {
     const ticket = this.ticket();
     if (!ticket || this.busy()) return;
+    if (ticket.status === 'PREPARING' && !this.hasActiveItems()) {
+      this.toast.show(translate('Every item on this ticket is already ready.'), 'error');
+      return;
+    }
     this.busy.set(true);
     const next: 'PREPARING' | 'READY' = ticket.status === 'PENDING' ? 'PREPARING' : 'READY';
     const result = this.isBar

@@ -91,7 +91,7 @@ interface UserDraft {
               <tr>
                 <th>{{ 'Staff' | t }}</th>
                 <th>{{ 'Role' | t }}</th>
-                <th>{{ 'Shift' | t }}</th>
+                <th>{{ 'Shifts' | t }}</th>
                 <th>{{ 'Username' | t }}</th>
                 <th>{{ 'Status' | t }}</th>
                 <th>{{ 'Created' | t }}</th>

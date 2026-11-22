@@ -180,6 +180,7 @@ const AM: Record<string, string> = {
   'ETB unsettled': 'ETB ያልተከፈለ',
   'ETB.': 'ETB።',
   'Events shown': 'የሚታዩ ክስተቶች',
+  'Every item on this ticket is already ready.': 'በዚህ ትኬት ላይ ያለው እያንዳንዱ እቃ አስቀድሞ ዝግ ነው።',
   'Every item the kitchen removed or flagged, and whether it was recovered.': 'ኩሽናው ያስወገደው ወይም ያመለከተው እያንዳንዱ ንጥል እና መመለሱ።',
   'Every settlement, refund and transfer on one ledger.': 'እያንዳንዱ ክፍያ፣ ተመላሽ እና ዝውውር በአንድ መዝገብ።',
   'Everyone else is already on this shift. Choose another shift or add a staff member.': 'ሌሎቹ ሁሉ አስቀድመው በዚህ ፈረቃ ላይ ናቸው። ሌላ ፈረቃ ይምረጡ ወይም ሰራተኛ ይጨምሩ።',
@@ -227,6 +228,7 @@ const AM: Record<string, string> = {
   'items · opened': 'እቃዎች · ተከፍቷል',
   'items · prices snapshot at order time': 'እቃዎች · የዋጋ ቅጂ በትዕዛዝ ጊዜ',
   'items on this ticket': 'በዚህ ትኬት ላይ ያሉ እቃዎች',
+  'items ready': 'እቃዎች ዝግ',
   'Items removed or flagged by the line': 'በመስመሩ የተወገዱ ወይም የተመለከቱ እቃዎች',
   'JPG, PNG or WEBP · up to 5 MB. Shows on the waiter and customer menu.': 'JPG, PNG ወይም WEBP · እስከ 5 MB። በዌይተር እና በደንበኛ ምናሌ ላይ ይታያል።',
   'kitchen': 'ኩሽና',
@@ -430,6 +432,7 @@ const AM: Record<string, string> = {
   'QR payload': 'የQR ይዘት',
   'Range:': 'ክልል፦',
   'Ready': 'ዝግ',
+  'Ready all': 'ሁሉንም ዝግ አድርግ',
   'Ready at pass': 'በማስተላለፊያው ላይ ዝግ',
   'ready at the pass': 'በማስተላለፊያው ላይ ዝግ',
   'Ready or served, unpaid': 'ዝግ ወይም ተቀርቧል፣ ያልተከፈለ',
@@ -518,6 +521,8 @@ const AM: Record<string, string> = {
   'served': 'ተቀርቧል',
   'Served': 'ተቀርቧል',
   'Serve': 'አቅርብ',
+  'Serve all': 'ሁሉንም አቅርብ',
+  'Serve all unlocks when every item is ready.': 'ሁሉም እቃ ሲዘጋጅ ሁሉንም ማቅረብ ይቻላል።',
   'Item served': 'ዕቃው ተቀርቧል',
   'Service performance': 'የአገልግሎት አፈጻጸም',
   'Set a new': 'አዲስ ያዘጋጁ',
@@ -1011,6 +1016,7 @@ const AM: Record<string, string> = {
   'selected': 'ተመርጠዋል',
   'Swap two staff members who each have exactly one shift on every selected day. Pick one or more days.': 'በተመረጠው እያንዳንዱ ቀን አንድ ፈረቃ ብቻ ያላቸውን ሁለት ሰራተኞች ይለዋወጡ። አንድ ወይም ከዚያ በላይ ቀናትን ይምረጡ።',
   'No staff have a single shift on every selected day, so there is nothing to swap.': 'በተመረጡት ቀናት ሁሉ አንድ ፈረቃ ብቻ ያላቸው ሰራተኞች ስለሌሉ የሚለዋወጥ ነገር የለም።',
+  '{count} item(s) are still being prepared.': '{count} እቃ አሁንም በዝግጅት ላይ ነው።',
 };
 
 let active: I18nService | null = null;

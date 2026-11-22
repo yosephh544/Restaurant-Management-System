@@ -53,9 +53,9 @@ import { PaySheet } from '../../shared/pay-sheet';
               <button class="btn btn-secondary" type="button" (click)="showAdd.set(true)">
                 <app-icon name="plus" /> {{ 'Add items' | t }} </button>
             }
-            @if (o.status === 'READY') {
-              <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="serve()">
-                <app-icon name="check" /> {{ 'Mark served' | t }} </button>
+            @if (canServeAll()) {
+              <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="serveAll()">
+                <app-icon name="check" /> {{ busy() ? ('Working…' | t) : ('Serve all' | t) }} </button>
             }
             @if (canPay()) {
               <button class="btn btn-primary" type="button" (click)="showPay.set(true)">
@@ -125,6 +125,15 @@ import { PaySheet } from '../../shared/pay-sheet';
                     <app-icon name="plus" /> {{ 'Add' | t }} </button>
                 }
               </div>
+              @if (canServeAll() && !allPrepared()) {
+                <div class="ticket-note" style="margin: 0 18px 10px">
+                  <app-icon name="clock" />
+                  <span>
+                    {{ readyCount() }}/{{ activeLines().length }} {{ 'items ready' | t }} ·
+                    {{ 'Serve all unlocks when every item is ready.' | t }}
+                  </span>
+                </div>
+              }
               <div class="bill-lines">
                 @for (line of o.lines; track line.id) {
                   <div class="bill-line" [style.opacity]="line.status === 'CANCELLED' ? 0.45 : 1">
@@ -406,6 +415,23 @@ export class OrderDetailPage implements OnInit {
     );
   });
 
+  protected readonly activeLines = computed(
+    () => this.order()?.lines.filter((line) => line.status !== 'CANCELLED') ?? [],
+  );
+
+  protected readonly readyCount = computed(
+    () => this.activeLines().filter((line) => line.status === 'PREPARED' || line.status === 'SERVED').length,
+  );
+
+  protected readonly allPrepared = computed(() => {
+    const lines = this.activeLines();
+    return lines.length > 0 && lines.every((line) => line.status === 'PREPARED' || line.status === 'SERVED');
+  });
+
+  protected readonly canServeAll = computed(() =>
+    this.activeLines().some((line) => line.status === 'PREPARED'),
+  );
+
   protected readonly steps = computed(() => {
     const order = this.order();
     if (!order) return [];
@@ -474,8 +500,16 @@ export class OrderDetailPage implements OnInit {
     return this.order()?.lines.reduce((sum, l) => sum + l.qty, 0) ?? 0;
   }
 
-  protected async serve(): Promise<void> {
+  protected async serveAll(): Promise<void> {
     if (this.busy()) return;
+    if (!this.allPrepared()) {
+      const remaining = this.activeLines().length - this.readyCount();
+      this.toast.show(
+        translate('{count} item(s) are still being prepared.', { count: remaining }),
+        'error',
+      );
+      return;
+    }
     this.busy.set(true);
     const result = await this.store.serveOrder(this.id);
     this.busy.set(false);
