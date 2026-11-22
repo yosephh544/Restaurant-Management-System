@@ -61,7 +61,7 @@ public class KitchenController : ApiControllerBase
         await _stationService.CancelOrderAsync(PreparationStation.Kitchen, orderId, request, ct);
         var msg = request.OrderItemId.HasValue
             ? "Order item cancelled by kitchen."
-            : "Entire order cancelled by kitchen and active payment retracted.";
+            : "Entire order cancelled by kitchen. Any settled payment is flagged for refund.";
         return NoContentResponse(msg);
     }
 }

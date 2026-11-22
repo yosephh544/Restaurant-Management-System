@@ -154,6 +154,75 @@ public class AuthService : IAuthService
         };
     }
 
+    public async Task<MyProfileResponse> GetMyProfileAsync(CancellationToken ct = default)
+    {
+        var userId = _currentUserService.UserId
+            ?? throw new UnauthorizedException();
+
+        var user = await _dbContext.Users
+            .AsNoTracking()
+            .Include(u => u.RoleEntity)
+            .FirstOrDefaultAsync(u => u.Id == userId, ct)
+            ?? throw new NotFoundException(ErrorMessages.UserNotFound);
+
+        if (!user.IsActive)
+            throw new ForbiddenException(ErrorMessages.UserDeactivated);
+
+        return MapProfile(user);
+    }
+
+    public async Task<MyProfileResponse> UpdateMyProfileAsync(UpdateMyProfileRequest request, CancellationToken ct = default)
+    {
+        var userId = _currentUserService.UserId
+            ?? throw new UnauthorizedException();
+
+        var user = await _dbContext.Users
+            .Include(u => u.RoleEntity)
+            .FirstOrDefaultAsync(u => u.Id == userId, ct)
+            ?? throw new NotFoundException(ErrorMessages.UserNotFound);
+
+        if (!user.IsActive)
+            throw new ForbiddenException(ErrorMessages.UserDeactivated);
+
+        if (!string.IsNullOrWhiteSpace(request.FullName))
+            user.FullName = request.FullName.Trim();
+
+        if (request.Phone is not null)
+        {
+            var phone = request.Phone.Trim();
+            user.Phone = phone.Length == 0 ? null : phone;
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.NewPassword))
+        {
+            if (string.IsNullOrEmpty(request.CurrentPassword))
+                throw new ValidationException("CurrentPassword", "Enter your current password.");
+
+            if (string.IsNullOrEmpty(user.PasswordHash) ||
+                !BCrypt.Net.BCrypt.Verify(request.CurrentPassword, user.PasswordHash))
+                throw new ValidationException("CurrentPassword", "Your current password is incorrect.");
+
+            if (request.NewPassword == request.CurrentPassword)
+                throw new ValidationException("NewPassword", "Choose a password different from the current one.");
+
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
+        }
+
+        user.UpdatedAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync(ct);
+
+        return MapProfile(user);
+    }
+
+    private static MyProfileResponse MapProfile(User user) => new()
+    {
+        Id = user.Id,
+        FullName = user.FullName,
+        Username = user.Username,
+        Phone = user.Phone,
+        Role = user.RoleEntity?.Name ?? user.Role.ToString()
+    };
+
     private string Encrypt(string plainText)
     {
         var secret = _configuration["ResponseEncryption:Key"]?.Trim();

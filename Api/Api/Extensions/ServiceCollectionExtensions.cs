@@ -150,6 +150,7 @@ public static class ServiceCollectionExtensions
 
         // Domain Services
         services.AddScoped<IAuthService, AuthService>();
+        services.AddScoped<IPasswordResetService, PasswordResetService>();
         services.AddScoped<IUserService, UserService>();
         services.AddScoped<IRoleService, RoleService>();
         services.AddScoped<IMenuService, MenuService>();
@@ -158,6 +159,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IPaymentService, PaymentService>();
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IBillingService, BillingService>();
+        services.AddScoped<IDailyNumberService, DailyNumberService>();
         services.AddScoped<ISettingsService, SettingsService>();
         services.AddScoped<IIssueService, IssueService>();
         services.AddScoped<IAuditService, AuditService>();

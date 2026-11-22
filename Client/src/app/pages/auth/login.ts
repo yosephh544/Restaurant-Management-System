@@ -1,13 +1,13 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { ActivatedRoute, Router } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
 import { I18nService, TranslatePipe } from '../../core/i18n';
 import { Icon } from '../../shared/icon';
 
 @Component({
   selector: 'app-login',
-  imports: [FormsModule, Icon, TranslatePipe],
+  imports: [FormsModule, RouterLink, Icon, TranslatePipe],
   template: `
     <div class="auth">
       <button
@@ -104,6 +104,10 @@ import { Icon } from '../../shared/icon';
               {{ busy() ? ('Signing in…' | t) : ('Sign in' | t) }} <app-icon name="chevron-right" />
             </button>
           </form>
+
+          <div class="row" style="justify-content: center; margin-top: 12px">
+            <a class="link-btn" routerLink="/forgot-password">{{ 'Forgot password?' | t }}</a>
+          </div>
 
           <p class="tiny muted mt-3"> {{ 'Accounts are managed by the owner under Users & Roles. Deactivated staff cannot sign in.' | t }} </p>
         </div>

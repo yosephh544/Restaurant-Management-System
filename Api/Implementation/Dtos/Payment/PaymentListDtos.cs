@@ -29,6 +29,9 @@ public class PaymentListItemResponse
     public decimal TipAmount { get; init; }
     public decimal TotalAmount { get; init; }
     public string Status { get; init; } = default!;
+    /// <summary>Order status drives whether a settled payment may be refunded.</summary>
+    public string OrderStatus { get; init; } = default!;
+    public string OrderPaymentStatus { get; init; } = default!;
     public decimal? AmountTendered { get; init; }
     public decimal? ChangeGiven { get; init; }
     public string? CustomerPhone { get; init; }

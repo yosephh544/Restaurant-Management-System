@@ -1,9 +1,12 @@
-import { Component, computed, HostListener, inject, signal } from '@angular/core';
+import { Component, computed, HostListener, inject, OnDestroy, signal } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService, ROLE_HOME } from '../core/auth.service';
-import { I18nService, TranslatePipe } from '../core/i18n';
+import { I18nService, locale, TranslatePipe } from '../core/i18n';
 import { initials, MyShift, ROLE_LABEL, Role } from '../core/models';
+import { NotificationService } from '../core/notification.service';
+import { PasswordResetService } from '../core/password-reset.service';
 import { Store } from '../core/store';
+import { ToastTone } from '../core/toast.service';
 import { Icon, IconName } from '../shared/icon';
 
 interface NavItem {
@@ -58,12 +61,13 @@ interface NavGroup {
         }
 
         <div class="sidebar-foot">
-          <div class="side-user">
+          <a class="side-user" routerLink="/profile" (click)="mobileOpen.set(false)">
             <span class="avatar">{{ initials(user()?.name ?? '') }}</span>
             <div>
               <strong>{{ user()?.name }}</strong>
+              <span>{{ 'My profile' | t }}</span>
             </div>
-          </div>
+          </a>
           <button class="side-logout" type="button" (click)="logout()">
             <app-icon name="logout" /> {{ 'Sign out' | t }} </button>
         </div>
@@ -103,12 +107,70 @@ interface NavGroup {
             >
               {{ i18n.lang() === 'en' ? 'አማርኛ' : ('English' | t) }}
             </button>
-            <a class="icon-btn" [routerLink]="notifyLink()" [attr.aria-label]="'Notifications' | t">
-              <app-icon name="bell" />
-              @if (notifyCount()) {
-                <span class="bell-badge">{{ notifyCount() }}</span>
+            <div class="notify-wrap">
+              <button
+                class="icon-btn"
+                type="button"
+                (click)="toggleNotifications()"
+                [attr.aria-label]="'Notifications' | t"
+                [attr.aria-expanded]="notifyOpen()"
+              >
+                <app-icon name="bell" />
+                @if (notifications.unread()) {
+                  <span class="bell-badge pulse">{{ notifications.unread() }}</span>
+                }
+              </button>
+
+              @if (notifyOpen()) {
+                <div class="notify-menu">
+                  <div class="notify-menu-head">
+                    <strong>{{ 'Notifications' | t }}</strong>
+                    <div class="notify-tools">
+                      <button type="button" (click)="notifications.toggleSound()">
+                        {{ notifications.soundEnabled() ? ('Sound on' | t) : ('Sound off' | t) }}
+                      </button>
+                      @if (notifications.recent().length) {
+                        <button type="button" (click)="notifications.clear()">{{ 'Clear' | t }}</button>
+                      }
+                    </div>
+                  </div>
+                  <div class="notify-list">
+                    @for (item of notifications.recent(); track item.id) {
+                      @if (item.link; as link) {
+                        <a
+                          class="notify-item"
+                          [class.unread]="!item.read"
+                          [routerLink]="link.path"
+                          (click)="notifyOpen.set(false)"
+                        >
+                          <span [class]="'notify-icon tone-' + item.tone"><app-icon [name]="iconFor(item.tone)" /></span>
+                          <span class="notify-copy">
+                            <strong>{{ item.title }}</strong>
+                            <span>{{ item.message }}</span>
+                            <span class="notify-time">{{ timeOf(item.at) }}</span>
+                          </span>
+                        </a>
+                      } @else {
+                        <div class="notify-item" [class.unread]="!item.read">
+                          <span [class]="'notify-icon tone-' + item.tone"><app-icon [name]="iconFor(item.tone)" /></span>
+                          <span class="notify-copy">
+                            <strong>{{ item.title }}</strong>
+                            <span>{{ item.message }}</span>
+                            <span class="notify-time">{{ timeOf(item.at) }}</span>
+                          </span>
+                        </div>
+                      }
+                    } @empty {
+                      <div class="notify-empty">
+                        <app-icon name="bell" />
+                        <strong>{{ 'No notifications yet' | t }}</strong>
+                        <span>{{ 'Order updates and reminders will appear here.' | t }}</span>
+                      </div>
+                    }
+                  </div>
+                </div>
               }
-            </a>
+            </div>
             <button class="user-chip" type="button" (click)="userMenu.set(!userMenu())">
               <span class="avatar">{{ initials(user()?.name ?? '') }}</span>
               <span class="user-meta">
@@ -123,6 +185,8 @@ interface NavGroup {
                   <strong>{{ user()?.name }}</strong>
                   <span>&#64;{{ user()?.username }} · {{ roleLabel() }}</span>
                 </div>
+                <a routerLink="/profile" (click)="userMenu.set(false)">
+                  <app-icon name="user" /> {{ 'My profile' | t }} </a>
                 <a [routerLink]="home()" (click)="userMenu.set(false)">
                   <app-icon name="home" /> {{ 'My workspace' | t }} </a>
                 <button type="button" (click)="logout()">
@@ -139,16 +203,19 @@ interface NavGroup {
     </div>
   `,
 })
-export class Shell {
+export class Shell implements OnDestroy {
   private readonly auth = inject(AuthService);
   private readonly router = inject(Router);
   protected readonly store = inject(Store);
   protected readonly i18n = inject(I18nService);
+  protected readonly notifications = inject(NotificationService);
+  protected readonly resets = inject(PasswordResetService);
 
   protected readonly user = this.auth.user;
   protected readonly settings = this.store.settings;
   protected readonly mobileOpen = signal(false);
   protected readonly userMenu = signal(false);
+  protected readonly notifyOpen = signal(false);
   protected readonly initials = initials;
 
   protected readonly today = computed(() =>
@@ -162,7 +229,19 @@ export class Shell {
 
   constructor() {
     this.i18n.bindUser(this.user()?.id ?? null);
-    void this.store.refreshAll();
+    void this.bootstrap();
+  }
+
+  ngOnDestroy(): void {
+    this.notifications.stop();
+  }
+
+  private async bootstrap(): Promise<void> {
+    await this.store.refreshAll();
+    if (this.auth.isAuthed()) {
+      this.notifications.start();
+      if (this.auth.can('users.update')) void this.resets.load();
+    }
   }
 
   protected readonly roleLabel = computed(() => {
@@ -231,6 +310,7 @@ export class Shell {
       { label: t('Payments'), path: '/cashier/payments', icon: 'card' },
       { label: t('Reports'), path: '/manager/reports', icon: 'chart' },
       { label: t('Staff'), path: '/manager/staff', icon: 'users' },
+      { label: t('Password resets'), path: '/manager/password-resets', icon: 'lock', count: this.resets.pendingCount() },
       { label: t('Shifts'), path: '/manager/shifts', icon: 'clock' },
       { label: t('Kitchen & Bar Issues'), path: '/manager/issues', icon: 'alert', count: issues },
       { label: t('Audit Log'), path: '/manager/audit', icon: 'clock' },
@@ -265,36 +345,32 @@ export class Shell {
     return shift.shiftRequired ? this.i18n.t('Off shift') : '—';
   }
 
-  protected notifyLink(): string {    switch (this.user()?.role) {
-      case 'WAITER':
-        return '/waiter/issues';
-      case 'KITCHEN':
-        return '/kitchen';
-      case 'BARTENDER':
-        return '/bar';
-      case 'CASHIER':
-        return '/cashier/bills';
-      default:
-        return '/manager/issues';
-    }
+  protected toggleNotifications(): void {
+    const open = !this.notifyOpen();
+    this.notifyOpen.set(open);
+    if (open) this.notifications.markAllRead();
   }
 
-  protected notifyCount(): number {
-    switch (this.user()?.role) {
-      case 'WAITER':
-        return this.store.openIssues().filter((i) => this.store.order(i.orderId)?.waiterId === this.user()?.id).length;
-      case 'KITCHEN':
-        return this.store.kitchenQueue().length;
-      case 'BARTENDER':
-        return this.store.barQueue().length;
-      case 'CASHIER':
-        return this.store.openBills().length;
+  protected timeOf(at: number): string {
+    return new Date(at).toLocaleTimeString(locale(), { hour: 'numeric', minute: '2-digit' });
+  }
+
+  protected iconFor(tone: ToastTone): IconName {
+    switch (tone) {
+      case 'success':
+        return 'check-circle';
+      case 'error':
+        return 'alert-circle';
+      case 'warning':
+      case 'alert':
+        return 'alert';
       default:
-        return this.store.openIssues().length;
+        return 'bell';
     }
   }
 
   protected async logout(): Promise<void> {
+    this.notifications.stop();
     await this.auth.logout();
     this.store.reset();
     await this.router.navigate(['/login']);
@@ -313,6 +389,9 @@ export class Shell {
     if (!target) return;
     if (!target.closest('.user-chip') && !target.closest('.user-menu')) {
       this.userMenu.set(false);
+    }
+    if (!target.closest('.notify-wrap')) {
+      this.notifyOpen.set(false);
     }
   }
 }

@@ -15,9 +15,6 @@ public class InitiatePaymentRequest
         ErrorMessage = "Method must be CASH, QR_SCAN, PHONE_PUSH, or USSD.")]
     public string Method { get; set; } = default!;
 
-    [Range(0, 100000.0, ErrorMessage = "TipAmount cannot be negative.")]
-    public decimal TipAmount { get; set; } = 0;
-
     /// <summary>Required when Method is PHONE_PUSH or USSD.</summary>
     public string? CustomerPhone { get; set; }
 

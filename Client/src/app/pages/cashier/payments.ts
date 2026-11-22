@@ -114,6 +114,9 @@ import { Icon } from '../../shared/icon';
                     <td class="t-right muted num">{{ payment.tip ? money(payment.tip) : '—' }}</td>
                     <td>
                       <span [class]="'pill ' + statusPill(payment)">{{ statusLabel(payment) }}</span>
+                      @if (refundDue(payment)) {
+                        <span class="pill pill-amber" style="margin-left: 4px">{{ 'Refund due' | t }}</span>
+                      }
                       @if (payment.verification === 'VERIFIED') {
                         <span class="pill pill-green" style="margin-left: 4px">{{ 'Verified' | t }}</span>
                       } @else if (payment.verification === 'UNVERIFIED') {
@@ -140,7 +143,7 @@ import { Icon } from '../../shared/icon';
                             class="btn btn-sm btn-danger"
                             type="button"
                             [disabled]="!canRefund(payment)"
-                            [title]="(canRefund(payment) ? 'Refund this payment' : 'Refund only after the order is served') | t"
+                            [title]="(canRefund(payment) ? 'Refund this payment' : 'Refund only for served or cancelled orders') | t"
                             (click)="askRefund(payment)"
                           > {{ 'Refund' | t }} </button>
                         }
@@ -282,12 +285,17 @@ export class CashierPaymentsPage implements OnInit {
   }
 
   protected canRefund(payment: Payment): boolean {
-    return this.store.order(payment.orderId)?.status === 'SERVED';
+    const status = payment.orderStatus ?? this.store.order(payment.orderId)?.status;
+    return status === 'SERVED' || status === 'CANCELLEDBYKITCHEN' || payment.orderPaymentStatus === 'REFUNDPENDING';
+  }
+
+  protected refundDue(payment: Payment): boolean {
+    return payment.status === 'PAID' && payment.orderPaymentStatus === 'REFUNDPENDING';
   }
 
   protected askRefund(payment: Payment): void {
     if (!this.canRefund(payment)) {
-      this.toast.show(translate('Refunds are only allowed after the order is served'), 'error');
+      this.toast.show(translate('Refunds are only allowed for served or cancelled orders'), 'error');
       return;
     }
     this.refundTarget.set(payment);

@@ -12,6 +12,16 @@ dotnet run --project Api/Api/RestaurantManagement.Api.csproj
 
 The HTTP launch profile listens at `http://localhost:5012`.
 
+## Database migrations
+
+Run EF Core commands from `Api/Api`. They use `ConnectionStrings:DefaultConnection`
+from the appsettings files or environment variables and do not require API startup
+settings such as `Jwt:Key`.
+
+```powershell
+dotnet ef database update
+```
+
 ## Starter endpoints
 
 - `GET /weatherforecast` returns sample data from the generated controller.

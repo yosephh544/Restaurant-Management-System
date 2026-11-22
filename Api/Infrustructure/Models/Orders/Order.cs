@@ -16,8 +16,14 @@ public class Order
     /// <summary>Human-readable daily ticket code, e.g. ORD-1042, called out by kitchen and cashier.</summary>
     public string OrderNumber { get; set; } = default!;
 
-    /// <summary>Legacy free-text table identifier retained for migration compatibility.</summary>
+    /// <summary>Table identifier for dine-in orders; "Takeaway" for packed orders.</summary>
     public string TableNumber { get; set; } = default!;
+
+    /// <summary>Dine-in orders are served at a table; takeaway orders are packed and billed without a table.</summary>
+    public OrderType OrderType { get; set; } = OrderType.DineIn;
+
+    /// <summary>Packaging fee snapshotted from restaurant settings for takeaway orders.</summary>
+    public decimal TakeawayFee { get; set; }
 
     public Guid? DiningSessionId { get; set; }
     public RestaurantManagement.Infrustructure.Models.Billing.DiningSession? DiningSession { get; set; }

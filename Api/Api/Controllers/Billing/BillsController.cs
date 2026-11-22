@@ -42,6 +42,16 @@ public class BillsController : ApiControllerBase
             : OkResponse(bill);
     }
 
+    [HttpGet("active/order/{orderId:guid}")]
+    [Permission(Permissions.PaymentsView)]
+    public async Task<IActionResult> GetActiveByOrder([FromRoute] Guid orderId, CancellationToken ct)
+    {
+        var bill = await _billingService.GetActiveBillByOrderAsync(orderId, ct);
+        return bill is null
+            ? OkResponse<object?>(null, "No active bill for this order.")
+            : OkResponse(bill);
+    }
+
     [HttpPost("{billId:guid}/reopen")]
     [Permission(Permissions.BillsReopen)]
     public async Task<IActionResult> Reopen([FromRoute] Guid billId, CancellationToken ct)

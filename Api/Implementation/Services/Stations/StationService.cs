@@ -53,6 +53,24 @@ public class StationService : IStationService
 
         var paged = await query.ToPagedResponseAsync(request, ct);
 
+        // Queue numbers are global for the station, not per page, so every role sees
+        // the same first-come-first-served order.
+        var queueOrderIds = await _dbContext.Orders
+            .AsNoTracking()
+            .Where(o => (o.OrderStatus == OrderStatus.Pending
+                    || o.OrderStatus == OrderStatus.Preparing
+                    || o.OrderStatus == OrderStatus.Ready)
+                && o.OrderItems.Any(i => i.PreparationStation == station
+                    && i.ItemStatus != OrderItemStatus.Cancelled
+                    && i.ItemStatus != OrderItemStatus.Served))
+            .OrderBy(o => o.CreatedAt)
+            .Select(o => o.Id)
+            .ToListAsync(ct);
+
+        var queuePositions = queueOrderIds
+            .Select((id, index) => (id, position: index + 1))
+            .ToDictionary(x => x.id, x => x.position);
+
         var queueItems = paged.Data.Select(o =>
         {
             var stationItems = o.OrderItems
@@ -64,6 +82,8 @@ public class StationService : IStationService
                 OrderId = o.Id,
                 OrderNumber = o.OrderNumber,
                 TableNumber = o.TableNumber,
+                OrderType = o.OrderType == OrderType.Takeaway ? "TAKEAWAY" : "DINE_IN",
+                QueuePosition = queuePositions.GetValueOrDefault(o.Id),
                 WaiterName = o.Waiter?.FullName ?? "Unknown",
                 Station = station.ToString().ToUpperInvariant(),
                 OrderStatus = o.OrderStatus.ToString().ToUpperInvariant(),
@@ -75,6 +95,7 @@ public class StationService : IStationService
                     Id = i.Id,
                     MenuItemId = i.MenuItemId,
                     MenuItemName = i.MenuItem?.Name ?? "Item",
+                    MenuItemNameAm = i.MenuItem?.NameAm,
                     Quantity = i.Quantity,
                     CustomerNotes = i.CustomerNotes,
                     ItemStatus = i.ItemStatus.ToString().ToUpperInvariant()
@@ -248,8 +269,13 @@ public class StationService : IStationService
 
             order.Subtotal = Math.Max(0m, Math.Round(order.Subtotal - lineSubtotal, 2));
             order.TaxTotal = Math.Max(0m, Math.Round(order.TaxTotal - lineTax, 2));
-            order.GrandTotal = Math.Max(0m, Math.Round(order.Subtotal + order.TaxTotal + order.TipAmount, 2));
+            order.GrandTotal = Math.Max(0m, Math.Round(order.Subtotal + order.TaxTotal + order.TakeawayFee + order.TipAmount, 2));
             order.UpdatedAt = DateTime.UtcNow;
+
+            // The bill was settled before this change, so the cashier must give the
+            // cancelled portion back. Flag the payment instead of silently keeping it.
+            if (order.PaymentStatus == PaymentStatus.Paid)
+                order.PaymentStatus = PaymentStatus.RefundPending;
 
             var cancellation = new OrderCancellation
             {
@@ -296,7 +322,35 @@ public class StationService : IStationService
             _dbContext.OrderCancellations.Add(cancellation);
         }
 
+        await CloseSessionIfNoOrdersLeftAsync(order, ct);
+
         await _dbContext.SaveChangesAsync(ct);
+    }
+
+    // A cancelled ticket must not leave its table marked Occupied forever. Only close
+    // the session when nothing else is (or was) served on it and no bill exists -
+    // otherwise the payment flow still owns the table.
+    private async Task CloseSessionIfNoOrdersLeftAsync(Order order, CancellationToken ct)
+    {
+        if (order.OrderStatus != OrderStatus.CancelledByKitchen || order.DiningSessionId == Guid.Empty)
+            return;
+
+        var session = await _dbContext.DiningSessions
+            .Include(s => s.Table)
+            .Include(s => s.Orders)
+            .Include(s => s.Bills)
+            .FirstOrDefaultAsync(s => s.Id == order.DiningSessionId, ct);
+
+        if (session == null || session.Status == DiningSessionStatus.Closed || session.Bills.Count > 0)
+            return;
+
+        if (session.Orders.Any(o => o.Id != order.Id && o.OrderStatus != OrderStatus.CancelledByKitchen))
+            return;
+
+        session.Status = DiningSessionStatus.Closed;
+        session.ClosedAt = DateTime.UtcNow;
+        if (session.Table is { } table)
+            table.Status = TableStatus.Available;
     }
 
     private static OrderStatus ResolveStationStatus(IReadOnlyCollection<OrderItem> stationItems)
@@ -384,8 +438,13 @@ public class StationService : IStationService
             payment.UpdatedAt = DateTime.UtcNow;
         }
 
-        // Defensive cleanup for legacy/edge cases: no payment should exist at cancellation time.
-        if (order.PaymentStatus == PaymentStatus.PaymentInitiated)
+        // A prepaid ticket that gets cancelled must not keep the customer's money:
+        // flag it so the cashier/manager can refund the settlement.
+        if (order.PaymentStatus == PaymentStatus.Paid)
+        {
+            order.PaymentStatus = PaymentStatus.RefundPending;
+        }
+        else if (order.PaymentStatus == PaymentStatus.PaymentInitiated)
         {
             order.PaymentStatus = PaymentStatus.Retracted;
         }

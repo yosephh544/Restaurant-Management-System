@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { clock, KitchenTicket } from '../../core/models';
+import { clock, isTakeaway, KitchenTicket } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -18,13 +18,24 @@ import { IssueDialog } from '../../shared/issue-dialog';
             <a class="back-link" [routerLink]="stationPath"><app-icon name="arrow-left" /> {{ 'Back to board' | t }}</a>
             <div class="row" style="gap: 10px; flex-wrap: wrap">
               <h1 class="page-title">#{{ t.number }}</h1>
-              <span class="ticket-table">{{ 'Table' | t }} {{ t.table }}</span>
+              @if (t.queuePosition > 0) {
+                <span class="queue-chip">{{ 'Q' | t }}{{ t.queuePosition }}</span>
+              }
+              @if (isTakeaway(t)) {
+                <span class="ticket-table"><app-icon name="receipt" style="font-size: 11px" /> {{ 'Takeaway' | t }}</span>
+              } @else {
+                <span class="ticket-table">{{ 'Table' | t }} {{ t.table }}</span>
+              }
               <span [class]="'pill ' + (t.status === 'PENDING' ? 'pill-amber' : t.status === 'PREPARING' ? 'pill-orange' : 'pill-green')">
                 {{ statusLabel(t) }}
               </span>
+              @if (t.queuePosition === 1) {
+                <span class="pill pill-amber no-dot">{{ 'Next up' | t }}</span>
+              }
             </div>
             <p class="page-sub">
-              {{ t.waiterName }} {{ '· opened' | t }} {{ clock(t.createdAt) }} · {{ elapsed() }} {{ 'min on the board' | t }} </p>
+              <app-icon name="user" style="font-size: 12px" /> <strong>{{ t.waiterName }}</strong>
+              {{ '· opened' | t }} {{ clock(t.createdAt) }} · {{ elapsed() }} {{ 'min on the board' | t }} </p>
           </div>
           <div class="head-actions">
             @if (t.status === 'PENDING' || t.status === 'PREPARING') {
@@ -68,6 +79,9 @@ import { IssueDialog } from '../../shared/issue-dialog';
                       <strong [style.text-decoration]="item.status === 'CANCELLED' ? 'line-through' : 'none'" [style.opacity]="item.status === 'CANCELLED' ? 0.5 : 1">
                         {{ item.name }}
                       </strong>
+                      @if (item.nameAm) {
+                        <div class="tiny muted" lang="am">{{ item.nameAm }}</div>
+                      }
                       @if (item.notes) {
                         <div class="tiny" style="color: var(--amber)">{{ item.notes }}</div>
                       }
@@ -92,6 +106,14 @@ import { IssueDialog } from '../../shared/issue-dialog';
             <div class="card card-pad">
               <div class="card-title" style="margin-bottom: 10px">{{ 'Ticket details' | t }}</div>
               <div class="stack">
+                <div class="between small"><span class="muted">{{ 'Waiter' | t }}</span><span class="strong">{{ t.waiterName }}</span></div>
+                <div class="between small"><span class="muted">{{ 'Type' | t }}</span><span class="strong">{{ isTakeaway(t) ? ('Takeaway' | t) : ('Dine-in' | t) }}</span></div>
+                @if (!isTakeaway(t)) {
+                  <div class="between small"><span class="muted">{{ 'Table' | t }}</span><span class="strong">{{ t.table }}</span></div>
+                }
+                @if (t.queuePosition > 0) {
+                  <div class="between small"><span class="muted">{{ 'Queue' | t }}</span><span class="strong">{{ 'Q' | t }}{{ t.queuePosition }}</span></div>
+                }
                 <div class="between small"><span class="muted">{{ 'Sent' | t }}</span><span class="strong">{{ clock(t.createdAt) }}</span></div>
                 <div class="between small"><span class="muted">{{ 'Elapsed' | t }}</span><span class="strong">{{ elapsed() }} {{ 'min' | t }}</span></div>
                 <div class="between small"><span class="muted">{{ 'Payment' | t }}</span><span class="strong">{{ t.paymentStatus === 'PAID' ? ('Paid' | t) : ('Open' | t) }}</span></div>
@@ -100,7 +122,10 @@ import { IssueDialog } from '../../shared/issue-dialog';
 
             <div class="card card-pad">
               <div class="card-title" style="margin-bottom: 8px">{{ 'Floor contact' | t }}</div>
-              <p class="small muted">{{ t.waiterName }} {{ 'is responsible for this table.' | t }}</p>
+              <p class="small muted">
+                <strong>{{ t.waiterName }}</strong>
+                {{ isTakeaway(t) ? ('is responsible for this takeaway order.' | t) : ('is responsible for this table.' | t) }}
+              </p>
               <p class="tiny muted mt-2"> {{ 'Report an unavailable item here. It is removed from the bill and the waiter can reorder the ticket without any payment being affected.' | t }} </p>
             </div>
           </aside>
@@ -131,6 +156,7 @@ export class KitchenTicketPage implements OnInit, OnDestroy {
   protected readonly isBar = this.route.snapshot.data['station'] === 'BAR';
   protected readonly stationPath = this.isBar ? '/bar' : '/kitchen';
   protected readonly clock = clock;
+  protected readonly isTakeaway = isTakeaway;
   protected readonly showIssue = signal(false);
   protected readonly busy = signal(false);
   protected readonly itemBusy = signal<string | null>(null);

@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { locale, TranslatePipe, translate } from '../../core/i18n';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { KitchenTicket } from '../../core/models';
+import { isTakeaway, KitchenTicket } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -61,10 +61,23 @@ import { IssueDialog } from '../../shared/issue-dialog';
           @for (ticket of queue(); track ticket.id) {
             <article [class]="'ticket ticket-' + ticket.status.toLowerCase()">
               <div class="ticket-head">
+                @if (ticket.queuePosition > 0) {
+                  <span class="queue-chip">{{ 'Q' | t }}{{ ticket.queuePosition }}</span>
+                }
                 <a class="ticket-num" [routerLink]="[stationPath, ticket.id]">#{{ ticket.number }}</a>
-                <span class="ticket-table">{{ 'Table' | t }} {{ ticket.table }}</span>
+                @if (isTakeaway(ticket)) {
+                  <span class="ticket-table"><app-icon name="receipt" style="font-size: 11px" /> {{ 'Takeaway' | t }}</span>
+                } @else {
+                  <span class="ticket-table">{{ 'Table' | t }} {{ ticket.table }}</span>
+                }
                 <span [class]="'ticket-time ' + timerTone(ticket)">
                   <app-icon name="clock" /> {{ elapsed(ticket) }} {{ 'min' | t }} </span>
+              </div>
+              <div class="ticket-waiter">
+                <app-icon name="user" /> <strong>{{ ticket.waiterName }}</strong>
+                @if (ticket.queuePosition === 1) {
+                  <span class="pill pill-amber no-dot">{{ 'Next up' | t }}</span>
+                }
               </div>
 
               <div class="ticket-items">
@@ -75,6 +88,9 @@ import { IssueDialog } from '../../shared/issue-dialog';
                       <span [style.text-decoration]="item.status === 'CANCELLED' ? 'line-through' : 'none'" [style.opacity]="item.status === 'CANCELLED' ? 0.45 : 1">
                         {{ item.name }}
                       </span>
+                      @if (item.nameAm) {
+                        <div class="tiny muted" lang="am">{{ item.nameAm }}</div>
+                      }
                       @if (item.notes) {
                         <div class="tiny" style="color: var(--amber)">{{ item.notes }}</div>
                       }
@@ -109,7 +125,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
                 <span [class]="'pill ' + (ticket.status === 'PENDING' ? 'pill-amber' : 'pill-orange')">
                   {{ ticket.status === 'PENDING' ? ('New' | t) : ('Preparing' | t) }}
                 </span>
-                <span class="tiny muted">{{ ticket.waiterName }} · {{ ticket.items.length }} {{ 'lines' | t }}</span>
+                <span class="tiny muted">{{ ticket.items.length }} {{ 'lines' | t }}</span>
               </div>
             </article>
           }
@@ -136,7 +152,14 @@ import { IssueDialog } from '../../shared/issue-dialog';
               <a class="list-row" [routerLink]="[stationPath, ticket.id]">
                 <span class="ticket-num" style="font-size: 16px">#{{ ticket.number }}</span>
                 <div class="list-main">
-                  <strong>{{ 'Table' | t }} {{ ticket.table }}</strong>
+                  <strong>
+                    @if (isTakeaway(ticket)) {
+                      <app-icon name="receipt" style="font-size: 12px" /> {{ 'Takeaway' | t }}
+                    } @else {
+                      {{ 'Table' | t }} {{ ticket.table }}
+                    }
+                    · {{ ticket.waiterName }}
+                  </strong>
                   <span>{{ ticket.items.length }} {{ 'lines ·' | t }} {{ elapsed(ticket) }} {{ 'min on the board' | t }}</span>
                 </div>
                 <span class="pill pill-green">{{ 'Ready' | t }}</span>
@@ -160,6 +183,7 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
 
   protected readonly isBar = this.route.snapshot.data['station'] === 'BAR';
   protected readonly stationPath = this.isBar ? '/bar' : '/kitchen';
+  protected readonly isTakeaway = isTakeaway;
 
   protected readonly station = computed(() => {
     const branch = this.store.settings().branch;

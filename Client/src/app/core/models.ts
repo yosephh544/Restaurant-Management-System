@@ -138,11 +138,13 @@ export type PaymentStatus =
   | 'REFUNDPENDING'
   | 'REFUNDED';
 export type ItemStatus = 'ACTIVE' | 'PREPARED' | 'CANCELLED' | 'SERVED';
+export type OrderType = 'DINE_IN' | 'TAKEAWAY';
 
 export interface OrderLine {
   id: string;
   itemId: string;
   name: string;
+  nameAm?: string;
   qty: number;
   unitPrice: number;
   taxRate: number;
@@ -156,6 +158,9 @@ export interface Order {
   id: string;
   number: string;
   table: string;
+  orderType: OrderType;
+  takeawayFee: number;
+  queuePosition: number;
   waiterId: string;
   waiterName: string;
   parentOrderId?: string;
@@ -199,8 +204,9 @@ export interface BillItem {
 export interface Bill {
   id: string;
   sessionId: string;
-  tableId: string;
+  tableId?: string;
   table: string;
+  orderType: OrderType;
   number: string;
   subtotal: number;
   tax: number;
@@ -277,6 +283,8 @@ export interface Payment {
   receiptUrl?: string;
   receiptReference?: string;
   amountPaid?: number;
+  orderStatus?: OrderStatus;
+  orderPaymentStatus?: PaymentStatus;
   verification: VerificationState;
   verifiedAmount?: number;
   verifiedPayer?: string;
@@ -351,6 +359,7 @@ export interface MenuItem {
   categoryId: string;
   category: string;
   name: string;
+  nameAm?: string;
   description?: string;
   price: number;
   taxRate: number;
@@ -390,6 +399,7 @@ export interface KitchenTicketItem {
   id: string;
   menuItemId: string;
   name: string;
+  nameAm?: string;
   qty: number;
   notes?: string;
   status: ItemStatus;
@@ -399,6 +409,8 @@ export interface KitchenTicket {
   id: string;
   number: string;
   table: string;
+  orderType: OrderType;
+  queuePosition: number;
   waiterName: string;
   status: OrderStatus;
   paymentStatus: PaymentStatus;
@@ -456,6 +468,7 @@ export interface Settings {
   taxRate: number;
   pricesIncludeTax: boolean;
   serviceCharge: number;
+  takeawayFee: number;
   tipPresets: number[];
   cash: boolean;
   qr: boolean;
@@ -475,6 +488,7 @@ export const DEFAULT_SETTINGS: Settings = {
   taxRate: 0,
   pricesIncludeTax: false,
   serviceCharge: 0,
+  takeawayFee: 0,
   tipPresets: [],
   cash: true,
   qr: true,
@@ -646,4 +660,8 @@ export function paymentTone(status: PayState): string {
 
 export function billIsOpen(bill: Bill | undefined | null): boolean {
   return !!bill && (bill.status === 'REQUESTED' || bill.status === 'PAYMENTINITIATED');
+}
+
+export function isTakeaway(order: Order | KitchenTicket | Bill | null | undefined): boolean {
+  return order?.orderType === 'TAKEAWAY';
 }

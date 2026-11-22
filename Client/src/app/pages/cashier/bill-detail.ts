@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { ageLabel, Bill, BillStatus, billIsOpen, clock, methodLabel as paymentMethodLabel, money, orderStatusLabel, Payment } from '../../core/models';
+import { ageLabel, Bill, BillStatus, billIsOpen, clock, isTakeaway, methodLabel as paymentMethodLabel, money, orderStatusLabel, Payment } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { ConfirmDialog } from '../../shared/confirm-dialog';
@@ -31,7 +31,14 @@ import { PaySheet } from '../../shared/pay-sheet';
                 <span [class]="'pill ' + payPill(p)">{{ payLabel(p) }}</span>
               }
             </div>
-            <p class="page-sub"> {{ 'Table' | t }} {{ b.table }} {{ '· opened' | t }} {{ clock(b.createdAt) }} ({{ ageLabel(b.createdAt) }} {{ 'ago)' | t }} </p>
+            <p class="page-sub">
+              @if (isTakeaway(b)) {
+                {{ 'Takeaway' | t }}
+              } @else {
+                {{ 'Table' | t }} {{ b.table }}
+              }
+              · {{ '· opened' | t }} {{ clock(b.createdAt) }} · {{ ageLabel(b.createdAt) }}
+            </p>
           </div>
           <div class="head-actions">
             @if (paid()) {
@@ -335,6 +342,7 @@ export class BillDetailPage implements OnInit {
   protected readonly money = money;
   protected readonly clock = clock;
   protected readonly ageLabel = ageLabel;
+  protected readonly isTakeaway = isTakeaway;
   protected readonly orderStatusLabel = orderStatusLabel;
 
   protected readonly loading = signal(true);

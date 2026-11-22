@@ -18,8 +18,9 @@ public class BillResponse
 {
     public Guid Id { get; init; }
     public Guid DiningSessionId { get; init; }
-    public Guid TableId { get; init; }
+    public Guid? TableId { get; init; }
     public string TableNumber { get; init; } = default!;
+    public string OrderType { get; init; } = default!;
     public string BillNumber { get; init; } = default!;
     public decimal Subtotal { get; init; }
     public decimal TaxTotal { get; init; }
@@ -35,7 +36,7 @@ public class BillResponse
 public class DiningSessionResponse
 {
     public Guid Id { get; init; }
-    public Guid TableId { get; init; }
+    public Guid? TableId { get; init; }
     public string TableNumber { get; init; } = default!;
     public string Status { get; init; } = default!;
     public DateTime OpenedAt { get; init; }

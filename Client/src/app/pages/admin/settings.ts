@@ -69,9 +69,9 @@ import { Icon } from '../../shared/icon';
                   <input id="tax" class="input" type="number" min="0" max="100" step="1" [(ngModel)]="form.taxRate" />
                 </div>
                 <div class="field">
-                  <label class="label" for="tips">{{ 'Tip presets (%)' | t }}</label>
-                  <input id="tips" class="input" [(ngModel)]="tipText" />
-                  <span class="hint">{{ 'Comma-separated. Shown as quick buttons on the payment sheet.' | t }}</span>
+                  <label class="label" for="takeaway-fee">{{ 'Takeaway packaging fee (ETB)' | t }}</label>
+                  <input id="takeaway-fee" class="input" type="number" min="0" step="0.01" [(ngModel)]="form.takeawayFee" />
+                  <span class="hint">{{ 'Added once to every takeaway bill. Dine-in bills are not affected.' | t }}</span>
                 </div>
               </div>
 
@@ -204,7 +204,6 @@ export class SettingsPage {
   protected readonly busy = signal(false);
   protected readonly tableBusy = signal(false);
   protected form: Settings = { ...this.store.settings(), tipPresets: [...this.store.settings().tipPresets] };
-  protected tipText = this.store.settings().tipPresets.join(', ');
   protected tableNumber = '';
   protected tableName = '';
   protected tableCapacity: number | null = 4;
@@ -223,21 +222,16 @@ export class SettingsPage {
 
   private syncForm(): void {
     this.form = { ...this.store.settings(), tipPresets: [...this.store.settings().tipPresets] };
-    this.tipText = this.store.settings().tipPresets.join(', ');
   }
 
   protected async save(): Promise<void> {
-    const presets = this.tipText
-      .split(',')
-      .map((value) => Number(value.trim()))
-      .filter((value) => Number.isFinite(value) && value >= 0 && value <= 100);
     this.busy.set(true);
     const result = await this.store.saveSettings({
       ...this.form,
       restaurant: this.form.restaurant.trim(),
       branch: this.form.branch.trim(),
       taxRate: Math.min(100, Math.max(0, Number(this.form.taxRate) || 0)),
-      tipPresets: presets,
+      takeawayFee: Math.max(0, Math.round((Number(this.form.takeawayFee) || 0) * 100) / 100),
       telebirr: this.form.telebirr.trim(),
       cbe: this.form.cbe.trim(),
       accountName: this.form.accountName.trim(),
@@ -249,7 +243,6 @@ export class SettingsPage {
       return;
     }
     this.form = { ...this.store.settings(), tipPresets: [...this.store.settings().tipPresets] };
-    this.tipText = this.store.settings().tipPresets.join(', ');
     this.toast.show(translate('Settings saved'));
   }
 

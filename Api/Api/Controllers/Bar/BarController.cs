@@ -61,7 +61,7 @@ public class BarController : ApiControllerBase
         await _stationService.CancelOrderAsync(PreparationStation.Bar, orderId, request, ct);
         var msg = request.OrderItemId.HasValue
             ? "Order item cancelled by bar."
-            : "Entire order cancelled by bar and active payment retracted.";
+            : "Entire order cancelled by bar. Any settled payment is flagged for refund.";
         return NoContentResponse(msg);
     }
 }

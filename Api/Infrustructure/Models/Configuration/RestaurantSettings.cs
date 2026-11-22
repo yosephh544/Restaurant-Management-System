@@ -11,6 +11,10 @@ public class RestaurantSettings
     public decimal TaxRate { get; set; } = 15m;
     public bool PricesIncludeTax { get; set; }
     public decimal ServiceCharge { get; set; }
+
+    /// <summary>Packaging fee added to takeaway bills only.</summary>
+    public decimal TakeawayFee { get; set; }
+
     public string TipPresetsCsv { get; set; } = "0,10,15,20";
     public bool CashEnabled { get; set; } = true;
     public bool QrEnabled { get; set; } = true;

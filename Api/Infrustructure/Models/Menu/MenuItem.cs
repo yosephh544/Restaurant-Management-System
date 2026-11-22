@@ -16,6 +16,9 @@ public class MenuItem
 
     public string Name { get; set; } = default!;
 
+    /// <summary>Optional local (Amharic) display name shown to staff alongside the main name.</summary>
+    public string? NameAm { get; set; }
+
     public string? Description { get; set; }
 
     /// <summary>Current menu price in ETB. Snapshotted into OrderItem.UnitPrice at order creation.</summary>

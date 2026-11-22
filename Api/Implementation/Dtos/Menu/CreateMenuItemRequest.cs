@@ -12,6 +12,10 @@ public class CreateMenuItemRequest
     [MaxLength(200, ErrorMessage = "Name cannot exceed 200 characters.")]
     public string Name { get; set; } = default!;
 
+    /// <summary>Optional Amharic display name shown to staff.</summary>
+    [MaxLength(200, ErrorMessage = "Amharic name cannot exceed 200 characters.")]
+    public string? NameAm { get; set; }
+
     public string? Description { get; set; }
 
     [Range(0.01, 100000.0, ErrorMessage = "UnitPrice must be greater than 0.")]

@@ -11,6 +11,8 @@ public class RestaurantSettingsDto
     public decimal TaxRate { get; init; }
     public bool PricesIncludeTax { get; init; }
     public decimal ServiceCharge { get; init; }
+    /// <summary>Packaging fee added to takeaway bills only.</summary>
+    public decimal TakeawayFee { get; init; }
     public List<decimal> TipPresets { get; init; } = new();
     public bool Cash { get; init; }
     public bool Qr { get; init; }
@@ -43,6 +45,10 @@ public class UpdateRestaurantSettingsRequest
 
     [Range(0, 100)]
     public decimal ServiceCharge { get; set; }
+
+    /// <summary>Packaging fee added to takeaway bills only.</summary>
+    [Range(0, 10000)]
+    public decimal TakeawayFee { get; set; }
 
     public List<decimal> TipPresets { get; set; } = new();
 

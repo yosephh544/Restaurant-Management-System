@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using RestaurantManagement.Implementation.Dtos.Orders;
 using RestaurantManagement.Implementation.Interfaces.Common;
 using RestaurantManagement.Implementation.Interfaces.Orders;
+using RestaurantManagement.Implementation.Services.Billing;
 using RestaurantManagement.Infrustructure.Common.Constants;
 using RestaurantManagement.Infrustructure.Common.Exceptions;
 using RestaurantManagement.Infrustructure.Common.Extensions;
@@ -17,13 +18,20 @@ namespace RestaurantManagement.Implementation.Services.Orders;
 
 public class OrderService : IOrderService
 {
+    private const string TakeawayTableNumber = "Takeaway";
+
     private readonly RestaurantDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
+    private readonly IDailyNumberService _dailyNumbers;
 
-    public OrderService(RestaurantDbContext dbContext, ICurrentUserService currentUserService)
+    public OrderService(
+        RestaurantDbContext dbContext,
+        ICurrentUserService currentUserService,
+        IDailyNumberService dailyNumbers)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
+        _dailyNumbers = dailyNumbers;
     }
 
     /// <summary>Waiters only ever see and act on their own orders; other floor roles see all.</summary>
@@ -62,7 +70,8 @@ public class OrderService : IOrderService
         }
 
         var orderId = Guid.NewGuid();
-        var orderNumber = GenerateOrderNumber();
+        var orderType = ParseOrderType(request.OrderType);
+        var orderNumber = await _dailyNumbers.NextOrderNumberAsync(ct);
         var settings = await _dbContext.RestaurantSettings.AsNoTracking().FirstOrDefaultAsync(ct);
         var pricesIncludeTax = settings?.PricesIncludeTax ?? false;
 
@@ -70,7 +79,10 @@ public class OrderService : IOrderService
         {
             Id = orderId,
             OrderNumber = orderNumber,
-            TableNumber = request.TableNumber,
+            OrderType = orderType,
+            TableNumber = orderType == OrderType.Takeaway
+                ? TakeawayTableNumber
+                : request.TableNumber?.Trim() ?? string.Empty,
             WaiterId = waiterId,
             OrderStatus = OrderStatus.Pending,
             PaymentStatus = PaymentStatus.Unpaid,
@@ -111,34 +123,77 @@ public class OrderService : IOrderService
 
         order.Subtotal = Math.Round(subtotal, 2);
         order.TaxTotal = Math.Round(taxTotal, 2);
-        order.GrandTotal = Math.Round(subtotal + taxTotal, 2);
+        order.TakeawayFee = orderType == OrderType.Takeaway
+            ? Math.Round(settings?.TakeawayFee ?? 0m, 2)
+            : 0m;
+        order.GrandTotal = Math.Round(subtotal + taxTotal + order.TakeawayFee, 2);
 
         _dbContext.Orders.Add(order);
 
-        var table = await _dbContext.RestaurantTables
-            .FirstOrDefaultAsync(t => t.Number == request.TableNumber && t.IsActive, ct)
-            ?? throw new ValidationException("TableNumber", "Unknown table number. Create the table first.");
+        DiningSession session;
 
-        var session = await _dbContext.DiningSessions
-            .FirstOrDefaultAsync(s => s.TableId == table.Id &&
-                s.Status == DiningSessionStatus.Active, ct);
-
-        if (session == null)
+        if (orderType == OrderType.Takeaway)
         {
+            // Each takeaway ticket gets its own session so it can be billed and paid
+            // independently, without occupying a restaurant table.
             session = new DiningSession
             {
                 Id = Guid.NewGuid(),
-                TableId = table.Id,
+                TableId = null,
                 WaiterId = waiterId,
                 Status = DiningSessionStatus.Active,
                 OpenedAt = DateTime.UtcNow
             };
             _dbContext.DiningSessions.Add(session);
-            table.Status = TableStatus.Occupied;
         }
-        else if (session.Status != DiningSessionStatus.Active)
+        else
         {
-            throw new ConflictException("This table has a bill awaiting payment. Reopen or close the session before placing another order.");
+            if (string.IsNullOrWhiteSpace(request.TableNumber))
+                throw new ValidationException("TableNumber", "A table number is required for dine-in orders.");
+
+            var table = await _dbContext.RestaurantTables
+                .FirstOrDefaultAsync(t => t.Number == order.TableNumber && t.IsActive, ct);
+
+            if (table is null)
+            {
+                // Be forgiving for legacy floor numbers that are not registered yet.
+                table = new RestaurantTable
+                {
+                    Id = Guid.NewGuid(),
+                    Number = order.TableNumber,
+                    Name = order.TableNumber,
+                    Capacity = 4,
+                    Status = TableStatus.Available,
+                    IsActive = true
+                };
+                _dbContext.RestaurantTables.Add(table);
+            }
+
+            var existingSession = await _dbContext.DiningSessions
+                .FirstOrDefaultAsync(s => s.TableId == table.Id &&
+                    (s.Status == DiningSessionStatus.Active || s.Status == DiningSessionStatus.BillRequested), ct);
+
+            if (existingSession == null)
+            {
+                session = new DiningSession
+                {
+                    Id = Guid.NewGuid(),
+                    TableId = table.Id,
+                    WaiterId = waiterId,
+                    Status = DiningSessionStatus.Active,
+                    OpenedAt = DateTime.UtcNow
+                };
+                _dbContext.DiningSessions.Add(session);
+                table.Status = TableStatus.Occupied;
+            }
+            else if (existingSession.Status != DiningSessionStatus.Active)
+            {
+                throw new ConflictException("This table has a bill awaiting payment. Reopen or close the session before placing another order.");
+            }
+            else
+            {
+                session = existingSession;
+            }
         }
 
         order.DiningSessionId = session.Id;
@@ -202,7 +257,10 @@ public class OrderService : IOrderService
 
         var paged = await query.ToPagedResponseAsync(request, ct);
 
-        var responses = paged.Data.Select(MapOrderToResponse).ToList();
+        var queuePositions = await GetQueuePositionsAsync(ct);
+        var responses = paged.Data
+            .Select(o => MapOrderToResponse(o, queuePositions.GetValueOrDefault(o.Id)))
+            .ToList();
         return PagedResponse<OrderResponse>.Ok(responses, paged.Pagination);
     }
 
@@ -218,7 +276,10 @@ public class OrderService : IOrderService
 
         EnsureWaiterOwns(order);
 
-        return MapOrderToResponse(order);
+        var isActive = order.OrderStatus is OrderStatus.Pending or OrderStatus.Preparing or OrderStatus.Ready;
+        var queuePositions = isActive ? await GetQueuePositionsAsync(ct) : new Dictionary<Guid, int>();
+
+        return MapOrderToResponse(order, queuePositions.GetValueOrDefault(order.Id));
     }
 
     public async Task<OrderResponse> AddOrderItemsAsync(Guid orderId, AddOrderItemsRequest request, CancellationToken ct = default)
@@ -281,7 +342,7 @@ public class OrderService : IOrderService
 
         order.Subtotal = Math.Round(order.Subtotal, 2);
         order.TaxTotal = Math.Round(order.TaxTotal, 2);
-        order.GrandTotal = Math.Round(order.Subtotal + order.TaxTotal + order.TipAmount, 2);
+        order.GrandTotal = Math.Round(order.Subtotal + order.TaxTotal + order.TakeawayFee + order.TipAmount, 2);
         order.UpdatedAt = DateTime.UtcNow;
 
         // New lines may belong to the other station; a READY/PREPARING ticket must
@@ -319,13 +380,15 @@ public class OrderService : IOrderService
         if (originalOrder.OrderStatus != OrderStatus.CancelledByKitchen)
             throw new ConflictException("Only kitchen-cancelled orders can be replaced with a reorder.");
 
-        // The cancelled order has no payment (payment is only taken once food is READY/SERVED),
-        // so a reorder is simply a fresh unpaid order linked to the cancellation.
+        // A reorder is a fresh unpaid order linked to the cancellation. If the cancelled
+        // ticket had been prepaid, its payment is flagged REFUND_PENDING for the cashier.
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
 
         var createReq = new CreateOrderRequest
         {
             TableNumber = request.TableNumber,
+            OrderType = request.OrderType
+                ?? (originalOrder.OrderType == OrderType.Takeaway ? "TAKEAWAY" : "DINE_IN"),
             CustomerNotes = request.CustomerNotes ?? $"Replacement for {originalOrder.OrderNumber}",
             Items = request.Items
         };
@@ -474,18 +537,37 @@ public class OrderService : IOrderService
         order.OrderStatus = OrderStatus.Pending;
     }
 
-    private static string GenerateOrderNumber()
+    private static OrderType ParseOrderType(string? value) => value?.Trim().ToUpperInvariant() switch
     {
-        // Date prefix keeps kitchen/cashier tickets readable; the GUID suffix makes
-        // the value unique under concurrent order creation (max 20 chars).
-        return $"ORD-{DateTime.UtcNow:yyMMdd}-{Guid.NewGuid().ToString("N")[..8].ToUpperInvariant()}";
+        null or "" or "DINE_IN" or "DINEIN" or "DINE-IN" => OrderType.DineIn,
+        "TAKEAWAY" or "TAKE_OUT" or "TAKEOUT" or "TAKE-AWAY" => OrderType.Takeaway,
+        _ => throw new ValidationException("OrderType", "OrderType must be DINE_IN or TAKEAWAY.")
+    };
+
+    private async Task<Dictionary<Guid, int>> GetQueuePositionsAsync(CancellationToken ct)
+    {
+        var activeOrderIds = await _dbContext.Orders
+            .AsNoTracking()
+            .Where(o => o.OrderStatus == OrderStatus.Pending
+                || o.OrderStatus == OrderStatus.Preparing
+                || o.OrderStatus == OrderStatus.Ready)
+            .OrderBy(o => o.CreatedAt)
+            .Select(o => o.Id)
+            .ToListAsync(ct);
+
+        return activeOrderIds
+            .Select((id, index) => (id, position: index + 1))
+            .ToDictionary(x => x.id, x => x.position);
     }
 
-    private static OrderResponse MapOrderToResponse(Order order) => new()
+    private static OrderResponse MapOrderToResponse(Order order, int queuePosition = 0) => new()
     {
         Id = order.Id,
         OrderNumber = order.OrderNumber,
         TableNumber = order.TableNumber,
+        OrderType = order.OrderType == OrderType.Takeaway ? "TAKEAWAY" : "DINE_IN",
+        TakeawayFee = order.TakeawayFee,
+        QueuePosition = queuePosition,
         WaiterId = order.WaiterId,
         WaiterName = order.Waiter?.FullName ?? "Unknown",
         ParentOrderId = order.ParentOrderId,
@@ -507,6 +589,7 @@ public class OrderService : IOrderService
             Id = i.Id,
             MenuItemId = i.MenuItemId,
             MenuItemName = i.MenuItem?.Name ?? "Item",
+            MenuItemNameAm = i.MenuItem?.NameAm,
             Quantity = i.Quantity,
             UnitPrice = i.UnitPrice,
             TaxRate = i.TaxRate,

@@ -5,6 +5,7 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   ageLabel,
   clock,
+  isTakeaway,
   issueLabel,
   METHOD_LABEL,
   money,
@@ -29,10 +30,23 @@ import { PaySheet } from '../../shared/pay-sheet';
             <a class="back-link" routerLink="/waiter/orders"><app-icon name="arrow-left" /> {{ 'Back to orders' | t }}</a>
             <div class="row" style="gap: 10px; flex-wrap: wrap">
               <h1 class="page-title">{{ 'Order #' | t }}{{ o.number }}</h1>
+              @if (o.queuePosition > 0) {
+                <span [class]="'queue-chip tone-' + tone(o.status)">{{ 'Q' | t }}{{ o.queuePosition }}</span>
+              }
               <span [class]="'pill pill-' + tone(o.status)">{{ orderStatusLabel(o.status) }}</span>
               <span [class]="'pill ' + paymentPill()">{{ paymentStatusLabel(o.paymentStatus) }}</span>
+              @if (o.queuePosition === 1) {
+                <span class="pill pill-amber no-dot">{{ 'Next up' | t }}</span>
+              }
             </div>
-            <p class="page-sub"> {{ 'Table' | t }} {{ o.table }} · {{ o.waiterName }} {{ '· opened' | t }} {{ clock(o.createdAt) }} ({{ ageLabel(o.createdAt) }} {{ 'ago)' | t }} </p>
+            <p class="page-sub">
+              @if (isTakeaway(o)) {
+                <app-icon name="receipt" style="font-size: 12px" /> {{ 'Takeaway' | t }}
+              } @else {
+                {{ 'Table' | t }} {{ o.table }}
+              }
+              · {{ o.waiterName }} {{ '· opened' | t }} {{ clock(o.createdAt) }} · {{ ageLabel(o.createdAt) }}
+            </p>
           </div>
           <div class="head-actions">
             @if (canEdit()) {
@@ -118,6 +132,9 @@ import { PaySheet } from '../../shared/pay-sheet';
                       <strong [style.text-decoration]="line.status === 'CANCELLED' ? 'line-through' : 'none'">
                         {{ line.name }}
                       </strong>
+                      @if (line.nameAm) {
+                        <div class="tiny muted" lang="am">{{ line.nameAm }}</div>
+                      }
                       <div class="tiny muted">
                         {{ money(line.unitPrice) }} ETB {{ 'each' | t }} · {{ 'tax' | t }} {{ line.taxRate }}%
                         @if (line.status === 'CANCELLED') {
@@ -149,6 +166,9 @@ import { PaySheet } from '../../shared/pay-sheet';
               <div class="bill-totals">
                 <div class="bill-total-row"><span>{{ 'Subtotal' | t }}</span><span class="num">{{ money(subtotal()) }} ETB</span></div>
                 <div class="bill-total-row"><span>{{ 'Tax' | t }}</span><span class="num">{{ money(tax()) }} ETB</span></div>
+                @if (o.takeawayFee > 0) {
+                  <div class="bill-total-row"><span>{{ 'Takeaway packaging fee' | t }}</span><span class="num">{{ money(o.takeawayFee) }} ETB</span></div>
+                }
                 @if (o.tip > 0) {
                   <div class="bill-total-row"><span>{{ 'Tip' | t }}</span><span class="num">{{ money(o.tip) }} ETB</span></div>
                 }
@@ -232,7 +252,10 @@ import { PaySheet } from '../../shared/pay-sheet';
             <div class="card card-pad">
               <div class="card-title" style="margin-bottom: 10px">{{ 'Ticket details' | t }}</div>
               <div class="stack">
-                <div class="between small"><span class="muted">{{ 'Table' | t }}</span><span class="strong">{{ o.table }}</span></div>
+                <div class="between small"><span class="muted">{{ 'Type' | t }}</span><span class="strong">{{ isTakeaway(o) ? ('Takeaway' | t) : ('Dine-in' | t) }}</span></div>
+                @if (!isTakeaway(o)) {
+                  <div class="between small"><span class="muted">{{ 'Table' | t }}</span><span class="strong">{{ o.table }}</span></div>
+                }
                 <div class="between small"><span class="muted">{{ 'Waiter' | t }}</span><span class="strong">{{ o.waiterName }}</span></div>
                 <div class="between small"><span class="muted">{{ 'Opened' | t }}</span><span class="strong">{{ clock(o.createdAt) }}</span></div>
                 @if (o.preparingAt) {
@@ -255,7 +278,7 @@ import { PaySheet } from '../../shared/pay-sheet';
 
       @if (showPay()) {
         <app-pay-sheet
-          [tableId]="tableId()"
+          [orderId]="o.id"
           [tableNumber]="o.table"
           [reference]="'Order #' + o.number"
           [allowReceipt]="true"
@@ -270,7 +293,7 @@ import { PaySheet } from '../../shared/pay-sheet';
             <div class="modal-head">
               <div>
                 <h3>{{ 'Add items' | t }}</h3>
-                <p>{{ 'Order #' | t }}{{ o.number }} {{ '· Table' | t }} {{ o.table }}</p>
+                <p>{{ 'Order #' | t }}{{ o.number }} · {{ isTakeaway(o) ? ('Takeaway' | t) : (('Table' | t) + ' ' + o.table) }}</p>
               </div>
               <button class="modal-close" type="button" (click)="showAdd.set(false)"><app-icon name="x" /></button>
             </div>
@@ -285,6 +308,9 @@ import { PaySheet } from '../../shared/pay-sheet';
                     <span class="sum-emoji"><app-icon name="utensils" /></span>
                     <span class="list-main">
                       <strong>{{ item.name }}</strong>
+                      @if (item.nameAm) {
+                        <span lang="am">{{ item.nameAm }}</span>
+                      }
                       <span>{{ money(item.price) }} {{ 'ETB ·' | t }} {{ item.category }}</span>
                     </span>
                     <span class="btn btn-sm btn-soft"><app-icon name="plus" /> {{ 'Add' | t }}</span>
@@ -337,10 +363,7 @@ export class OrderDetailPage implements OnInit {
   protected readonly serving = signal<string | null>(null);
 
   protected readonly order = computed(() => this.store.order(this.id));
-  protected readonly tableId = computed(() => {
-    const order = this.order();
-    return order ? this.store.tableByNumber(order.table)?.id ?? null : null;
-  });
+  protected readonly isTakeaway = isTakeaway;
 
   protected readonly payment = computed(() => {
     const order = this.order();
@@ -399,7 +422,7 @@ export class OrderDetailPage implements OnInit {
     return this.store
       .menu()
       .filter((m) => m.available)
-      .filter((m) => !query || m.name.toLowerCase().includes(query));
+      .filter((m) => !query || `${m.name} ${m.nameAm ?? ''}`.toLowerCase().includes(query));
   });
 
   async ngOnInit(): Promise<void> {

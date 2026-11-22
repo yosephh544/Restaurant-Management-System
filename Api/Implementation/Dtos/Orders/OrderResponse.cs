@@ -5,6 +5,10 @@ public class OrderResponse
     public Guid Id { get; init; }
     public string OrderNumber { get; init; } = default!;
     public string TableNumber { get; init; } = default!;
+    public string OrderType { get; init; } = default!;
+    public decimal TakeawayFee { get; init; }
+    /// <summary>Position in the active first-come-first-served queue (0 when finished).</summary>
+    public int QueuePosition { get; init; }
     public Guid WaiterId { get; init; }
     public string WaiterName { get; init; } = default!;
     public Guid? ParentOrderId { get; init; }

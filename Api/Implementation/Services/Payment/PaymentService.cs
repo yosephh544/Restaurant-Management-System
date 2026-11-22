@@ -50,7 +50,7 @@ public class PaymentService : IPaymentService
 
         Bill bill;
         DiningSession session;
-        RestaurantTable table;
+        RestaurantTable? table;
         List<Order> billOrders;
 
         if (request.BillId.HasValue)
@@ -63,8 +63,15 @@ public class PaymentService : IPaymentService
 
             session = bill.DiningSession;
             table = session.Table;
+            // Cancelled tickets stay on the session with a zeroed total; they must not
+            // become the representative order or be marked paid by this settlement.
+            // Retracted orders are payable again once the session still has an open bill.
             billOrders = session.Orders
-                .Where(o => o.PaymentStatus == PaymentStatus.PaymentInitiated || o.PaymentStatus == PaymentStatus.Unpaid)
+                .Where(o => (o.PaymentStatus == PaymentStatus.PaymentInitiated
+                        || o.PaymentStatus == PaymentStatus.Unpaid
+                        || o.PaymentStatus == PaymentStatus.Retracted)
+                    && o.OrderStatus != OrderStatus.CancelledByKitchen
+                    && o.GrandTotal > 0m)
                 .ToList();
         }
         else if (request.OrderId.HasValue)
@@ -86,8 +93,15 @@ public class PaymentService : IPaymentService
                 .FirstOrDefault()
                 ?? throw new ConflictException("Generate a table bill before initiating payment.");
 
+            // Cancelled tickets stay on the session with a zeroed total; they must not
+            // become the representative order or be marked paid by this settlement.
+            // Retracted orders are payable again once the session still has an open bill.
             billOrders = session.Orders
-                .Where(o => o.PaymentStatus == PaymentStatus.PaymentInitiated || o.PaymentStatus == PaymentStatus.Unpaid)
+                .Where(o => (o.PaymentStatus == PaymentStatus.PaymentInitiated
+                        || o.PaymentStatus == PaymentStatus.Unpaid
+                        || o.PaymentStatus == PaymentStatus.Retracted)
+                    && o.OrderStatus != OrderStatus.CancelledByKitchen
+                    && o.GrandTotal > 0m)
                 .ToList();
         }
         else
@@ -116,14 +130,12 @@ public class PaymentService : IPaymentService
         if (method == PaymentMethod.PhonePush && string.IsNullOrWhiteSpace(request.CustomerPhone))
             throw new ValidationException("CustomerPhone", "Customer phone number is required for PHONE_PUSH / USSD payment.");
 
-        var baseAmount = bill.Subtotal + bill.TaxTotal - bill.DiscountAmount;
-        var tipAmount = Math.Round(request.TipAmount, 2);
-        if (tipAmount == 0)
-            tipAmount = bill.TipAmount;
-        var totalAmount = Math.Round(baseAmount + tipAmount, 2);
+        var baseAmount = Math.Round(bill.Subtotal + bill.TaxTotal - bill.DiscountAmount, 2);
 
-        if (Math.Abs(totalAmount - bill.GrandTotal) > 0.01m && tipAmount == bill.TipAmount)
-            throw new ConflictException("The bill total is inconsistent.");
+        // Tips are never entered at the till. Cash tips stay outside the system, and
+        // digital transfers record any overpayment as the waiter tip at settlement.
+        const decimal tipAmount = 0m;
+        var totalAmount = baseAmount;
 
         decimal? amountTendered = null;
         decimal? changeGiven = null;
@@ -183,7 +195,7 @@ public class PaymentService : IPaymentService
         foreach (var order in billOrders)
         {
             order.TipAmount = 0;
-            order.GrandTotal = order.Subtotal + order.TaxTotal;
+            order.GrandTotal = order.Subtotal + order.TaxTotal + order.TakeawayFee;
             order.PaymentStatus = isCash ? PaymentStatus.Paid : PaymentStatus.PaymentInitiated;
             order.UpdatedAt = DateTime.UtcNow;
         }
@@ -192,7 +204,8 @@ public class PaymentService : IPaymentService
         {
             session.Status = DiningSessionStatus.Paid;
             session.ClosedAt = DateTime.UtcNow;
-            table.Status = TableStatus.Available;
+            if (table is not null)
+                table.Status = TableStatus.Available;
         }
 
         _dbContext.Payments.Add(payment);
@@ -266,7 +279,7 @@ public class PaymentService : IPaymentService
 
         Bill bill;
         DiningSession session;
-        RestaurantTable table;
+        RestaurantTable? table;
         List<Order> billOrders;
 
         if (request.BillId.HasValue)
@@ -279,8 +292,15 @@ public class PaymentService : IPaymentService
 
             session = bill.DiningSession;
             table = session.Table;
+            // Cancelled tickets stay on the session with a zeroed total; they must not
+            // become the representative order or be marked paid by this settlement.
+            // Retracted orders are payable again once the session still has an open bill.
             billOrders = session.Orders
-                .Where(o => o.PaymentStatus == PaymentStatus.PaymentInitiated || o.PaymentStatus == PaymentStatus.Unpaid)
+                .Where(o => (o.PaymentStatus == PaymentStatus.PaymentInitiated
+                        || o.PaymentStatus == PaymentStatus.Unpaid
+                        || o.PaymentStatus == PaymentStatus.Retracted)
+                    && o.OrderStatus != OrderStatus.CancelledByKitchen
+                    && o.GrandTotal > 0m)
                 .ToList();
         }
         else if (request.OrderId.HasValue)
@@ -302,8 +322,15 @@ public class PaymentService : IPaymentService
                 .FirstOrDefault()
                 ?? throw new ConflictException("Generate a table bill before recording a transfer.");
 
+            // Cancelled tickets stay on the session with a zeroed total; they must not
+            // become the representative order or be marked paid by this settlement.
+            // Retracted orders are payable again once the session still has an open bill.
             billOrders = session.Orders
-                .Where(o => o.PaymentStatus == PaymentStatus.PaymentInitiated || o.PaymentStatus == PaymentStatus.Unpaid)
+                .Where(o => (o.PaymentStatus == PaymentStatus.PaymentInitiated
+                        || o.PaymentStatus == PaymentStatus.Unpaid
+                        || o.PaymentStatus == PaymentStatus.Retracted)
+                    && o.OrderStatus != OrderStatus.CancelledByKitchen
+                    && o.GrandTotal > 0m)
                 .ToList();
         }
         else
@@ -464,14 +491,15 @@ public class PaymentService : IPaymentService
         foreach (var order in billOrders)
         {
             order.TipAmount = 0;
-            order.GrandTotal = order.Subtotal + order.TaxTotal;
+            order.GrandTotal = order.Subtotal + order.TaxTotal + order.TakeawayFee;
             order.PaymentStatus = PaymentStatus.Paid;
             order.UpdatedAt = now;
         }
 
         session.Status = DiningSessionStatus.Paid;
         session.ClosedAt = now;
-        table.Status = TableStatus.Available;
+        if (table is not null)
+            table.Status = TableStatus.Available;
 
         _dbContext.Payments.Add(payment);
 
@@ -548,7 +576,8 @@ public class PaymentService : IPaymentService
 
                 bill.DiningSession.Status = DiningSessionStatus.Paid;
                 bill.DiningSession.ClosedAt = DateTime.UtcNow;
-                bill.DiningSession.Table.Status = TableStatus.Available;
+                if (bill.DiningSession.Table is { } sessionTable)
+                    sessionTable.Status = TableStatus.Available;
 
                 await EnsureWaiterTipAsync(payment, bill.DiningSession.WaiterId, ct);
             }
@@ -634,16 +663,19 @@ public class PaymentService : IPaymentService
         var payment = await _dbContext.Payments
             .Include(p => p.Order)
             .Include(p => p.Bill).ThenInclude(b => b!.DiningSession).ThenInclude(s => s.Orders)
+            .Include(p => p.Bill).ThenInclude(b => b!.DiningSession).ThenInclude(s => s.Table)
             .FirstOrDefaultAsync(p => p.Id == paymentId, ct)
             ?? throw new NotFoundException("Payment", paymentId);
 
         if (payment.Status != PaymentGatewayStatus.Paid)
             throw new ConflictException("Only settled payments can be refunded.");
 
-        // A refund means the customer returned served food; it is not used for
-        // kitchen cancellations, where no payment exists yet.
-        if (payment.Order.OrderStatus != OrderStatus.Served)
-            throw new ConflictException("Refunds are only allowed after the order has been served.");
+        // Served orders are customer returns. CancelledByKitchen covers prepaid
+        // tickets the kitchen had to abandon: the money must still go back.
+        // RefundPending also allows a partially cancelled prepaid order to be refunded.
+        if (payment.Order.OrderStatus is not (OrderStatus.Served or OrderStatus.CancelledByKitchen)
+            && payment.Order.PaymentStatus != PaymentStatus.RefundPending)
+            throw new ConflictException("Refunds are only allowed for served or cancelled orders.");
 
         payment.Status = PaymentGatewayStatus.Refunded;
         payment.UpdatedAt = DateTime.UtcNow;
@@ -661,7 +693,8 @@ public class PaymentService : IPaymentService
 
             bill.DiningSession.Status = DiningSessionStatus.Closed;
             bill.DiningSession.ClosedAt = DateTime.UtcNow;
-            bill.DiningSession.Table.Status = TableStatus.Available;
+            if (bill.DiningSession.Table is { } refundTable)
+                refundTable.Status = TableStatus.Available;
 
             var actorId = _currentUserService.UserId;
             if (actorId.HasValue)
@@ -720,16 +753,27 @@ public class PaymentService : IPaymentService
             throw new ValidationException("TargetOrderId", "The target order must be different from the paid order.");
 
         var targetOrder = await _dbContext.Orders
+            .Include(o => o.DiningSession).ThenInclude(s => s!.Bills)
+            .Include(o => o.DiningSession).ThenInclude(s => s!.Orders)
+            .Include(o => o.DiningSession).ThenInclude(s => s!.Table)
             .FirstOrDefaultAsync(o => o.Id == request.TargetOrderId, ct)
             ?? throw new NotFoundException("Order", request.TargetOrderId);
 
         if (targetOrder.OrderStatus is not (OrderStatus.Ready or OrderStatus.Served))
             throw new ConflictException("Payments can only be applied to READY or SERVED orders.");
 
-        if (targetOrder.PaymentStatus is not (PaymentStatus.Unpaid or PaymentStatus.Retracted or PaymentStatus.Transferred))
+        // PaymentInitiated is expected: a transfer target is an open bill whose orders
+        // were marked as awaiting payment when the bill was generated.
+        if (targetOrder.PaymentStatus is not (PaymentStatus.Unpaid or PaymentStatus.Retracted or PaymentStatus.Transferred or PaymentStatus.PaymentInitiated))
             throw new ConflictException("The target order already has payment activity.");
 
-        var expectedTotal = Math.Round(targetOrder.Subtotal + targetOrder.TaxTotal + payment.TipAmount, 2);
+        var targetSession = targetOrder.DiningSession;
+        var targetBill = targetSession?.Bills
+            .Where(b => b.Status == BillStatus.Requested || b.Status == BillStatus.PaymentInitiated)
+            .OrderByDescending(b => b.CreatedAt)
+            .FirstOrDefault();
+
+        var expectedTotal = Math.Round(targetOrder.Subtotal + targetOrder.TaxTotal + targetOrder.TakeawayFee + payment.TipAmount, 2);
         if (Math.Abs(expectedTotal - payment.TotalAmount) > 0.01m)
             throw new ConflictException("The target order total does not match the payment amount.");
 
@@ -743,6 +787,18 @@ public class PaymentService : IPaymentService
 
         var sourceOrder = payment.Order;
 
+        // Any pending QR/PUSH session started for the target bill is superseded.
+        var pendingTargetPayments = await _dbContext.Payments
+            .Where(p => p.Status == PaymentGatewayStatus.Initiated &&
+                (p.OrderId == targetOrder.Id || (targetBill != null && p.BillId == targetBill.Id)))
+            .ToListAsync(ct);
+
+        foreach (var pending in pendingTargetPayments)
+        {
+            pending.Status = PaymentGatewayStatus.Retracted;
+            pending.UpdatedAt = DateTime.UtcNow;
+        }
+
         // Retire the original settlement and mark it as transferred for the audit trail.
         payment.Status = PaymentGatewayStatus.Transferred;
         payment.TransferredToOrderId = targetOrder.Id;
@@ -753,6 +809,7 @@ public class PaymentService : IPaymentService
         {
             Id = Guid.NewGuid(),
             OrderId = targetOrder.Id,
+            BillId = targetBill?.Id,
             InitiatedById = initiatorId,
             Method = payment.Method,
             ArifpaySessionId = payment.ArifpaySessionId,
@@ -790,6 +847,37 @@ public class PaymentService : IPaymentService
         targetOrder.GrandTotal = payment.TotalAmount;
         targetOrder.PaymentStatus = PaymentStatus.Paid;
         targetOrder.UpdatedAt = DateTime.UtcNow;
+
+        // The destination bill was open and unpaid; settle and close it like a direct
+        // collection so the table is released and the cashier ledger stays consistent.
+        if (targetSession != null)
+        {
+            var now = DateTime.UtcNow;
+            foreach (var sibling in targetSession.Orders)
+            {
+                if (sibling.Id == targetOrder.Id) continue;
+                if (sibling.OrderStatus == OrderStatus.CancelledByKitchen) continue;
+                if (sibling.PaymentStatus is not (PaymentStatus.Unpaid or PaymentStatus.PaymentInitiated)) continue;
+
+                sibling.PaymentStatus = PaymentStatus.Paid;
+                sibling.TipAmount = 0m;
+                sibling.GrandTotal = sibling.Subtotal + sibling.TaxTotal + sibling.TakeawayFee;
+                sibling.UpdatedAt = now;
+            }
+
+            if (targetBill != null)
+            {
+                targetBill.Status = BillStatus.Paid;
+                targetBill.PaidAt = payment.SettledAt ?? now;
+                targetBill.TipAmount = payment.TipAmount;
+                targetBill.GrandTotal = payment.TotalAmount;
+            }
+
+            targetSession.Status = DiningSessionStatus.Paid;
+            targetSession.ClosedAt = now;
+            if (targetSession.Table is { } targetTable)
+                targetTable.Status = TableStatus.Available;
+        }
 
         // Persist the destination payment before repointing the tip's foreign key.
         await _dbContext.SaveChangesAsync(ct);
@@ -898,6 +986,8 @@ public class PaymentService : IPaymentService
             TipAmount = p.TipAmount,
             TotalAmount = p.TotalAmount,
             Status = p.Status.ToString().ToUpperInvariant(),
+            OrderStatus = p.Order.OrderStatus.ToString().ToUpperInvariant(),
+            OrderPaymentStatus = p.Order.PaymentStatus.ToString().ToUpperInvariant(),
             AmountTendered = p.AmountTendered,
             ChangeGiven = p.ChangeGiven,
             CustomerPhone = p.CustomerPhone,

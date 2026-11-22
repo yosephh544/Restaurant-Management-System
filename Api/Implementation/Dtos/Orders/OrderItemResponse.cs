@@ -5,6 +5,7 @@ public class OrderItemResponse
     public Guid Id { get; init; }
     public Guid MenuItemId { get; init; }
     public string MenuItemName { get; init; } = default!;
+    public string? MenuItemNameAm { get; init; }
     public int Quantity { get; init; }
     public decimal UnitPrice { get; init; }
     public decimal TaxRate { get; init; }

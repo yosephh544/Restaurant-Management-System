@@ -8,6 +8,7 @@ public class MenuItemResponse
     public Guid CategoryId { get; init; }
     public string CategoryName { get; init; } = default!;
     public string Name { get; init; } = default!;
+    public string? NameAm { get; init; }
     public string? Description { get; init; }
     public decimal UnitPrice { get; init; }
     public decimal TaxRate { get; init; }

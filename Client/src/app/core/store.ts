@@ -5,6 +5,7 @@ import {
   AuditEvent,
   Bill,
   BillItem,
+  billIsOpen,
   BillStatus,
   CancellationReport,
   DEFAULT_SETTINGS,
@@ -22,6 +23,7 @@ import {
   Order,
   OrderLine,
   OrderStatus,
+  OrderType,
   PayMethod,
   PayState,
   Payment,
@@ -50,15 +52,14 @@ export interface DraftLine {
 }
 
 export interface BillRequest {
-  tableId: string;
-  tipAmount?: number;
+  tableId?: string;
+  orderId?: string;
   discountAmount?: number;
 }
 
 export interface PaymentRequest {
   billId: string;
   method: PayMethod;
-  tipAmount?: number;
   customerPhone?: string;
   amountTendered?: number;
   receiptUrl?: string;
@@ -71,6 +72,7 @@ export interface MenuItemInput {
   id?: string;
   categoryId: string;
   name: string;
+  nameAm?: string;
   description?: string;
   price: number;
   taxRate: number;
@@ -151,6 +153,7 @@ interface OrderItemDto {
   id: string;
   menuItemId: string;
   menuItemName: string;
+  menuItemNameAm?: string | null;
   quantity: number;
   unitPrice: number;
   taxRate: number;
@@ -163,6 +166,9 @@ interface OrderDto {
   id: string;
   orderNumber: string;
   tableNumber: string;
+  orderType: OrderType;
+  takeawayFee: number;
+  queuePosition: number;
   waiterId: string;
   waiterName: string;
   parentOrderId?: string | null;
@@ -194,8 +200,9 @@ interface BillItemDto {
 interface BillDto {
   id: string;
   diningSessionId: string;
-  tableId: string;
+  tableId?: string | null;
   tableNumber: string;
+  orderType: OrderType;
   billNumber: string;
   subtotal: number;
   taxTotal: number;
@@ -221,6 +228,8 @@ interface PaymentDto {
   tipAmount: number;
   totalAmount: number;
   status: PayState;
+  orderStatus?: OrderStatus | null;
+  orderPaymentStatus?: PaymentStatus | null;
   amountTendered?: number | null;
   changeGiven?: number | null;
   customerPhone?: string | null;
@@ -267,6 +276,7 @@ interface MenuItemDto {
   categoryId: string;
   categoryName: string;
   name: string;
+  nameAm?: string | null;
   description?: string | null;
   unitPrice: number;
   taxRate: number;
@@ -306,6 +316,7 @@ interface KitchenItemDto {
   id: string;
   menuItemId: string;
   menuItemName: string;
+  menuItemNameAm?: string | null;
   quantity: number;
   customerNotes?: string | null;
   itemStatus: ItemStatus;
@@ -315,6 +326,8 @@ interface KitchenTicketDto {
   orderId: string;
   orderNumber: string;
   tableNumber: string;
+  orderType: OrderType;
+  queuePosition: number;
   waiterName: string;
   station: string;
   orderStatus: OrderStatus;
@@ -358,6 +371,7 @@ interface SettingsDto {
   taxRate: number;
   pricesIncludeTax: boolean;
   serviceCharge: number;
+  takeawayFee: number;
   tipPresets: number[];
   cash: boolean;
   qr: boolean;
@@ -467,6 +481,7 @@ export class Store {
         taxRate: dto.taxRate,
         pricesIncludeTax: dto.pricesIncludeTax,
         serviceCharge: dto.serviceCharge,
+        takeawayFee: dto.takeawayFee ?? 0,
         tipPresets: dto.tipPresets ?? [],
         cash: dto.cash,
         qr: dto.qr,
@@ -543,6 +558,8 @@ export class Store {
         id: t.orderId,
         number: t.orderNumber,
         table: t.tableNumber,
+        orderType: t.orderType ?? 'DINE_IN',
+        queuePosition: t.queuePosition ?? 0,
         waiterName: t.waiterName,
         status: t.stationStatus,
         paymentStatus: t.paymentStatus,
@@ -552,18 +569,29 @@ export class Store {
           id: i.id,
           menuItemId: i.menuItemId,
           name: i.menuItemName,
+          nameAm: i.menuItemNameAm ?? undefined,
           qty: i.quantity,
           notes: i.customerNotes ?? undefined,
           status: i.itemStatus,
         })),
       }))
-      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+      .sort((a, b) =>
+        a.queuePosition && b.queuePosition
+          ? a.queuePosition - b.queuePosition
+          : new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime(),
+      );
   }
 
   async loadBills(): Promise<void> {
     await this.guard(async () => {
       const data = await this.api.get<BillDto[]>('/bills/active');
-      this.bills.set(data.map((b) => this.mapBill(b)));
+      const active = data.map((b) => this.mapBill(b));
+      // Keep closed bills already loaded by detail/receipt pages so a settle does not
+      // turn an open bill page into "Bill not found".
+      this.bills.update((existing) => {
+        const closed = existing.filter((b) => !billIsOpen(b) && !active.some((a) => a.id === b.id));
+        return [...active, ...closed];
+      });
     });
   }
 
@@ -802,6 +830,21 @@ export class Store {
     return this.openBills().find((b) => b.tableId === tableId);
   }
 
+  billForOrder(orderId: string): Bill | undefined {
+    return this.openBills().find((b) => b.items.some((i) => i.orderId === orderId));
+  }
+
+  async loadActiveBillForOrder(orderId: string): Promise<Bill | null> {
+    const result = await this.guard(async () => {
+      const dto = await this.api.get<BillDto | null>(`/bills/active/order/${orderId}`);
+      if (!dto) return null;
+      const bill = this.mapBill(dto);
+      this.upsertBill(bill);
+      return bill;
+    });
+    return result.ok ? result.data : null;
+  }
+
   paymentsForBill(billId: string): Payment[] {
     return this.payments().filter((p) => p.billId === billId);
   }
@@ -821,7 +864,9 @@ export class Store {
   ordersForWaiter(waiterId: string, scope: 'active' | 'all' = 'active'): Order[] {
     const list = this.orders().filter((o) => o.waiterId === waiterId);
     if (scope === 'all') return list;
-    return list.filter((o) => o.status === 'PENDING' || o.status === 'PREPARING' || o.status === 'READY');
+    return list
+      .filter((o) => o.status === 'PENDING' || o.status === 'PREPARING' || o.status === 'READY')
+      .sort((a, b) => (a.queuePosition || 1e9) - (b.queuePosition || 1e9));
   }
 
   tipsFor(waiterId: string): TipEntry[] {
@@ -832,10 +877,16 @@ export class Store {
   /* Orders                                                              */
   /* ------------------------------------------------------------------ */
 
-  async createOrder(tableNumber: string, items: DraftLine[], notes = ''): Promise<Result<Order>> {
+  async createOrder(
+    tableNumber: string | null,
+    items: DraftLine[],
+    notes = '',
+    orderType: OrderType = 'DINE_IN',
+  ): Promise<Result<Order>> {
     return await this.guard(async () => {
       const created = await this.api.post<OrderDto>('/orders', {
-        tableNumber,
+        tableNumber: orderType === 'TAKEAWAY' ? null : tableNumber,
+        orderType,
         items: items.map((i) => ({ menuItemId: i.menuItemId, quantity: i.quantity, customerNotes: i.notes })),
         customerNotes: notes || null,
       });
@@ -868,6 +919,7 @@ export class Store {
       const created = await this.api.post<OrderDto>(`/orders/${orderId}/reorder`, {
         parentOrderId: orderId,
         tableNumber: original.table,
+        orderType: original.orderType,
         items: items.map((i) => ({ menuItemId: i.menuItemId, quantity: i.quantity, customerNotes: i.notes })),
         customerNotes: original.notes ?? null,
       });
@@ -951,8 +1003,8 @@ export class Store {
     return await this.guard(async () => {
       const bill = this.mapBill(
         await this.api.post<BillDto>('/bills/generate', {
-          tableId: request.tableId,
-          tipAmount: request.tipAmount ?? 0,
+          tableId: request.tableId ?? null,
+          orderId: request.orderId ?? null,
           discountAmount: request.discountAmount ?? 0,
         }),
       );
@@ -980,7 +1032,6 @@ export class Store {
       const dto = await this.api.post<PaymentDto>('/payments/initiate', {
         billId: request.billId,
         method: request.method,
-        tipAmount: request.tipAmount ?? 0,
         customerPhone: request.customerPhone || null,
         amountTendered: request.amountTendered ?? null,
       });
@@ -1074,6 +1125,7 @@ export class Store {
       const body = {
         categoryId: input.categoryId,
         name: input.name,
+        nameAm: input.nameAm?.trim() || null,
         description: input.description || null,
         unitPrice: input.price,
         taxRate: input.taxRate,
@@ -1185,6 +1237,7 @@ export class Store {
         taxRate: settings.taxRate,
         pricesIncludeTax: settings.pricesIncludeTax,
         serviceCharge: settings.serviceCharge,
+        takeawayFee: settings.takeawayFee,
         tipPresets: settings.tipPresets,
         cash: settings.cash,
         qr: settings.qr,
@@ -1203,6 +1256,7 @@ export class Store {
         taxRate: saved.taxRate,
         pricesIncludeTax: saved.pricesIncludeTax,
         serviceCharge: saved.serviceCharge,
+        takeawayFee: saved.takeawayFee ?? 0,
         tipPresets: saved.tipPresets ?? [],
         cash: saved.cash,
         qr: saved.qr,
@@ -1293,6 +1347,9 @@ export class Store {
       id: o.id,
       number: o.orderNumber,
       table: o.tableNumber,
+      orderType: o.orderType ?? 'DINE_IN',
+      takeawayFee: o.takeawayFee ?? 0,
+      queuePosition: o.queuePosition ?? 0,
       waiterId: o.waiterId,
       waiterName: o.waiterName,
       parentOrderId: o.parentOrderId ?? undefined,
@@ -1313,6 +1370,7 @@ export class Store {
           id: i.id,
           itemId: i.menuItemId,
           name: i.menuItemName,
+          nameAm: i.menuItemNameAm ?? undefined,
           qty: i.quantity,
           unitPrice: i.unitPrice,
           taxRate: i.taxRate,
@@ -1329,8 +1387,9 @@ export class Store {
     return {
       id: b.id,
       sessionId: b.diningSessionId,
-      tableId: b.tableId,
+      tableId: b.tableId ?? undefined,
       table: b.tableNumber,
+      orderType: b.orderType ?? 'DINE_IN',
       number: b.billNumber,
       subtotal: b.subtotal,
       tax: b.taxTotal,
@@ -1379,6 +1438,8 @@ export class Store {
       receiptUrl: p.receiptUrl ?? undefined,
       receiptReference: p.receiptReference ?? undefined,
       amountPaid: p.amountPaid ?? undefined,
+      orderStatus: p.orderStatus ?? undefined,
+      orderPaymentStatus: p.orderPaymentStatus ?? undefined,
       verification: p.verificationStatus ?? 'NOT_REQUIRED',
       verifiedAmount: p.verifiedAmount ?? undefined,
       verifiedPayer: p.verifiedPayerName ?? undefined,
@@ -1395,6 +1456,7 @@ export class Store {
       categoryId: i.categoryId,
       category: i.categoryName,
       name: i.name,
+      nameAm: i.nameAm ?? undefined,
       description: i.description ?? undefined,
       price: i.unitPrice,
       taxRate: i.taxRate,

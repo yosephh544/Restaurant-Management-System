@@ -41,6 +41,7 @@ public class MenuService : IMenuService
                     {
                         Id = i.Id,
                         Name = i.Name,
+                        NameAm = i.NameAm,
                         Description = i.Description,
                         UnitPrice = i.UnitPrice,
                         IsAvailable = i.IsAvailable,
@@ -217,6 +218,7 @@ public class MenuService : IMenuService
             var search = query.Search.Trim();
             items = items.Where(i =>
                 i.Name.Contains(search) ||
+                (i.NameAm != null && i.NameAm.Contains(search)) ||
                 (i.SKU != null && i.SKU.Contains(search)) ||
                 (i.Description != null && i.Description.Contains(search)));
         }
@@ -263,6 +265,7 @@ public class MenuService : IMenuService
             Id = Guid.NewGuid(),
             CategoryId = request.CategoryId,
             Name = request.Name.Trim(),
+            NameAm = string.IsNullOrWhiteSpace(request.NameAm) ? null : request.NameAm.Trim(),
             Description = request.Description,
             UnitPrice = request.UnitPrice,
             TaxRate = request.TaxRate,
@@ -309,6 +312,9 @@ public class MenuService : IMenuService
 
         if (!string.IsNullOrWhiteSpace(request.Name))
             item.Name = request.Name.Trim();
+
+        if (request.NameAm != null)
+            item.NameAm = string.IsNullOrWhiteSpace(request.NameAm) ? null : request.NameAm.Trim();
 
         if (request.Description != null)
             item.Description = request.Description;
@@ -538,6 +544,7 @@ public class MenuService : IMenuService
         CategoryId = item.CategoryId,
         CategoryName = categoryName,
         Name = item.Name,
+        NameAm = item.NameAm,
         Description = item.Description,
         UnitPrice = item.UnitPrice,
         TaxRate = item.TaxRate,

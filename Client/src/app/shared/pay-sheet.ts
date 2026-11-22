@@ -28,8 +28,8 @@ import { Icon } from './icon';
           <div>
             <h3>{{ paid() ? ('Payment complete' | t) : pending() ? ('Payment pending' | t) : ('Take payment' | t) }}</h3>
             <p>
-              {{ reference() || ('Table ' | t) + tableNumber() }}
-              @if (tableNumber()) {
+              {{ reference() || (isTakeawayRef() ? ('Takeaway' | t) : ('Table ' | t) + tableNumber()) }}
+              @if (tableNumber() && !isTakeawayRef()) {
                 {{ '· Table' | t }} {{ tableNumber() }}
               }
             </p>
@@ -170,31 +170,14 @@ import { Icon } from './icon';
             </div>
 
             @if (method() === 'CASH') {
-              <div class="field">
-                <label class="label" for="tip">{{ 'Tip (optional)' | t }}</label>
+              <div class="pending-box" style="margin-top: 12px">
                 <div class="row">
-                  @if (settings().tipPresets.length) {
-                    <div class="tip-presets">
-                      @for (preset of settings().tipPresets; track preset) {
-                        <button type="button" [class.active]="tip() === presetAmount(preset)" (click)="tip.set(presetAmount(preset))">
-                          {{ preset }}%
-                        </button>
-                      }
-                    </div>
-                  }
-                  <div class="input-wrap" style="flex: 1">
-                    <input
-                      id="tip"
-                      class="input t-right"
-                      type="number"
-                      min="0"
-                      step="1"
-                      [ngModel]="tip()"
-                      (ngModelChange)="tip.set(+$event || 0)"
-                    />
+                  <app-icon name="cash" />
+                  <div>
+                    <strong>{{ 'Cash is settled immediately' | t }}</strong>
+                    <p>{{ 'Tip is handled in cash outside the system and is not recorded here.' | t }}</p>
                   </div>
                 </div>
-                <span class="hint">{{ "The tip is recorded on the table's payment." | t }}</span>
               </div>
             }
 
@@ -368,7 +351,7 @@ import { Icon } from './icon';
             <div class="empty" style="padding: 36px 10px">
               <app-icon name="alert" />
               <strong>{{ 'No open bill' | t }}</strong>
-              <p>{{ error() || ('This table has no billable orders right now.' | t) }}</p>
+              <p>{{ error() || ('There are no billable orders right now.' | t) }}</p>
             </div>
           </div>
         }
@@ -384,6 +367,7 @@ export class PaySheet implements OnInit {
 
   readonly billId = input<string | null>(null);
   readonly tableId = input<string | null>(null);
+  readonly orderId = input<string | null>(null);
   readonly tableNumber = input('');
   readonly reference = input('');
   readonly allowReceipt = input(false);
@@ -395,7 +379,6 @@ export class PaySheet implements OnInit {
   protected readonly settings = this.store.settings;
 
   protected readonly method = signal<PayMethod>('CASH');
-  protected readonly tip = signal(0);
   protected readonly transferred = signal<number | null>(null);
   protected readonly tendered = signal<number | null>(null);
   // Kept for the dormant gateway (PHONE_PUSH) path; the current sheet only exposes cash and transfers.
@@ -421,7 +404,7 @@ export class PaySheet implements OnInit {
 
   protected readonly total = computed(() => {
     if (this.isDigital()) return Math.round((this.transferred() ?? this.base()) * 100) / 100;
-    return Math.round((this.base() + this.tip()) * 100) / 100;
+    return this.base();
   });
 
   protected readonly digitalTip = computed(() =>
@@ -444,6 +427,8 @@ export class PaySheet implements OnInit {
     () => this.method() === 'TELEBIRR' || this.method() === 'CBE',
   );
 
+  protected readonly isTakeawayRef = computed(() => this.tableNumber().toLowerCase() === 'takeaway');
+
   protected readonly accountNumber = computed(() =>
     this.method() === 'TELEBIRR' ? this.settings().telebirr : this.method() === 'CBE' ? this.settings().cbe : '',
   );
@@ -465,10 +450,6 @@ export class PaySheet implements OnInit {
 
   protected isDigitalMethod(method: PayMethod | string): boolean {
     return method === 'TELEBIRR' || method === 'CBE';
-  }
-
-  protected presetAmount(preset: number): number {
-    return Math.round((this.base() * preset) / 100);
   }
 
   protected setTransferred(value: number | string | null): void {
@@ -522,7 +503,6 @@ export class PaySheet implements OnInit {
       : await this.store.initiatePayment({
           billId: bill.id,
           method: this.method(),
-          tipAmount: this.tip(),
           customerPhone: this.method() === 'PHONE_PUSH' ? this.phone : undefined,
           amountTendered: this.method() === 'CASH' ? this.tendered() ?? this.total() : undefined,
         });
@@ -670,6 +650,18 @@ export class PaySheet implements OnInit {
     const billId = this.billId();
     if (billId) {
       bill = this.store.bill(billId) ?? (await this.store.loadBill(billId));
+    } else if (this.orderId()) {
+      const orderId = this.orderId() as string;
+      bill = this.store.billForOrder(orderId) ?? (await this.store.loadActiveBillForOrder(orderId));
+      if (!bill) {
+        const result = await this.store.generateBill({ orderId });
+        if (!result.ok) {
+          this.error.set(result.error);
+          this.loading.set(false);
+          return;
+        }
+        bill = result.data;
+      }
     } else if (this.tableId()) {
       bill = this.store.activeBillForTable(this.tableId() as string) ?? null;
       if (!bill) {
@@ -684,7 +676,6 @@ export class PaySheet implements OnInit {
     }
 
     this.bill.set(bill);
-    this.tip.set(bill?.tip ?? 0);
     this.transferred.set(bill ? this.base() : null);
     this.loading.set(false);
 

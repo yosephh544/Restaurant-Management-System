@@ -19,6 +19,21 @@ interface TokenResponse {
   accessTokenExpiry: string;
 }
 
+export interface MyProfile {
+  id: string;
+  fullName: string;
+  username: string;
+  phone?: string | null;
+  role: string;
+}
+
+export interface UpdateMyProfileBody {
+  fullName?: string;
+  phone?: string;
+  currentPassword?: string;
+  newPassword?: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private readonly api = inject(ApiService);
@@ -55,6 +70,29 @@ export class AuthService {
     } catch {
       // Keep the valid token session; /auth/me is non-critical for routing.
     }
+  }
+
+  async getMyProfile(): Promise<MyProfile> {
+    return this.api.get<MyProfile>('/auth/profile');
+  }
+
+  async updateMyProfile(body: UpdateMyProfileBody): Promise<MyProfile> {
+    const updated = await this.api.patch<MyProfile>('/auth/me', body);
+    const current = this.session.profile();
+    if (current) this.session.updateProfile({ ...current, fullName: updated.fullName });
+    return updated;
+  }
+
+  async requestPasswordReset(username: string): Promise<void> {
+    await this.api.post('/auth/forgot-password', { username: username.trim() });
+  }
+
+  async redeemPasswordReset(username: string, code: string, newPassword: string): Promise<void> {
+    await this.api.post('/auth/password-reset/redeem', {
+      username: username.trim(),
+      code: code.trim(),
+      newPassword,
+    });
   }
 
   can(permission: string): boolean {

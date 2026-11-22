@@ -6,6 +6,7 @@ import { AuthService } from '../../core/auth.service';
 import {
   ageLabel,
   dayKey,
+  isTakeaway,
   money,
   Order,
   orderStatusLabel,
@@ -74,12 +75,27 @@ import { Icon } from '../../shared/icon';
         @if (filtered().length) {
           <div class="list">
             @for (order of filtered(); track order.id) {
-              <a class="list-row" [routerLink]="['/waiter/orders', order.id]">
-                <div class="ticket-num" style="font-size: 14px; min-width: 92px; overflow: hidden; text-overflow: ellipsis">
-                  #{{ order.number }}
+              <a class="list-row" [class.row-active]="order.queuePosition > 0" [routerLink]="['/waiter/orders', order.id]">
+                <div class="queue-stack">
+                  @if (order.queuePosition > 0) {
+                    <span [class]="'queue-chip tone-' + tone(order)">{{ 'Q' | t }}{{ order.queuePosition }}</span>
+                  } @else {
+                    <span class="queue-chip tone-grey">{{ 'Done' | t }}</span>
+                  }
+                  <span class="tiny muted" style="font-size: 10.5px">#{{ order.number }}</span>
                 </div>
                 <div class="list-main">
-                  <strong>{{ 'Table' | t }} {{ order.table }} <span class="muted tiny">· {{ countItems(order) }} {{ 'items' | t }}</span></strong>
+                  <strong>
+                    @if (isTakeaway(order)) {
+                      <app-icon name="receipt" style="font-size: 12px" /> {{ 'Takeaway' | t }}
+                    } @else {
+                      <app-icon name="table" style="font-size: 12px" /> {{ 'Table' | t }} {{ order.table }}
+                    }
+                    <span class="muted tiny">· {{ countItems(order) }} {{ 'items' | t }}</span>
+                    @if (order.queuePosition > 0 && order.queuePosition === 1) {
+                      <span class="pill pill-amber no-dot" style="margin-left: 6px">{{ 'Next up' | t }}</span>
+                    }
+                  </strong>
                   <span>{{ summary(order) }} · {{ ageLabel(order.createdAt) }} {{ 'ago' | t }}</span>
                 </div>
                 <div class="list-meta">
@@ -115,6 +131,7 @@ export class WaiterOrdersPage implements OnInit {
   protected readonly ageLabel = ageLabel;
   protected readonly orderStatusLabel = orderStatusLabel;
   protected readonly paymentStatusLabel = paymentStatusLabel;
+  protected readonly isTakeaway = isTakeaway;
   protected readonly scope = signal<'active' | 'all'>('active');
   protected readonly query = signal('');
 
@@ -143,9 +160,12 @@ export class WaiterOrdersPage implements OnInit {
 
   protected readonly filtered = computed(() => {
     const query = this.query().trim().toLowerCase();
-    return this.store
+    const list = this.store
       .ordersForWaiter(this.waiterId, this.scope())
       .filter((o) => !query || o.number.toLowerCase().includes(query) || o.table.toLowerCase().includes(query));
+    if (this.scope() !== 'active') return list;
+    // FIFO: the kitchen queue is the same order everyone sees.
+    return [...list].sort((a, b) => (a.queuePosition || 1e9) - (b.queuePosition || 1e9));
   });
 
   async ngOnInit(): Promise<void> {
@@ -158,7 +178,7 @@ export class WaiterOrdersPage implements OnInit {
 
   protected summary(order: Order): string {
     const lines = order.lines.filter((l) => l.status !== 'CANCELLED');
-    const names = lines.slice(0, 2).map((l) => `${l.name} ×${l.qty}`);
+    const names = lines.slice(0, 2).map((l) => `${l.nameAm || l.name} ×${l.qty}`);
     if (!names.length) return translate('All items cancelled');
     return names.join(', ') + (lines.length > 2 ? '…' : '');
   }

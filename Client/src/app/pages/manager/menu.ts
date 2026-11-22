@@ -22,6 +22,7 @@ interface MenuDraft {
   type: MenuCategoryType;
   categoryId: string;
   name: string;
+  nameAm: string;
   description: string;
   price: number;
   available: boolean;
@@ -131,6 +132,10 @@ interface MenuDraft {
                   </td>
                   <td>
                     <strong>{{ item.name }}</strong>
+                    @if (item.nameAm) {
+                      <br />
+                      <span class="tiny muted">{{ item.nameAm }}</span>
+                    }
                     <br />
                     @if (item.description) {
                       <span class="tiny muted">{{ item.description }}</span>
@@ -210,6 +215,10 @@ interface MenuDraft {
               <div class="field">
                 <label class="label" for="item-name">{{ 'Name' | t }}</label>
                 <input id="item-name" class="input" [(ngModel)]="draft.name" />
+              </div>
+              <div class="field">
+                <label class="label" for="item-name-am">{{ 'Amharic name (optional)' | t }}</label>
+                <input id="item-name-am" class="input" lang="am" [(ngModel)]="draft.nameAm" placeholder="የምግብ ስም" />
               </div>
               <div class="field">
                 <label class="label" for="item-category">{{ 'Category' | t }}</label>
@@ -504,6 +513,7 @@ export class MenuPage {
       type: category?.type ?? MenuCategoryType.Food,
       categoryId: item.categoryId,
       name: item.name,
+      nameAm: item.nameAm ?? '',
       description: item.description ?? '',
       price: item.price,
       available: item.available,
@@ -670,6 +680,7 @@ export class MenuPage {
       id: this.draft.id,
       categoryId: this.draft.categoryId,
       name: this.draft.name.trim(),
+      nameAm: this.draft.nameAm.trim() || undefined,
       price: Math.round(+this.draft.price * 100) / 100,
       taxRate: this.store.settings().taxRate || 15,
       description: this.draft.description.trim(),
@@ -720,6 +731,7 @@ export class MenuPage {
       type,
       categoryId: categoryId && sections.some((section) => section.id === categoryId) ? categoryId : sections[0]?.id ?? '',
       name: '',
+      nameAm: '',
       description: '',
       price: 0,
       available: true,

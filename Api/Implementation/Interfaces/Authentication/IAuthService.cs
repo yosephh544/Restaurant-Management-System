@@ -9,4 +9,6 @@ public interface IAuthService
     Task<AuthResponse> RefreshTokenAsync(RefreshTokenRequest request, CancellationToken ct = default);
     Task LogoutAsync(LogoutRequest request, CancellationToken ct = default);
     Task<EncryptedStaffProfileDto> GetCurrentUserProfileAsync(CancellationToken ct = default);
+    Task<MyProfileResponse> GetMyProfileAsync(CancellationToken ct = default);
+    Task<MyProfileResponse> UpdateMyProfileAsync(UpdateMyProfileRequest request, CancellationToken ct = default);
 }

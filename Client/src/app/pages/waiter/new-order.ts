@@ -2,7 +2,7 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { MenuItem, money } from '../../core/models';
+import { MenuItem, money, OrderType } from '../../core/models';
 import { assetUrl } from '../../core/api.config';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
@@ -33,11 +33,11 @@ interface CartLine {
         </div>
       </div>
 
-      @if (!tables().length) {
+      @if (!tables().length && orderType() === 'DINE_IN') {
         <div class="card empty" style="padding: 56px 20px">
           <app-icon name="table" />
           <strong>{{ 'No tables configured' | t }}</strong>
-          <p>{{ 'An owner or manager needs to add tables under Admin → Settings before orders can be taken.' | t }}</p>
+          <p>{{ 'Choose takeaway above, or ask an owner or manager to add tables under Admin → Settings.' | t }}</p>
           @if (canManageTables()) {
             <a class="btn btn-primary btn-sm mt-3" routerLink="/admin/settings">{{ 'Add tables' | t }}</a>
           }
@@ -46,14 +46,26 @@ interface CartLine {
         <div class="composer">
           <section class="menu-panel">
             <div class="menu-toolbar">
-              <div class="table-select" style="margin: 0">
-                <app-icon name="table" />
-                <select class="select" [ngModel]="table()" (ngModelChange)="table.set($event)" [attr.aria-label]="'Table' | t">
-                  @for (t of tables(); track t.id) {
-                    <option [value]="t.number">{{ 'Table' | t }} {{ t.number }}{{ t.name ? ' · ' + t.name : '' }}</option>
-                  }
-                </select>
+              <div class="row" style="gap: 6px">
+                <button class="chip" type="button" [class.active]="orderType() === 'DINE_IN'" (click)="orderType.set('DINE_IN')">
+                  <app-icon name="table" /> {{ 'Dine-in' | t }}
+                </button>
+                <button class="chip" type="button" [class.active]="orderType() === 'TAKEAWAY'" (click)="orderType.set('TAKEAWAY')">
+                  <app-icon name="receipt" /> {{ 'Takeaway' | t }}
+                </button>
               </div>
+              @if (orderType() === 'DINE_IN') {
+                <div class="table-select" style="margin: 0">
+                  <app-icon name="table" />
+                  <select class="select" [ngModel]="table()" (ngModelChange)="table.set($event)" [attr.aria-label]="'Table' | t">
+                    @for (t of tables(); track t.id) {
+                      <option [value]="t.number">{{ 'Table' | t }} {{ t.number }}{{ t.name ? ' · ' + t.name : '' }}</option>
+                    }
+                  </select>
+                </div>
+              } @else {
+                <span class="pill pill-blue no-dot">{{ 'Takeaway · fee' | t }} {{ money(store.settings().takeawayFee) }} ETB</span>
+              }
               <div class="search">
                 <app-icon name="search" />
                 <input type="search" [ngModel]="query()" (ngModelChange)="query.set($event)" [placeholder]="'Search the menu' | t" />
@@ -83,6 +95,9 @@ interface CartLine {
                   </span>
                   <span class="menu-body">
                     <span class="menu-name">{{ item.name }}</span>
+                    @if (item.nameAm) {
+                      <span class="tiny muted">{{ item.nameAm }}</span>
+                    }
                     <span class="menu-price">{{ money(item.price) }} ETB</span>
                     @if (!item.available) {
                       <span class="avail off" style="margin-top: 4px">{{ 'Unavailable' | t }}</span>
@@ -152,6 +167,9 @@ interface CartLine {
             <div class="sum-totals">
               <div class="sum-row"><span>{{ 'Subtotal' | t }}</span><span class="num">{{ money(subtotal()) }} ETB</span></div>
               <div class="sum-row"><span>{{ 'Tax' | t }}</span><span class="num">{{ money(tax()) }} ETB</span></div>
+              @if (orderType() === 'TAKEAWAY') {
+                <div class="sum-row"><span>{{ 'Takeaway packaging fee' | t }}</span><span class="num">{{ money(store.settings().takeawayFee) }} ETB</span></div>
+              }
               <div class="sum-row total"><span>{{ 'Total' | t }}</span><span class="num">{{ money(total()) }} ETB</span></div>
             </div>
 
@@ -192,7 +210,7 @@ interface CartLine {
   `,
 })
 export class NewOrderPage implements OnInit {
-  private readonly store = inject(Store);
+  protected readonly store = inject(Store);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
 
@@ -201,6 +219,7 @@ export class NewOrderPage implements OnInit {
   protected readonly tables = this.store.tables;
   protected readonly menu = this.store.menu;
 
+  protected readonly orderType = signal<OrderType>('DINE_IN');
   protected readonly table = signal('');
   protected readonly query = signal('');
   protected readonly activeCategory = signal('All');
@@ -260,10 +279,11 @@ export class NewOrderPage implements OnInit {
   });
 
   protected readonly total = computed(() => {
+    const fee = this.orderType() === 'TAKEAWAY' ? this.store.settings().takeawayFee : 0;
     if (this.store.settings().pricesIncludeTax) {
-      return Math.round(this.cart().reduce((sum, l) => sum + l.price * l.qty, 0) * 100) / 100;
+      return Math.round((this.cart().reduce((sum, l) => sum + l.price * l.qty, 0) + fee) * 100) / 100;
     }
-    return Math.round((this.subtotal() + this.tax()) * 100) / 100;
+    return Math.round((this.subtotal() + this.tax() + fee) * 100) / 100;
   });
 
   async ngOnInit(): Promise<void> {
@@ -324,12 +344,14 @@ export class NewOrderPage implements OnInit {
   }
 
   protected async send(): Promise<void> {
-    if (!this.table() || !this.cart().length || this.busy()) return;
+    const takeaway = this.orderType() === 'TAKEAWAY';
+    if ((!takeaway && !this.table()) || !this.cart().length || this.busy()) return;
     this.busy.set(true);
     const result = await this.store.createOrder(
-      this.table(),
+      takeaway ? null : this.table(),
       this.cart().map((l) => ({ menuItemId: l.itemId, quantity: l.qty, notes: l.notes || undefined })),
       this.notes().trim(),
+      this.orderType(),
     );
     this.busy.set(false);
 

@@ -3,12 +3,24 @@ import { authGuard, roleGuard } from './core/guards';
 import { Shell } from './layout/shell';
 import { Home } from './pages/home';
 import { LoginPage } from './pages/auth/login';
+import { ForgotPasswordPage } from './pages/auth/forgot-password';
+import { ResetPasswordPage } from './pages/auth/reset-password';
 
 export const routes: Routes = [
   {
     path: 'login',
     title: 'Sign in · Majete Corner',
     component: LoginPage,
+  },
+  {
+    path: 'forgot-password',
+    title: 'Forgot password · Majete Corner',
+    component: ForgotPasswordPage,
+  },
+  {
+    path: 'reset-password',
+    title: 'Reset password · Majete Corner',
+    component: ResetPasswordPage,
   },
   {
     path: '',
@@ -20,6 +32,11 @@ export const routes: Routes = [
         pathMatch: 'full',
         title: 'Majete Corner',
         component: Home,
+      },
+      {
+        path: 'profile',
+        title: 'My profile · Majete Corner',
+        loadComponent: () => import('./pages/profile/profile').then((m) => m.ProfilePage),
       },
       {
         path: 'waiter',
@@ -130,6 +147,11 @@ export const routes: Routes = [
             path: 'staff',
             title: 'Staff · Majete Corner',
             loadComponent: () => import('./pages/manager/staff').then((m) => m.StaffPage),
+          },
+          {
+            path: 'password-resets',
+            title: 'Password resets · Majete Corner',
+            loadComponent: () => import('./pages/manager/password-resets').then((m) => m.PasswordResetsPage),
           },
           {
             path: 'shifts',

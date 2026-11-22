@@ -191,7 +191,7 @@ namespace RestaurantManagement.Api.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
 
-                    b.Property<Guid>("TableId")
+                    b.Property<Guid?>("TableId")
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<Guid>("WaiterId")
@@ -423,6 +423,24 @@ namespace RestaurantManagement.Api.Migrations
                     b.ToTable("waiter_tips", (string)null);
                 });
 
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Configuration.DailyNumberSequence", b =>
+                {
+                    b.Property<string>("Kind")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<string>("DayKey")
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.Property<int>("LastValue")
+                        .HasColumnType("int");
+
+                    b.HasKey("Kind", "DayKey");
+
+                    b.ToTable("daily_number_sequences", (string)null);
+                });
+
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Configuration.RestaurantSettings", b =>
                 {
                     b.Property<Guid>("Id")
@@ -475,6 +493,10 @@ namespace RestaurantManagement.Api.Migrations
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
 
+                    b.Property<decimal>("TakeawayFee")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
+
                     b.Property<decimal>("TaxRate")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
@@ -498,6 +520,59 @@ namespace RestaurantManagement.Api.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("restaurant_settings", (string)null);
+                });
+
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.PasswordResetRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier")
+                        .HasDefaultValueSql("NEWSEQUENTIALID()");
+
+                    b.Property<DateTime?>("ApprovedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid?>("ApprovedByUserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("CancelledAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("CodeExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CodeHash")
+                        .HasMaxLength(255)
+                        .HasColumnType("nvarchar(255)");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("RequestedAt")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("datetime2")
+                        .HasDefaultValueSql("GETUTCDATE()");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ApprovedByUserId");
+
+                    b.HasIndex("RequestedAt");
+
+                    b.HasIndex("UserId", "Status");
+
+                    b.ToTable("password_reset_requests", (string)null);
                 });
 
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.Permission", b =>
@@ -865,6 +940,10 @@ namespace RestaurantManagement.Api.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("nvarchar(200)");
 
+                    b.Property<string>("NameAm")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
                     b.Property<int?>("PreparationTimeMinutes")
                         .HasColumnType("int");
 
@@ -933,6 +1012,13 @@ namespace RestaurantManagement.Api.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("nvarchar(30)");
 
+                    b.Property<string>("OrderType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("nvarchar(20)")
+                        .HasDefaultValue("DineIn");
+
                     b.Property<Guid?>("ParentOrderId")
                         .HasColumnType("uniqueidentifier");
 
@@ -961,6 +1047,10 @@ namespace RestaurantManagement.Api.Migrations
                         .IsRequired()
                         .HasMaxLength(20)
                         .HasColumnType("nvarchar(20)");
+
+                    b.Property<decimal>("TakeawayFee")
+                        .HasPrecision(10, 2)
+                        .HasColumnType("decimal(10,2)");
 
                     b.Property<decimal>("TaxTotal")
                         .HasPrecision(10, 2)
@@ -1159,8 +1249,7 @@ namespace RestaurantManagement.Api.Migrations
                     b.HasOne("RestaurantManagement.Infrustructure.Models.Billing.RestaurantTable", "Table")
                         .WithMany("Sessions")
                         .HasForeignKey("TableId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
+                        .OnDelete(DeleteBehavior.Restrict);
 
                     b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.User", "Waiter")
                         .WithMany()
@@ -1231,6 +1320,24 @@ namespace RestaurantManagement.Api.Migrations
                     b.Navigation("Payment");
 
                     b.Navigation("Waiter");
+                });
+
+            modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.PasswordResetRequest", b =>
+                {
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.User", "ApprovedBy")
+                        .WithMany()
+                        .HasForeignKey("ApprovedByUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("RestaurantManagement.Infrustructure.Models.Identity.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("ApprovedBy");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("RestaurantManagement.Infrustructure.Models.Identity.RefreshToken", b =>

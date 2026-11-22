@@ -37,6 +37,7 @@ public class SettingsService : ISettingsService
         settings.TaxRate = request.TaxRate;
         settings.PricesIncludeTax = request.PricesIncludeTax;
         settings.ServiceCharge = request.ServiceCharge;
+        settings.TakeawayFee = request.TakeawayFee;
         settings.TipPresetsCsv = string.Join(',', request.TipPresets.Select(p => p.ToString("0.##")));
         settings.CashEnabled = request.Cash;
         settings.QrEnabled = request.Qr;
@@ -61,6 +62,7 @@ public class SettingsService : ISettingsService
         TaxRate = settings.TaxRate,
         PricesIncludeTax = settings.PricesIncludeTax,
         ServiceCharge = settings.ServiceCharge,
+        TakeawayFee = settings.TakeawayFee,
         TipPresets = settings.TipPresetsCsv
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(value => decimal.TryParse(value, out var parsed) ? parsed : (decimal?)null)

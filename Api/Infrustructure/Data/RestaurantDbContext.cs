@@ -19,6 +19,7 @@ public class RestaurantDbContext : DbContext
     // ── Identity ────────────────────────────────────────────────────────────
     public DbSet<User> Users { get; set; }
     public DbSet<RefreshToken> RefreshTokens { get; set; }
+    public DbSet<PasswordResetRequest> PasswordResetRequests { get; set; }
     public DbSet<Shift> Shifts { get; set; }
     public DbSet<ShiftException> ShiftExceptions { get; set; }
 
@@ -49,6 +50,7 @@ public class RestaurantDbContext : DbContext
 
     // ── Configuration ────────────────────────────────────────────────────────
     public DbSet<RestaurantSettings> RestaurantSettings { get; set; }
+    public DbSet<DailyNumberSequence> DailyNumberSequences { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -57,6 +59,7 @@ public class RestaurantDbContext : DbContext
         // ── Schema table naming (snake_case to match documentation) ───────────
         modelBuilder.Entity<User>().ToTable("users");
         modelBuilder.Entity<RefreshToken>().ToTable("refresh_tokens");
+        modelBuilder.Entity<PasswordResetRequest>().ToTable("password_reset_requests");
         modelBuilder.Entity<Shift>().ToTable("shifts");
         modelBuilder.Entity<ShiftException>().ToTable("shift_exceptions");
         modelBuilder.Entity<MenuCategory>().ToTable("menu_categories");
@@ -75,6 +78,14 @@ public class RestaurantDbContext : DbContext
         modelBuilder.Entity<BillItem>().ToTable("bill_items");
         modelBuilder.Entity<BillAudit>().ToTable("bill_audits");
         modelBuilder.Entity<RestaurantSettings>().ToTable("restaurant_settings");
+        modelBuilder.Entity<DailyNumberSequence>().ToTable("daily_number_sequences");
+
+        modelBuilder.Entity<DailyNumberSequence>(entity =>
+        {
+            entity.HasKey(s => new { s.Kind, s.DayKey });
+            entity.Property(s => s.Kind).HasMaxLength(10);
+            entity.Property(s => s.DayKey).HasMaxLength(10);
+        });
 
         modelBuilder.Entity<RestaurantSettings>(entity =>
         {
@@ -85,6 +96,7 @@ public class RestaurantDbContext : DbContext
             entity.Property(s => s.Address).HasMaxLength(250);
             entity.Property(s => s.TaxRate).HasPrecision(5, 2);
             entity.Property(s => s.ServiceCharge).HasPrecision(5, 2);
+            entity.Property(s => s.TakeawayFee).HasPrecision(10, 2);
             entity.Property(s => s.TipPresetsCsv).HasMaxLength(100);
             entity.Property(s => s.WebhookSecret).HasMaxLength(250);
             entity.Property(s => s.TelebirrNumber).HasMaxLength(30);
@@ -245,6 +257,29 @@ public class RestaurantDbContext : DbContext
                   .OnDelete(DeleteBehavior.Cascade);
         });
 
+        modelBuilder.Entity<PasswordResetRequest>(entity =>
+        {
+            entity.HasKey(r => r.Id);
+            entity.Property(r => r.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
+
+            entity.Property(r => r.Status).IsRequired().HasConversion<string>().HasMaxLength(20);
+            entity.Property(r => r.CodeHash).HasMaxLength(255);
+            entity.Property(r => r.RequestedAt).HasDefaultValueSql("GETUTCDATE()");
+
+            entity.HasIndex(r => new { r.UserId, r.Status });
+            entity.HasIndex(r => r.RequestedAt);
+
+            entity.HasOne(r => r.User)
+                  .WithMany()
+                  .HasForeignKey(r => r.UserId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(r => r.ApprovedBy)
+                  .WithMany()
+                  .HasForeignKey(r => r.ApprovedByUserId)
+                  .OnDelete(DeleteBehavior.Restrict);
+        });
+
         // ═══════════════════════════════════════════════════════════════════════
         // MENU CATEGORY
         // ═══════════════════════════════════════════════════════════════════════
@@ -280,6 +315,7 @@ public class RestaurantDbContext : DbContext
             entity.Property(m => m.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
 
             entity.Property(m => m.Name).IsRequired().HasMaxLength(200);
+            entity.Property(m => m.NameAm).HasMaxLength(200);
             entity.Property(m => m.UnitPrice).HasPrecision(10, 2);
             entity.Property(m => m.TaxRate).HasPrecision(5, 2);
             entity.Property(m => m.IsAvailable).HasDefaultValue(true);
@@ -314,6 +350,13 @@ public class RestaurantDbContext : DbContext
             entity.HasIndex(o => o.OrderNumber).IsUnique();
 
             entity.Property(o => o.TableNumber).IsRequired().HasMaxLength(20);
+
+            entity.Property(o => o.OrderType)
+                  .HasConversion<string>()
+                  .HasMaxLength(20)
+                  .HasDefaultValue(Enums.Orders.OrderType.DineIn);
+
+            entity.Property(o => o.TakeawayFee).HasPrecision(10, 2);
 
             entity.Property(o => o.OrderStatus)
                   .IsRequired()

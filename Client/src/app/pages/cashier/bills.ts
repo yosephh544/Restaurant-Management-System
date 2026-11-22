@@ -1,4 +1,4 @@
-import { Component, computed, inject, OnInit, signal } from '@angular/core';
+import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { TranslatePipe } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
@@ -95,8 +95,9 @@ import { Icon } from '../../shared/icon';
     </div>
   `,
 })
-export class CashierBillsPage implements OnInit {
+export class CashierBillsPage implements OnInit, OnDestroy {
   private readonly store = inject(Store);
+  private timer: number | null = null;
 
   protected readonly money = money;
   protected readonly ageLabel = ageLabel;
@@ -127,6 +128,14 @@ export class CashierBillsPage implements OnInit {
 
   async ngOnInit(): Promise<void> {
     await Promise.all([this.store.loadBills(), this.store.loadPayments()]);
+    this.timer = window.setInterval(() => void this.store.loadBills(), 10000);
+  }
+
+  ngOnDestroy(): void {
+    if (this.timer !== null) {
+      window.clearInterval(this.timer);
+      this.timer = null;
+    }
   }
 
   protected countItems(bill: Bill): number {

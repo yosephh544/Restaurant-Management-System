@@ -1,6 +1,8 @@
 import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
+import { AuthService } from '../../core/auth.service';
+import { ApiService } from '../../core/api.service';
 import { I18nService, TranslatePipe } from '../../core/i18n';
 import { Icon } from '../../shared/icon';
 
@@ -62,15 +64,23 @@ import { Icon } from '../../shared/icon';
               @if (error()) {
                 <div class="auth-error">{{ error() }}</div>
               }
-              <button class="btn btn-primary btn-lg btn-block" type="submit">{{ 'Request password reset' | t }}</button>
+              <button class="btn btn-primary btn-lg btn-block" type="submit" [disabled]="busy()">
+                {{ busy() ? ('Sending…' | t) : ('Request password reset' | t) }}
+              </button>
               <a class="link-btn" routerLink="/login"><app-icon name="arrow-left" /> {{ 'Back to sign in' | t }}</a>
             </form>
           } @else {
             <div class="auth-success">
               <div class="big-tick"><app-icon name="check" /></div>
               <h2>{{ 'Request received' | t }}</h2>
-              <p class="muted small mt-2"> {{ 'If an active account matches' | t }} <strong>{{ username }}</strong>{{ ', your manager will reset the password. Ask at the counter if it does not happen before your next shift.' | t }} </p>
-              <a class="btn btn-primary btn-block mt-4" routerLink="/login">{{ 'Back to sign in' | t }}</a>
+              <p class="muted small mt-2">
+                {{ 'If an active account matches' | t }} <strong>{{ username }}</strong>{{ ', your manager will approve the reset and give you a one-time code.' | t }}
+                {{ 'Open Reset password with that code to choose a new password.' | t }}
+              </p>
+              <a class="btn btn-secondary btn-block mt-4" [routerLink]="['/reset-password']" [queryParams]="{ username }">
+                {{ 'I have a reset code' | t }}
+              </a>
+              <a class="link-btn mt-3" routerLink="/login"><app-icon name="arrow-left" /> {{ 'Back to sign in' | t }}</a>
             </div>
           }
         </div>
@@ -79,17 +89,29 @@ import { Icon } from '../../shared/icon';
   `,
 })
 export class ForgotPasswordPage {
+  private readonly auth = inject(AuthService);
+  private readonly api = inject(ApiService);
   protected readonly i18n = inject(I18nService);
   protected username = '';
   protected readonly sent = signal(false);
+  protected readonly busy = signal(false);
   protected readonly error = signal('');
 
-  protected submit(): void {
+  protected async submit(): Promise<void> {
+    if (this.busy()) return;
     if (this.username.trim().length < 3) {
       this.error.set(this.i18n.t('Enter your username.'));
       return;
     }
     this.error.set('');
-    this.sent.set(true);
+    this.busy.set(true);
+    try {
+      await this.auth.requestPasswordReset(this.username);
+      this.sent.set(true);
+    } catch (error) {
+      this.error.set(this.api.message(error));
+    } finally {
+      this.busy.set(false);
+    }
   }
 }

@@ -66,6 +66,18 @@ import { Icon } from './icon';
             </div>
           </div>
 
+          @if (ticket().paymentStatus === 'PAID') {
+            <div class="pending-box mt-3" style="background: var(--amber-soft); border-color: var(--amber-line)">
+              <div class="row" style="align-items: flex-start">
+                <app-icon name="cash" style="color: var(--amber)" />
+                <div>
+                  <strong style="color: var(--amber)">{{ 'This ticket is already paid' | t }}</strong>
+                  <p style="color: var(--amber)"> {{ 'Cancelling flags the payment as refund due. The cashier or manager must return the money from the Payments page.' | t }} </p>
+                </div>
+              </div>
+            </div>
+          }
+
           @if (error()) {
             <div class="auth-error mt-3">{{ error() }}</div>
           }

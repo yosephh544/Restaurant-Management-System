@@ -17,10 +17,15 @@ public class ReportService : IReportService
         _dbContext = dbContext;
     }
 
+    // The UI sends date-only bounds. Treat To as an inclusive calendar day so a
+    // same-day range ("today") does not collapse to a zero-length window.
+    private static DateTime? ExclusiveEnd(DateTime? to) => to?.Date.AddDays(1);
+
     public async Task<SalesSummaryResponse> GetSalesSummaryAsync(ReportDateRangeRequest request, CancellationToken ct = default)
     {
         var ordersQuery = _dbContext.Orders.AsNoTracking();
         var paymentsQuery = _dbContext.Payments.AsNoTracking().Where(p => p.Status == PaymentGatewayStatus.Paid);
+        var toExclusive = ExclusiveEnd(request.To);
 
         if (request.From.HasValue)
         {
@@ -28,10 +33,10 @@ public class ReportService : IReportService
             paymentsQuery = paymentsQuery.Where(p => p.CreatedAt >= request.From.Value);
         }
 
-        if (request.To.HasValue)
+        if (toExclusive.HasValue)
         {
-            ordersQuery = ordersQuery.Where(o => o.CreatedAt <= request.To.Value);
-            paymentsQuery = paymentsQuery.Where(p => p.CreatedAt <= request.To.Value);
+            ordersQuery = ordersQuery.Where(o => o.CreatedAt < toExclusive.Value);
+            paymentsQuery = paymentsQuery.Where(p => p.CreatedAt < toExclusive.Value);
         }
 
         var orders = await ordersQuery.ToListAsync(ct);
@@ -73,6 +78,7 @@ public class ReportService : IReportService
             .AsQueryable();
 
         var tipsQuery = _dbContext.WaiterTips.AsNoTracking();
+        var toExclusive = ExclusiveEnd(request.To);
 
         if (request.From.HasValue)
         {
@@ -80,10 +86,10 @@ public class ReportService : IReportService
             tipsQuery = tipsQuery.Where(t => t.CreatedAt >= request.From.Value);
         }
 
-        if (request.To.HasValue)
+        if (toExclusive.HasValue)
         {
-            ordersQuery = ordersQuery.Where(o => o.CreatedAt <= request.To.Value);
-            tipsQuery = tipsQuery.Where(t => t.CreatedAt <= request.To.Value);
+            ordersQuery = ordersQuery.Where(o => o.CreatedAt < toExclusive.Value);
+            tipsQuery = tipsQuery.Where(t => t.CreatedAt < toExclusive.Value);
         }
 
         var orders = await ordersQuery.ToListAsync(ct);
@@ -125,12 +131,13 @@ public class ReportService : IReportService
             .Include(c => c.Order)
             .Include(c => c.OrderItem)
             .AsQueryable();
+        var toExclusive = ExclusiveEnd(request.To);
 
         if (request.From.HasValue)
             query = query.Where(c => c.CreatedAt >= request.From.Value);
 
-        if (request.To.HasValue)
-            query = query.Where(c => c.CreatedAt <= request.To.Value);
+        if (toExclusive.HasValue)
+            query = query.Where(c => c.CreatedAt < toExclusive.Value);
 
         var cancellations = await query.ToListAsync(ct);
 
@@ -175,12 +182,13 @@ public class ReportService : IReportService
         var query = _dbContext.Orders
             .AsNoTracking()
             .Where(o => o.OrderStatus == OrderStatus.Served && o.ServedAt.HasValue);
+        var toExclusive = ExclusiveEnd(request.To);
 
         if (request.From.HasValue)
             query = query.Where(o => o.CreatedAt >= request.From.Value);
 
-        if (request.To.HasValue)
-            query = query.Where(o => o.CreatedAt <= request.To.Value);
+        if (toExclusive.HasValue)
+            query = query.Where(o => o.CreatedAt < toExclusive.Value);
 
         var servedOrders = await query.ToListAsync(ct);
 

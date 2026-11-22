@@ -19,6 +19,7 @@ public class PublicMenuItemResponse
 {
     public Guid Id { get; init; }
     public string Name { get; init; } = default!;
+    public string? NameAm { get; init; }
     public string? Description { get; init; }
     public decimal UnitPrice { get; init; }
     public bool IsAvailable { get; init; }

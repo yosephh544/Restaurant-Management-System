@@ -4,9 +4,12 @@ namespace RestaurantManagement.Implementation.Dtos.Orders;
 
 public class CreateOrderRequest
 {
-    [Required(ErrorMessage = "Table number is required.")]
+    /// <summary>Required for dine-in orders; ignored for takeaway tickets.</summary>
     [MaxLength(20, ErrorMessage = "Table number cannot exceed 20 characters.")]
-    public string TableNumber { get; set; } = default!;
+    public string? TableNumber { get; set; }
+
+    /// <summary>DINE_IN (default) or TAKEAWAY.</summary>
+    public string? OrderType { get; set; }
 
     [Required(ErrorMessage = "Order must contain at least one item.")]
     [MinLength(1, ErrorMessage = "Order must contain at least one item.")]
