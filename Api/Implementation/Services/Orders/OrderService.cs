@@ -448,12 +448,16 @@ public class OrderService : IOrderService
         if (activeItems.Count == 0)
             throw new ConflictException("This order has no items to serve.");
 
-        if (activeItems.Any(i => i.ItemStatus == OrderItemStatus.Active))
-            throw new ConflictException("Order cannot be served until kitchen and bar have marked every item ready.");
+        var preparedItems = activeItems
+            .Where(i => i.ItemStatus == OrderItemStatus.Prepared)
+            .ToList();
+
+        if (preparedItems.Count == 0)
+            throw new ConflictException("No items are ready to serve yet.");
 
         var now = DateTime.UtcNow;
 
-        foreach (var item in activeItems.Where(i => i.ItemStatus == OrderItemStatus.Prepared))
+        foreach (var item in preparedItems)
         {
             item.ItemStatus = OrderItemStatus.Served;
             item.ServedAt = now;
@@ -602,6 +606,7 @@ public class OrderService : IOrderService
             CustomerNotes = i.CustomerNotes,
             ItemStatus = i.ItemStatus.ToString().ToUpperInvariant(),
             Station = i.PreparationStation.ToString().ToUpperInvariant(),
+            CreatedAt = i.CreatedAt,
             ServedAt = i.ServedAt
         }).ToList()
     };

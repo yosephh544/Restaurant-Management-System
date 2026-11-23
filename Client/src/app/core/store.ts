@@ -31,6 +31,7 @@ import {
   Payment,
   PaymentStatus,
   PaymentStatusInfo,
+  ReceiptVerification,
   Reports,
   roleFrom,
   SalesSummary,
@@ -164,6 +165,7 @@ interface OrderItemDto {
   taxRate: number;
   customerNotes?: string | null;
   itemStatus: ItemStatus;
+  createdAt: string;
   servedAt?: string | null;
 }
 
@@ -253,6 +255,20 @@ interface PaymentDto {
   verifiedAt?: string | null;
   verifiedVia?: string | null;
   verificationNote?: string | null;
+}
+
+interface ReceiptVerificationDto {
+  configured: boolean;
+  verified: boolean;
+  duplicate: boolean;
+  amount?: number | null;
+  currency?: string | null;
+  payerName?: string | null;
+  bank?: string | null;
+  bankName?: string | null;
+  receiptStatus?: string | null;
+  transactionDate?: string | null;
+  message?: string | null;
 }
 
 interface PaymentStatusDto {
@@ -911,8 +927,18 @@ export class Store {
   ordersForWaiter(waiterId: string, scope: 'active' | 'all' = 'active'): Order[] {
     const list = this.orders().filter((o) => o.waiterId === waiterId);
     if (scope === 'all') return list;
+    // Served tickets stay in the workspace until the bill is collected.
     return list
-      .filter((o) => o.status === 'PENDING' || o.status === 'PREPARING' || o.status === 'READY')
+      .filter(
+        (o) =>
+          o.status === 'PENDING' ||
+          o.status === 'PREPARING' ||
+          o.status === 'READY' ||
+          (o.status === 'SERVED' &&
+            o.paymentStatus !== 'PAID' &&
+            o.paymentStatus !== 'REFUNDED' &&
+            o.paymentStatus !== 'TRANSFERRED'),
+      )
       .sort((a, b) => (a.queuePosition || 1e9) - (b.queuePosition || 1e9));
   }
 
@@ -1103,6 +1129,29 @@ export class Store {
       this.payments.update((list) => [payment, ...list]);
       await this.reloadBilling();
       return payment;
+    });
+  }
+
+  async verifyReceipt(request: PaymentRequest): Promise<Result<ReceiptVerification>> {
+    return await this.guard(async () => {
+      const dto = await this.api.post<ReceiptVerificationDto>('/payments/receipt/verify', {
+        method: request.method,
+        receiptUrl: request.receiptUrl || null,
+        transactionNumber: request.transactionNumber || null,
+      });
+      return {
+        configured: dto.configured,
+        verified: dto.verified,
+        duplicate: dto.duplicate,
+        amount: dto.amount ?? undefined,
+        currency: dto.currency ?? undefined,
+        payerName: dto.payerName ?? undefined,
+        bank: dto.bank ?? undefined,
+        bankName: dto.bankName ?? undefined,
+        receiptStatus: dto.receiptStatus ?? undefined,
+        transactionDate: dto.transactionDate ?? undefined,
+        message: dto.message ?? undefined,
+      };
     });
   }
 
@@ -1432,6 +1481,7 @@ export class Store {
           taxRate: i.taxRate,
           notes: i.customerNotes ?? undefined,
           status: i.itemStatus,
+          createdAt: i.createdAt,
           servedAt: i.servedAt ?? undefined,
           lineTotal: Math.round(i.unitPrice * i.quantity * 100) / 100,
         }),

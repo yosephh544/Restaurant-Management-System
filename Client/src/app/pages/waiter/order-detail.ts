@@ -130,12 +130,12 @@ import { PaySheet } from '../../shared/pay-sheet';
                   <app-icon name="clock" />
                   <span>
                     {{ readyCount() }}/{{ activeLines().length }} {{ 'items ready' | t }} ·
-                    {{ 'Serve all unlocks when every item is ready.' | t }}
+                    {{ 'Serve all delivers the ready items and leaves the rest untouched.' | t }}
                   </span>
                 </div>
               }
               <div class="bill-lines">
-                @for (line of o.lines; track line.id) {
+                @for (line of lines(); track line.id) {
                   <div class="bill-line" [style.opacity]="line.status === 'CANCELLED' ? 0.45 : 1">
                     <div>
                       <strong [style.text-decoration]="line.status === 'CANCELLED' ? 'line-through' : 'none'">
@@ -374,6 +374,13 @@ export class OrderDetailPage implements OnInit {
   protected readonly order = computed(() => this.store.order(this.id));
   protected readonly isTakeaway = isTakeaway;
 
+  /// Newest lines first so items added to an existing ticket show at the top.
+  protected readonly lines = computed(() =>
+    [...(this.order()?.lines ?? [])].sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
+    ),
+  );
+
   protected readonly payment = computed(() => {
     const order = this.order();
     if (!order) return undefined;
@@ -502,14 +509,6 @@ export class OrderDetailPage implements OnInit {
 
   protected async serveAll(): Promise<void> {
     if (this.busy()) return;
-    if (!this.allPrepared()) {
-      const remaining = this.activeLines().length - this.readyCount();
-      this.toast.show(
-        translate('{count} item(s) are still being prepared.', { count: remaining }),
-        'error',
-      );
-      return;
-    }
     this.busy.set(true);
     const result = await this.store.serveOrder(this.id);
     this.busy.set(false);

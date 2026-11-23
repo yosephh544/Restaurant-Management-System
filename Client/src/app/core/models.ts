@@ -151,6 +151,7 @@ export interface OrderLine {
   taxRate: number;
   notes?: string;
   status: ItemStatus;
+  createdAt: string;
   servedAt?: string;
   lineTotal: number;
 }
@@ -258,6 +259,20 @@ export function methodLabel(method: string): string {
 
 export function verificationLabel(status: VerificationState | string): string {
   return translate(VERIFICATION_LABEL[status as VerificationState] ?? status);
+}
+
+export interface ReceiptVerification {
+  configured: boolean;
+  verified: boolean;
+  duplicate: boolean;
+  amount?: number;
+  currency?: string;
+  payerName?: string;
+  bank?: string;
+  bankName?: string;
+  receiptStatus?: string;
+  transactionDate?: string;
+  message?: string;
 }
 
 export interface Payment {

@@ -13,7 +13,15 @@ import {
 import { TranslatePipe, translate } from '../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Bill, METHOD_LABEL, money, PayMethod, Payment, payStateLabel } from '../core/models';
+import {
+  Bill,
+  METHOD_LABEL,
+  money,
+  PayMethod,
+  Payment,
+  payStateLabel,
+  ReceiptVerification,
+} from '../core/models';
 import { Store } from '../core/store';
 import { ToastService } from '../core/toast.service';
 import { Icon } from './icon';
@@ -184,11 +192,11 @@ import { Icon } from './icon';
             <div class="field mt-3">
               <span class="label">{{ 'Payment method' | t }}</span>
               <div class="method-grid">
-                <button class="method-btn" type="button" [class.active]="method() === 'CASH'" [disabled]="!settings().cash" (click)="method.set('CASH')">
+                <button class="method-btn" type="button" [class.active]="method() === 'CASH'" [disabled]="!settings().cash" (click)="selectMethod('CASH')">
                   <app-icon name="cash" /> {{ 'Cash' | t }} </button>
-                <button class="method-btn" type="button" [class.active]="method() === 'TELEBIRR'" (click)="method.set('TELEBIRR')">
+                <button class="method-btn" type="button" [class.active]="method() === 'TELEBIRR'" (click)="selectMethod('TELEBIRR')">
                   <app-icon name="phone" /> {{ 'Telebirr' | t }} </button>
-                <button class="method-btn" type="button" [class.active]="method() === 'CBE'" (click)="method.set('CBE')">
+                <button class="method-btn" type="button" [class.active]="method() === 'CBE'" (click)="selectMethod('CBE')">
                   <app-icon name="card" /> {{ 'CBE' | t }} </button>
               </div>
             </div>
@@ -241,19 +249,31 @@ import { Icon } from './icon';
                 }
               </div>
 
-              <div class="field mt-3">
-                <label class="label" for="transferred">{{ 'Amount transferred' | t }}</label>
-                <input
-                  id="transferred"
-                  class="input"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  [ngModel]="transferred()"
-                  (ngModelChange)="setTransferred($event)"
-                />
-                <span class="hint">{{ 'Enter the amount on the customer receipt. Anything above the bill is kept as the waiter tip.' | t }}</span>
-              </div>
+              @if (amountLocked()) {
+                <div class="pending-box" style="margin-top: 12px">
+                  <div class="row">
+                    <app-icon name="check-circle" />
+                    <div>
+                      <strong>{{ 'Verified amount' | t }}: {{ money(verifiedAmount() ?? 0) }} ETB</strong>
+                      <p>{{ 'The amount was read from the verified receipt; anything above the bill becomes the waiter tip.' | t }}</p>
+                    </div>
+                  </div>
+                </div>
+              } @else {
+                <div class="field mt-3">
+                  <label class="label" for="transferred">{{ 'Amount transferred' | t }}</label>
+                  <input
+                    id="transferred"
+                    class="input"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    [ngModel]="transferred()"
+                    (ngModelChange)="setTransferred($event)"
+                  />
+                  <span class="hint">{{ 'Enter the amount on the customer receipt. Anything above the bill is kept as the waiter tip.' | t }}</span>
+                </div>
+              }
 
               <div class="pending-box" style="margin-top: 10px">
                 <div class="between">
@@ -317,10 +337,55 @@ import { Icon } from './icon';
                     id="txn"
                     class="input"
                     [ngModel]="transactionNumber()"
-                    (ngModelChange)="transactionNumber.set($event)"
+                    (ngModelChange)="setTransactionNumber($event)"
                     [attr.placeholder]="'Optional when the receipt link is available' | t"
                   />
                 </div>
+              }
+
+              @if (verifying()) {
+                <div class="pending-box" style="margin-top: 10px">
+                  <div class="row">
+                    <app-icon name="clock" />
+                    <div><strong>{{ 'Verifying the receipt with check.et…' | t }}</strong></div>
+                  </div>
+                </div>
+              } @else if (verification(); as v) {
+                @if (v.configured && v.verified) {
+                  <div class="pending-box" style="margin-top: 10px">
+                    <div class="row">
+                      <app-icon name="check-circle" />
+                      <div style="flex: 1; min-width: 0">
+                        <strong>{{ 'Receipt verified' | t }}</strong>
+                        <p>
+                          @if (v.payerName) {
+                            {{ 'Payer' | t }}: {{ v.payerName }}
+                          } @else {
+                            {{ 'The receipt is stored on this order for later review.' | t }}
+                          }
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                } @else if (!v.configured) {
+                  <div class="pending-box" style="margin-top: 10px">
+                    <div class="row">
+                      <app-icon name="alert-circle" />
+                      <div>
+                        <strong>{{ 'Receipt verification is unavailable' | t }}</strong>
+                        <p>{{ 'check.et is not configured. Enter the transferred amount manually.' | t }}</p>
+                      </div>
+                    </div>
+                  </div>
+                } @else {
+                  <div class="auth-error mt-3">
+                    {{
+                      v.duplicate
+                        ? ('This receipt has already been verified for another payment.' | t)
+                        : (v.message || ('check.et could not confirm this receipt.' | t))
+                    }}
+                  </div>
+                }
               }
 
               <p class="tiny muted mt-3">
@@ -335,7 +400,7 @@ import { Icon } from './icon';
 
           <div class="modal-foot">
             <button class="btn btn-ghost" type="button" (click)="close()">{{ 'Cancel' | t }}</button>
-            <button class="btn btn-primary" type="button" [disabled]="busy() || (isDigital() && digitalShort() > 0)" (click)="submit()">
+            <button class="btn btn-primary" type="button" [disabled]="busy() || verifying() || (isDigital() && digitalShort() > 0)" (click)="submit()">
               <app-icon [name]="method() === 'CASH' ? 'cash' : method() === 'TELEBIRR' ? 'phone' : 'card'" />
               {{
                 busy()
@@ -386,6 +451,8 @@ export class PaySheet implements OnInit {
   protected readonly receiptUrl = signal('');
   protected readonly transactionNumber = signal('');
   protected readonly scanning = signal(false);
+  protected readonly verifying = signal(false);
+  protected readonly verification = signal<ReceiptVerification | null>(null);
   protected readonly error = signal('');
   protected readonly busy = signal(false);
   protected readonly loading = signal(true);
@@ -396,6 +463,8 @@ export class PaySheet implements OnInit {
   private pollTimer: ReturnType<typeof setInterval> | undefined;
   private scanTimer: ReturnType<typeof setTimeout> | undefined;
   private scanStream: MediaStream | undefined;
+  private verifyTimer: ReturnType<typeof setTimeout> | undefined;
+  private verifyRequest = 0;
 
   protected readonly base = computed(() => {
     const bill = this.bill();
@@ -419,6 +488,14 @@ export class PaySheet implements OnInit {
       : 0,
   );
 
+  protected readonly verifiedAmount = computed(() => {
+    const v = this.verification();
+    if (!v?.configured || !v.verified || v.amount === undefined || v.amount === null) return null;
+    return Math.round(v.amount * 100) / 100;
+  });
+
+  protected readonly amountLocked = computed(() => this.verifiedAmount() !== null);
+
   protected readonly change = computed(() =>
     Math.max(0, Math.round(((this.tendered() ?? 0) - this.total()) * 100) / 100),
   );
@@ -437,6 +514,7 @@ export class PaySheet implements OnInit {
     this.destroyRef.onDestroy(() => {
       this.stopPolling();
       this.stopScan();
+      this.cancelVerify();
     });
   }
 
@@ -454,6 +532,77 @@ export class PaySheet implements OnInit {
 
   protected setTransferred(value: number | string | null): void {
     this.transferred.set(value === null || value === '' ? null : +value);
+  }
+
+  protected selectMethod(method: PayMethod): void {
+    if (this.method() === method) return;
+    this.method.set(method);
+    this.error.set('');
+    this.verification.set(null);
+    this.transferred.set(this.base());
+    this.scheduleVerify(0);
+  }
+
+  protected setTransactionNumber(value: string): void {
+    this.transactionNumber.set(value ?? '');
+    this.verification.set(null);
+    this.scheduleVerify(650);
+  }
+
+  private scheduleVerify(delay: number): void {
+    this.cancelVerify();
+    if (!this.isDigital()) return;
+    const receipt = this.receiptUrl().trim();
+    const transaction = this.transactionNumber().trim();
+    if (this.method() === 'TELEBIRR' && !receipt) return;
+    if (this.method() === 'CBE' && !receipt && !transaction) return;
+    this.verifyTimer = setTimeout(() => void this.verifyReceipt(), delay);
+  }
+
+  private async verifyReceipt(): Promise<void> {
+    if (!this.isDigital()) return;
+    const receipt = this.receiptUrl().trim();
+    const transaction = this.transactionNumber().trim();
+    if (this.method() === 'TELEBIRR' && !receipt) return;
+    if (this.method() === 'CBE' && !receipt && !transaction) return;
+
+    const request = ++this.verifyRequest;
+    this.verifying.set(true);
+
+    const result = await this.store.verifyReceipt({
+      billId: this.bill()?.id ?? '',
+      method: this.method(),
+      receiptUrl: receipt || undefined,
+      transactionNumber: transaction || undefined,
+    });
+
+    if (request !== this.verifyRequest) return;
+    this.verifying.set(false);
+
+    if (!result.ok) {
+      this.verification.set(null);
+      this.error.set(result.error);
+      return;
+    }
+
+    const verification = result.data;
+    this.verification.set(verification);
+    if (verification.configured && verification.verified) {
+      this.error.set('');
+      // The receipt's amount replaces the waiter's guess; anything above the bill is the tip.
+      if (verification.amount !== undefined && verification.amount !== null) {
+        this.transferred.set(Math.round(verification.amount * 100) / 100);
+      }
+    }
+  }
+
+  private cancelVerify(): void {
+    this.verifyRequest++;
+    this.verifying.set(false);
+    if (this.verifyTimer !== undefined) {
+      clearTimeout(this.verifyTimer);
+      this.verifyTimer = undefined;
+    }
   }
 
   protected async submit(): Promise<void> {
@@ -620,6 +769,7 @@ export class PaySheet implements OnInit {
             this.receiptUrl.set(value);
             this.stopScan();
             this.toast.show(translate('Receipt QR scanned'));
+            this.scheduleVerify(0);
             return;
           }
         } catch {
@@ -637,6 +787,7 @@ export class PaySheet implements OnInit {
   protected close(): void {
     this.stopPolling();
     this.stopScan();
+    this.cancelVerify();
     this.closed.emit();
   }
 

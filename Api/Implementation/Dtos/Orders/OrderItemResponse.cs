@@ -13,5 +13,6 @@ public class OrderItemResponse
     public string? CustomerNotes { get; init; }
     public string ItemStatus { get; init; } = default!;
     public string Station { get; init; } = default!;
+    public DateTime CreatedAt { get; init; }
     public DateTime? ServedAt { get; init; }
 }

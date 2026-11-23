@@ -8,6 +8,7 @@ using RestaurantManagement.Infrustructure.Data;
 using RestaurantManagement.Infrustructure.Enums.Billing;
 using RestaurantManagement.Infrustructure.Enums.Orders;
 using RestaurantManagement.Infrustructure.Models.Billing;
+using RestaurantManagement.Infrustructure.Models.Orders;
 
 namespace RestaurantManagement.Implementation.Services.Billing;
 
@@ -69,18 +70,20 @@ public class BillingService : IBillingService
 
         if (request.OrderId.HasValue)
         {
-            var order = await _db.Orders.AsNoTracking()
+            var order = await _db.Orders
                 .FirstOrDefaultAsync(o => o.Id == request.OrderId.Value, ct)
                 ?? throw new NotFoundException("Order", request.OrderId.Value);
 
+            // Orders created before dining sessions were introduced have no session.
+            // Adopt them so their bill can still be generated.
             if (!order.DiningSessionId.HasValue)
-                throw new ConflictException("This order has no dining session.");
+                await EnsureSessionForOrderAsync(order, ct);
 
             session = await _db.DiningSessions
                 .Include(s => s.Table)
                 .Include(s => s.Orders).ThenInclude(o => o.OrderItems).ThenInclude(i => i.MenuItem)
-                .FirstOrDefaultAsync(s => s.Id == order.DiningSessionId.Value, ct)
-                ?? throw new NotFoundException("DiningSession", order.DiningSessionId.Value);
+                .FirstOrDefaultAsync(s => s.Id == order.DiningSessionId!.Value, ct)
+                ?? throw new NotFoundException("DiningSession", order.DiningSessionId!.Value);
 
             table = session.Table;
         }
@@ -236,6 +239,75 @@ public class BillingService : IBillingService
         return await GetBillAsync(bill.Id, ct);
     }
 
+    /// <summary>
+    /// Older orders predate dining sessions. Attach the order to the active session
+    /// of its table (creating the table when it is no longer registered) or open a
+    /// fresh session so billing and payment still work.
+    /// </summary>
+    private async Task EnsureSessionForOrderAsync(Order order, CancellationToken ct)
+    {
+        Guid? tableId = null;
+
+        if (order.OrderType == OrderType.DineIn
+            && !string.IsNullOrWhiteSpace(order.TableNumber)
+            && !IsTakeawayLabel(order.TableNumber))
+        {
+            var table = await _db.RestaurantTables
+                .FirstOrDefaultAsync(t => t.Number == order.TableNumber && t.IsActive, ct);
+
+            if (table is null)
+            {
+                table = new RestaurantTable
+                {
+                    Id = Guid.NewGuid(),
+                    Number = order.TableNumber,
+                    Name = order.TableNumber,
+                    Capacity = 4,
+                    Status = TableStatus.Occupied,
+                    IsActive = true
+                };
+                _db.RestaurantTables.Add(table);
+            }
+
+            tableId = table.Id;
+
+            var activeSessionId = await _db.DiningSessions
+                .Where(s => s.TableId == tableId && s.Status == DiningSessionStatus.Active)
+                .OrderByDescending(s => s.OpenedAt)
+                .Select(s => (Guid?)s.Id)
+                .FirstOrDefaultAsync(ct);
+
+            if (activeSessionId.HasValue)
+            {
+                order.DiningSessionId = activeSessionId.Value;
+                table.Status = TableStatus.Occupied;
+                await _db.SaveChangesAsync(ct);
+                return;
+            }
+        }
+
+        var session = new DiningSession
+        {
+            Id = Guid.NewGuid(),
+            TableId = tableId,
+            WaiterId = order.WaiterId,
+            Status = DiningSessionStatus.Active,
+            OpenedAt = DateTime.UtcNow
+        };
+
+        _db.DiningSessions.Add(session);
+        order.DiningSessionId = session.Id;
+        await _db.SaveChangesAsync(ct);
+    }
+
+    /// <summary>Legacy takeaway tickets were stored as dine-in rows with a "Takeaway" table label.</summary>
+    private static bool IsTakeawayLabel(string tableNumber)
+    {
+        var normalized = tableNumber.Replace("-", string.Empty).Replace(" ", string.Empty);
+        return normalized.Equals("takeaway", StringComparison.OrdinalIgnoreCase)
+            || normalized.Equals("takeout", StringComparison.OrdinalIgnoreCase);
+    }
+
     public async Task<BillResponse?> GetActiveBillAsync(Guid tableId, CancellationToken ct = default)
     {
         var bill = await _db.Bills.AsNoTracking()
@@ -355,7 +427,7 @@ public class BillingService : IBillingService
         Id = session.Id,
         TableId = session.TableId,
         TableNumber = session.Table?.Number
-            ?? session.Orders.Select(o => o.TableNumber).FirstOrDefault()
+            ?? session.Orders.Select(o => o.TableNumber).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n))
             ?? "Takeaway",
         Status = session.Status.ToString(),
         OpenedAt = session.OpenedAt,
@@ -369,11 +441,10 @@ public class BillingService : IBillingService
         DiningSessionId = bill.DiningSessionId,
         TableId = bill.DiningSession.TableId,
         TableNumber = bill.DiningSession.Table?.Number
-            ?? bill.DiningSession.Orders.Select(o => o.TableNumber).FirstOrDefault()
+            ?? bill.DiningSession.Orders.Select(o => o.TableNumber).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n))
             ?? "Takeaway",
-        OrderType = bill.DiningSession.Orders.Any(o => o.OrderType == OrderType.Takeaway)
-            ? "TAKEAWAY"
-            : "DINE_IN",
+        // A session without a table is a takeaway/takeout ticket, including adopted legacy rows.
+        OrderType = bill.DiningSession.TableId.HasValue ? "DINE_IN" : "TAKEAWAY",
         BillNumber = bill.BillNumber,
         Subtotal = bill.Subtotal,
         TaxTotal = bill.TaxTotal,

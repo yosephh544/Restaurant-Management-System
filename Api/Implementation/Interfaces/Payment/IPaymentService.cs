@@ -13,6 +13,12 @@ public interface IPaymentService
     /// the receipt with check.et, and settles the bill on success.
     /// </summary>
     Task<PaymentResponse> RecordDigitalPaymentAsync(RecordDigitalPaymentRequest request, CancellationToken ct = default);
+
+    /// <summary>
+    /// Confirms a customer transfer receipt with check.et without recording payment, so
+    /// the payment sheet can read the transferred amount from the verified receipt.
+    /// </summary>
+    Task<ReceiptVerificationResponse> VerifyReceiptAsync(ReceiptVerificationRequest request, CancellationToken ct = default);
     Task HandleArifpayWebhookAsync(ArifpayWebhookPayload payload, CancellationToken ct = default);
     Task<PaymentStatusResponse> GetPaymentStatusAsync(Guid paymentId, CancellationToken ct = default);
     Task<PaymentResponse> RetractPaymentAsync(Guid paymentId, CancellationToken ct = default);

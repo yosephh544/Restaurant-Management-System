@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
@@ -16,9 +17,16 @@ namespace RestaurantManagement.Implementation.Services.Payment;
 /// </summary>
 public class CheckEtVerifier : ICheckEtVerifier
 {
+    // The payment sheet verifies a receipt for preview and then records the payment with
+    // the same payload; reuse the result briefly instead of asking check.et twice.
+    private static readonly ConcurrentDictionary<string, CachedVerification> Cache = new();
+    private static readonly TimeSpan CacheLifetime = TimeSpan.FromMinutes(3);
+
     private readonly HttpClient _http;
     private readonly IConfiguration _configuration;
     private readonly ILogger<CheckEtVerifier> _logger;
+
+    private sealed record CachedVerification(DateTime ExpiresAtUtc, CheckEtVerificationResult Result);
 
     public CheckEtVerifier(HttpClient http, IConfiguration configuration, ILogger<CheckEtVerifier> logger)
     {
@@ -55,6 +63,12 @@ public class CheckEtVerifier : ICheckEtVerifier
             payload["transaction_number"] = transactionNumber.Trim();
         if (!string.IsNullOrWhiteSpace(accountNumber))
             payload["account_number"] = accountNumber.Trim();
+
+        var cacheKey = string.Join('|', payload
+            .OrderBy(p => p.Key, StringComparer.Ordinal)
+            .Select(p => $"{p.Key}={p.Value}"));
+        if (Cache.TryGetValue(cacheKey, out var cached) && cached.ExpiresAtUtc > DateTime.UtcNow)
+            return cached.Result;
 
         using var request = new HttpRequestMessage(HttpMethod.Post, "api/v1/verify")
         {
@@ -120,7 +134,13 @@ public class CheckEtVerifier : ICheckEtVerifier
                 var data = ReadObject(root, "data");
                 var receipt = data is { } d ? ReadObject(d, "receipt") : null;
 
-                return new CheckEtVerificationResult
+                // The transferred amount is what the waiter must not have to type; accept
+                // it from whichever envelope the provider used (receipt, data, or root).
+                var amount = receipt is { } r ? ReadDecimal(r, "amount") : null;
+                amount ??= data is { } amountElement ? ReadDecimal(amountElement, "amount") : null;
+                amount ??= ReadDecimal(root, "amount");
+
+                var result = new CheckEtVerificationResult
                 {
                     IsConfigured = true,
                     Verified = success && exists,
@@ -128,14 +148,30 @@ public class CheckEtVerifier : ICheckEtVerifier
                     Bank = data is { } dataElement ? ReadString(dataElement, "bank") : null,
                     BankName = data is { } bankElement ? ReadString(bankElement, "bank_name") : null,
                     Message = message,
-                    Amount = receipt is { } r ? ReadDecimal(r, "amount") : null,
+                    Amount = amount,
                     Currency = receipt is { } c ? ReadString(c, "currency") : null,
                     PayerName = receipt is { } p ? ReadString(p, "payer_name") : null,
                     ReceiverName = receipt is { } rc ? ReadString(rc, "receiver_name") : null,
                     ReceiptStatus = receipt is { } s ? ReadString(s, "status") : null,
                     TransactionDate = receipt is { } t ? ReadDate(t, "transaction_date") : null
                 };
+
+                if (Cache.Count > 512)
+                    PurgeExpiredCacheEntries();
+                Cache[cacheKey] = new CachedVerification(DateTime.UtcNow.Add(CacheLifetime), result);
+
+                return result;
             }
+        }
+    }
+
+    private static void PurgeExpiredCacheEntries()
+    {
+        var now = DateTime.UtcNow;
+        foreach (var entry in Cache)
+        {
+            if (entry.Value.ExpiresAtUtc <= now)
+                Cache.TryRemove(entry.Key, out _);
         }
     }
 

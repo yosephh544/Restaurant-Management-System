@@ -270,6 +270,59 @@ public class PaymentService : IPaymentService
         });
     }
 
+    public async Task<ReceiptVerificationResponse> VerifyReceiptAsync(
+        ReceiptVerificationRequest request,
+        CancellationToken ct = default)
+    {
+        var method = request.Method.Trim().ToUpperInvariant() switch
+        {
+            "TELEBIRR" => PaymentMethod.Telebirr,
+            "CBE" => PaymentMethod.Cbe,
+            _ => throw new ValidationException("Method", "Method must be TELEBIRR or CBE.")
+        };
+
+        var receiptUrl = string.IsNullOrWhiteSpace(request.ReceiptUrl) ? null : request.ReceiptUrl.Trim();
+        if (receiptUrl is not null &&
+            (!Uri.TryCreate(receiptUrl, UriKind.Absolute, out var parsedReceipt) ||
+             (parsedReceipt.Scheme != Uri.UriSchemeHttp && parsedReceipt.Scheme != Uri.UriSchemeHttps)))
+        {
+            throw new ValidationException("ReceiptUrl", "Scan the customer's receipt QR to capture a valid receipt link.");
+        }
+
+        var transactionNumber = string.IsNullOrWhiteSpace(request.TransactionNumber)
+            ? null
+            : request.TransactionNumber.Trim();
+
+        if (method == PaymentMethod.Telebirr && receiptUrl is null)
+            throw new ValidationException("ReceiptUrl", "Scan the customer's Telebirr receipt QR before recording the payment.");
+
+        if (method == PaymentMethod.Cbe && receiptUrl is null && transactionNumber is null)
+            throw new ValidationException("ReceiptUrl", "Scan the customer's CBE receipt or enter its transaction number.");
+
+        var settings = await _dbContext.RestaurantSettings.AsNoTracking().FirstOrDefaultAsync(ct);
+        var verification = await _checkEtVerifier.VerifyAsync(
+            receiptUrl,
+            receiptUrl is null ? (method == PaymentMethod.Cbe ? "cbe" : "telebirr") : null,
+            receiptUrl is null ? transactionNumber : null,
+            method == PaymentMethod.Cbe ? settings?.CbeAccountNumber : null,
+            ct);
+
+        return new ReceiptVerificationResponse
+        {
+            Configured = verification.IsConfigured,
+            Verified = verification.Verified,
+            Duplicate = verification.Duplicate,
+            Amount = verification.Amount,
+            Currency = verification.Currency,
+            PayerName = verification.PayerName,
+            Bank = verification.Bank,
+            BankName = verification.BankName,
+            ReceiptStatus = verification.ReceiptStatus,
+            TransactionDate = verification.TransactionDate,
+            Message = verification.Message
+        };
+    }
+
     public async Task<PaymentResponse> RecordDigitalPaymentAsync(
         RecordDigitalPaymentRequest request,
         CancellationToken ct = default)
