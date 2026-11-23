@@ -10,6 +10,12 @@ abstract final class P {
   static const kitchenView = 'kitchen.view';
   static const kitchenUpdate = 'kitchen.update';
   static const kitchenCancel = 'kitchen.cancel';
+  static const barView = 'bar.view';
+  static const barUpdate = 'bar.update';
+  static const barCancel = 'bar.cancel';
+  static const tablesView = 'tables.view';
+  static const billsGenerate = 'bills.generate';
+  static const billsReopen = 'bills.reopen';
   static const paymentsInitiate = 'payments.initiate';
   static const paymentsView = 'payments.view';
   static const paymentsRetract = 'payments.retract';

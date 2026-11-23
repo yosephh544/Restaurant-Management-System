@@ -22,9 +22,10 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
   Future<RestaurantOrder> _load() async {
     final staff = ref.read(sessionProvider).session!.staff;
     final api = ref.read(restaurantApiProvider);
-    if (staff.can(P.ordersView)) return api.order(widget.id);
+    if (!staff.preparationStaff && staff.can(P.ordersView))
+      return api.order(widget.id);
     try {
-      return await api.kitchenOrder(widget.id);
+      return await api.kitchenOrder(widget.id, station: staff.station);
     } on ApiException catch (e) {
       if (e.status == 404 && mounted) context.go('/queue');
       rethrow;
@@ -99,11 +100,10 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                                           decoration: const InputDecoration(
                                               labelText: 'Reason details',
                                               counterText: ''),
-                                          validator: (v) => reason == 'OTHER' &&
-                                                  (v == null ||
-                                                      v.trim().isEmpty)
-                                              ? 'Add details for Other.'
-                                              : null),
+                                          validator: (v) =>
+                                              (v == null || v.trim().isEmpty)
+                                                  ? 'Explain the cancellation.'
+                                                  : null),
                                     ])))),
                     actions: [
                       TextButton(
@@ -120,7 +120,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                     ])));
     if (result == null || !mounted) return;
     await _act(() async {
-      if (!ref.read(sessionProvider).session!.staff.can(P.kitchenCancel))
+      if (!ref.read(sessionProvider).session!.staff.canCancelStation)
         throw const ApiException('Cancellation permission is required.');
       final current = await _load();
       if (!current.canKitchenCancel ||
@@ -131,10 +131,54 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
         throw const ApiException(
             'The order changed. Refresh its status before cancelling.');
       }
-      await ref
-          .read(restaurantApiProvider)
-          .cancel(order.id, result.$1, result.$2, itemId: itemId);
+      await ref.read(restaurantApiProvider).cancel(
+          order.id, result.$1, result.$2,
+          itemId: itemId,
+          station: ref.read(sessionProvider).session!.staff.station);
     }, refresh);
+  }
+
+  Future<void> _itemAction(RestaurantOrder order, OrderLine line, String action,
+          VoidCallback refresh) =>
+      _act(() async {
+        final staff = ref.read(sessionProvider).session!.staff;
+        final current = await _load();
+        final matches = current.items.where((item) => item.id == line.id);
+        if (matches.isEmpty) {
+          throw const ApiException('This item is no longer available.');
+        }
+        final item = matches.first;
+        final api = ref.read(restaurantApiProvider);
+        if (action == 'SERVED') {
+          if (!staff.canServeItem(current, item)) {
+            throw const ApiException(
+                'Only the assigned waiter can serve a ready item.');
+          }
+          await api.serveItem(order.id, item.id);
+        } else {
+          if (!staff.preparationStaff ||
+              !staff.canUpdateStation ||
+              !item.active ||
+              !const ['PENDING', 'PREPARING'].contains(code(current.status))) {
+            throw const ApiException(
+                'This item is no longer eligible for preparation.');
+          }
+          await api.kitchenItemStatus(order.id, item.id, action,
+              station: staff.station);
+        }
+      }, refresh);
+
+  Future<List<PaymentSession>> _payments(
+      RestaurantOrder order, Staff staff) async {
+    final remote =
+        await ref.read(restaurantApiProvider).orderPayments(order, staff);
+    final local =
+        await ref.read(sessionProvider.notifier).workspace!.sessions();
+    return {
+      for (final payment in local.where((p) => p.orderId == order.id))
+        payment.id: payment,
+      for (final payment in remote) payment.id: payment
+    }.values.toList();
   }
 
   @override
@@ -146,16 +190,18 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
           builder: (order, refresh) {
             final staff = ref.watch(sessionProvider).session?.staff;
             if (staff == null) return const SizedBox.shrink();
-            final financialView = staff.can(P.ordersView);
+            final financialView =
+                !staff.preparationStaff && staff.can(P.ordersView);
             final canEdit = staff.ownsOrOversees(order);
-            final canCancel =
-                staff.can(P.kitchenCancel) && order.canKitchenCancel;
+            final canCancel = staff.canCancelStation && order.canKitchenCancel;
             final items = Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   OrderHeading(
                       number: order.orderNumber,
                       table: order.table,
+                      takeaway: order.takeaway,
+                      queuePosition: order.queuePosition,
                       status: order.status,
                       subtitle: order.waiterName),
                   const SizedBox(height: 10),
@@ -170,6 +216,10 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                         alignment: Alignment.centerLeft,
                         child: StatusBadge(order.paymentStatus)),
                   ],
+                  if (financialView &&
+                      code(order.paymentStatus) == 'REFUNDPENDING')
+                    const Notice(
+                        'This prepaid order needs a refund. Open Payment details to review the full payment before recording it.'),
                   const SizedBox(height: 20),
                   if (order.note.isNotEmpty)
                     Card(
@@ -212,10 +262,45 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                                                                     .lineThrough
                                                                 : null))),
                                           ]),
-                                      if (line.cancelled) ...[
+                                      if (!line.active) ...[
                                         const SizedBox(height: 8),
                                         StatusBadge(line.status),
                                       ],
+                                      if (line.note.isNotEmpty) ...[
+                                        const SizedBox(height: 8),
+                                        Text(line.note),
+                                      ],
+                                      if (staff.preparationStaff &&
+                                          staff.canUpdateStation &&
+                                          line.active &&
+                                          const ['PENDING', 'PREPARING']
+                                              .contains(code(order.status)))
+                                        Wrap(spacing: 8, children: [
+                                          if (code(order.status) == 'PENDING')
+                                            TextButton(
+                                                onPressed: _busy
+                                                    ? null
+                                                    : () => _itemAction(
+                                                        order,
+                                                        line,
+                                                        'PREPARING',
+                                                        refresh),
+                                                child:
+                                                    const Text('Start item')),
+                                          TextButton(
+                                              onPressed: _busy
+                                                  ? null
+                                                  : () => _itemAction(order,
+                                                      line, 'READY', refresh),
+                                              child: const Text('Ready item')),
+                                        ]),
+                                      if (staff.canServeItem(order, line))
+                                        TextButton(
+                                            onPressed: _busy
+                                                ? null
+                                                : () => _itemAction(order, line,
+                                                    'SERVED', refresh),
+                                            child: const Text('Serve item')),
                                       if (canCancel && !line.cancelled)
                                         TextButton.icon(
                                             onPressed: _busy
@@ -255,7 +340,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                                       .served(order.id);
                                 }, refresh),
                         icon: const Icon(Icons.room_service_outlined),
-                        label: const Text('Mark served'))
+                        label: const Text('Serve all'))
                   ],
                   if (canEdit &&
                       staff.canReplaceOrders &&
@@ -269,30 +354,32 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                         icon: const Icon(Icons.replay),
                         label: const Text('Create replacement order'))
                   ],
-                  if (staff.can(P.kitchenUpdate) &&
-                      code(order.status) == 'PENDING')
+                  if (staff.canUpdateStation && code(order.status) == 'PENDING')
                     FilledButton.icon(
                         onPressed: _busy
                             ? null
                             : () => _act(
                                 () => ref
                                     .read(restaurantApiProvider)
-                                    .kitchenStatus(order.id, 'PREPARING'),
+                                    .kitchenStatus(order.id, 'PREPARING',
+                                        station: staff.station),
                                 refresh),
                         icon: const Icon(Icons.soup_kitchen_outlined),
                         label: const Text('Start preparation')),
-                  if (staff.can(P.kitchenUpdate) &&
-                      code(order.status) == 'PREPARING')
+                  if (staff.canUpdateStation &&
+                      const ['PENDING', 'PREPARING']
+                          .contains(code(order.status)))
                     FilledButton.icon(
                         onPressed: _busy
                             ? null
                             : () => _act(
                                 () => ref
                                     .read(restaurantApiProvider)
-                                    .kitchenStatus(order.id, 'READY'),
+                                    .kitchenStatus(order.id, 'READY',
+                                        station: staff.station),
                                 refresh),
                         icon: const Icon(Icons.check_circle_outline),
-                        label: const Text('Mark ready')),
+                        label: const Text('Ready all')),
                   if (canCancel) ...[
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
@@ -302,7 +389,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                   ],
                   if (staff.canTakePayment(order) &&
                       financialView &&
-                      order.canPay) ...[
+                      order.canPayBill) ...[
                     const SizedBox(height: 16),
                     FilledButton.icon(
                         onPressed: _busy
@@ -313,20 +400,22 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                   ],
                   if (staff.can(P.paymentsView) && financialView)
                     FutureBuilder<List<PaymentSession>>(
-                        future: ref
-                            .read(sessionProvider.notifier)
-                            .workspace!
-                            .sessions(),
+                        future: _payments(order, staff),
                         builder: (context, snapshot) {
-                          final matches = (snapshot.data ?? [])
-                              .where((s) => s.orderId == order.id);
-                          return matches.isEmpty
-                              ? const SizedBox.shrink()
-                              : TextButton.icon(
-                                  onPressed: () => context
-                                      .go('/sessions/${matches.first.id}'),
-                                  icon: const Icon(Icons.open_in_new),
-                                  label: const Text('Payment details'));
+                          if (snapshot.hasError) {
+                            return TextButton(
+                                onPressed: () => setState(() {}),
+                                child: const Text('Retry payment details'));
+                          }
+                          return Column(children: [
+                            for (final payment
+                                in snapshot.data ?? <PaymentSession>[])
+                              TextButton(
+                                  onPressed: () =>
+                                      context.go('/sessions/${payment.id}'),
+                                  child: Text(
+                                      'Payment details · ${statusLabel(payment.status)}'))
+                          ]);
                         }),
                   if (_error != null) Notice(_error!, error: true),
                   if (_busy)

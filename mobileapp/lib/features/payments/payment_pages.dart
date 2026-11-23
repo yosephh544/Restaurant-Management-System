@@ -4,10 +4,13 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../core/api.dart';
+import '../../core/billing.dart';
 import '../../core/models.dart';
 import '../../core/permissions.dart';
 import '../../core/session.dart';
 import '../../core/widgets.dart';
+import 'table_bill_dialog.dart';
+import 'receipt_scanner.dart';
 
 const testPaymentNotice = 'Test payment. No money is collected.';
 double _amount(String value) {
@@ -29,23 +32,31 @@ String? _moneyError(String? value, double maximum) {
 Future<void> startPayment(
     BuildContext context, WidgetRef ref, RestaurantOrder order) async {
   final form = GlobalKey<FormState>();
-  var tip = '0.00', phone = '', tendered = '', method = 'CASH';
+  var phone = '',
+      tendered = '',
+      method = 'CASH',
+      transaction = '',
+      amountPaid = '';
   String? error;
   bool busy = false, uncertain = false;
   final api = ref.read(restaurantApiProvider);
   final workspace = ref.read(sessionProvider.notifier).workspace!;
-  final offline = ref.read(sessionProvider).isDemo;
-  final id = await showDialog<String>(
+  final bill = await prepareTableBill(
+      context, api, order, ref.read(sessionProvider).session!.staff);
+  if (!context.mounted || bill == null) return;
+  final receipt = TextEditingController();
+  final route = DialogRoute<String>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) => StatefulBuilder(builder: (c, change) {
             final cash = method == 'CASH';
             final needsPhone = method == 'PHONE_PUSH';
-            final due = order.subtotal + order.tax + _amount(tip);
+            final digital = method == 'TELEBIRR' || method == 'CBE';
+            final due = bill.base;
             return PopScope(
                 canPop: !busy,
                 child: AlertDialog(
-                    title: const Text('Take payment'),
+                    title: Text('Pay ${bill.locationLabel.toLowerCase()}'),
                     content: SizedBox(
                         width: 460,
                         child: SingleChildScrollView(
@@ -56,10 +67,14 @@ Future<void> startPayment(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
                                     children: [
-                                      if (!cash && !offline)
+                                      if (!cash && !digital)
                                         const Notice(testPaymentNotice),
                                       Text(
-                                          '${order.orderNumber} · Table ${order.table}'),
+                                          '${bill.billNumber} · ${bill.orderIds.length} orders'),
+                                      if (code(bill.status) ==
+                                          'PAYMENTINITIATED')
+                                        const Notice(
+                                            'A new payment replaces any pending payment for this table bill.'),
                                       const SizedBox(height: 16),
                                       DropdownButtonFormField<String>(
                                           value: method,
@@ -69,16 +84,20 @@ Future<void> startPayment(
                                             const DropdownMenuItem(
                                                 value: 'CASH',
                                                 child: Text('Cash')),
+                                            const DropdownMenuItem(
+                                                value: 'TELEBIRR',
+                                                child:
+                                                    Text('Telebirr receipt')),
+                                            const DropdownMenuItem(
+                                                value: 'CBE',
+                                                child: Text('CBE receipt')),
                                             DropdownMenuItem(
                                                 value: 'PHONE_PUSH',
-                                                child: Text(offline
-                                                    ? 'Phone request'
-                                                    : 'Phone request (test)')),
+                                                child: Text(
+                                                    'Phone request (test)')),
                                             DropdownMenuItem(
                                                 value: 'QR_SCAN',
-                                                child: Text(offline
-                                                    ? 'QR code'
-                                                    : 'QR code (test)')),
+                                                child: Text('QR code (test)')),
                                           ],
                                           onChanged: busy
                                               ? null
@@ -103,18 +122,92 @@ Future<void> startPayment(
                                                 : null),
                                         const SizedBox(height: 12)
                                       ],
-                                      TextFormField(
-                                          key: const ValueKey('payment-tip'),
-                                          initialValue: tip,
-                                          enabled: !busy,
-                                          keyboardType: const TextInputType
-                                              .numberWithOptions(decimal: true),
-                                          decoration: const InputDecoration(
-                                              labelText: 'Tip (ETB)'),
-                                          onChanged: (v) =>
-                                              change(() => tip = v),
-                                          validator: (v) =>
-                                              _moneyError(v, 100000)),
+                                      if (digital) ...[
+                                        const Text(
+                                            'Record a transfer already made to the restaurant. The server checks the receipt; any overpayment becomes a waiter tip.'),
+                                        const SizedBox(height: 12),
+                                        OutlinedButton.icon(
+                                            onPressed: busy
+                                                ? null
+                                                : () async {
+                                                    change(() => busy = true);
+                                                    try {
+                                                      final link =
+                                                          await scanReceipt(c);
+                                                      if (c.mounted &&
+                                                          link != null) {
+                                                        receipt.text = link;
+                                                      }
+                                                    } catch (e) {
+                                                      if (c.mounted) {
+                                                        change(
+                                                            () => error = '$e');
+                                                      }
+                                                    } finally {
+                                                      if (c.mounted) {
+                                                        change(
+                                                            () => busy = false);
+                                                      }
+                                                    }
+                                                  },
+                                            icon: const Icon(
+                                                Icons.qr_code_scanner),
+                                            label:
+                                                const Text('Scan receipt QR')),
+                                        TextFormField(
+                                            key: const ValueKey(
+                                                'payment-receipt'),
+                                            controller: receipt,
+                                            enabled: !busy,
+                                            maxLength: 500,
+                                            decoration: const InputDecoration(
+                                                labelText: 'Receipt link',
+                                                counterText: ''),
+                                            validator: (value) {
+                                              final text = value?.trim() ?? '';
+                                              if (text.isEmpty &&
+                                                  method == 'CBE' &&
+                                                  transaction
+                                                      .trim()
+                                                      .isNotEmpty) {
+                                                return null;
+                                              }
+                                              return receiptLink(text) == null
+                                                  ? 'Scan or paste a valid receipt link.'
+                                                  : null;
+                                            }),
+                                        if (method == 'CBE')
+                                          TextFormField(
+                                              key: const ValueKey(
+                                                  'payment-transaction'),
+                                              initialValue: transaction,
+                                              enabled: !busy,
+                                              maxLength: 120,
+                                              decoration: const InputDecoration(
+                                                  labelText:
+                                                      'Transaction number (if no link)',
+                                                  counterText: ''),
+                                              onChanged: (value) =>
+                                                  transaction = value),
+                                        TextFormField(
+                                            key: const ValueKey(
+                                                'payment-amount-paid'),
+                                            initialValue: amountPaid,
+                                            enabled: !busy,
+                                            keyboardType: const TextInputType
+                                                .numberWithOptions(
+                                                decimal: true),
+                                            decoration: const InputDecoration(
+                                                labelText:
+                                                    'Amount transferred (ETB)'),
+                                            onChanged: (value) =>
+                                                amountPaid = value,
+                                            validator: (value) =>
+                                                _moneyError(value, 1000000) ??
+                                                (_amount(value ?? '') < due
+                                                    ? 'The transfer must cover the bill.'
+                                                    : null)),
+                                      ],
                                       const SizedBox(height: 16),
                                       Text('Amount due: ${money(due)}',
                                           style: const TextStyle(
@@ -170,25 +263,51 @@ Future<void> startPayment(
                                         .staff;
                                     final current = await api.order(order.id);
                                     if (!staff.canTakePayment(current) ||
-                                        !current.canPay)
+                                        !current.canPayBill)
                                       throw const ApiException(
                                           'The order is no longer eligible for payment. Refresh its details.');
-                                    if ((current.subtotal +
-                                                current.tax -
-                                                order.subtotal -
-                                                order.tax)
-                                            .abs() >
-                                        .001)
+                                    final preview =
+                                        await api.previewBill(current, staff);
+                                    if (preview.bill?.id != bill.id ||
+                                        !preview.bill!.payable ||
+                                        preview.bill!.orderIds.length !=
+                                            bill.orderIds.length ||
+                                        preview.bill!.orderIds
+                                            .difference(bill.orderIds)
+                                            .isNotEmpty ||
+                                        (preview.bill!.total - bill.total)
+                                                .abs() >
+                                            .01) {
                                       throw const ApiException(
-                                          'The order total changed. Refresh it before taking payment.');
-                                    final payment = await api.initiate(
-                                        order.id,
-                                        method,
-                                        double.parse(tip),
-                                        needsPhone ? phone.trim() : '',
-                                        tendered: cash
-                                            ? double.parse(tendered)
-                                            : null);
+                                          'The table bill changed. Close and review it again before paying.');
+                                    }
+                                    final payment = digital
+                                        ? await api.recordDigital(
+                                            bill.id, method,
+                                            receiptUrl: receipt.text.trim(),
+                                            transactionNumber: method == 'CBE'
+                                                ? transaction.trim()
+                                                : null,
+                                            amountPaid:
+                                                double.parse(amountPaid))
+                                        : await api.initiate(order.id, method,
+                                            needsPhone ? phone.trim() : '',
+                                            billId: bill.id,
+                                            tendered: cash
+                                                ? double.parse(tendered)
+                                                : null);
+                                    if ((payment.base - due).abs() > .01 ||
+                                        (!digital &&
+                                            (payment.total - due).abs() >
+                                                .01) ||
+                                        (digital &&
+                                            payment.total + .01 < due)) {
+                                      // Preserve the result even when another device changed the bill.
+                                      await workspace.saveSession(payment);
+                                      throw const ApiException(
+                                          'The server recorded a different payment total. Close and check the saved payment before submitting again.',
+                                          uncertain: true);
+                                    }
                                     try {
                                       await workspace.saveSession(payment);
                                     } catch (_) {
@@ -210,40 +329,49 @@ Future<void> startPayment(
                               ? 'Saving…'
                               : cash
                                   ? 'Accept cash'
-                                  : method == 'QR_SCAN'
-                                      ? (offline
-                                          ? 'Show QR code'
-                                          : 'Show test QR')
-                                      : (offline
-                                          ? 'Start payment'
-                                          : 'Start test payment'))),
+                                  : digital
+                                      ? 'Record transfer'
+                                      : method == 'QR_SCAN'
+                                          ? 'Show test QR'
+                                          : 'Start test payment')),
                     ]));
           }));
+  final id = await Navigator.of(context).push(route);
+  await route.completed;
+  receipt.dispose();
   if (id != null && context.mounted) context.go('/sessions/$id');
 }
 
-class SessionsPage extends ConsumerWidget {
+class SessionsPage extends ConsumerStatefulWidget {
   const SessionsPage({super.key});
   @override
-  Widget build(BuildContext context, WidgetRef ref) => ScreenBody(
+  ConsumerState<SessionsPage> createState() => _SessionsPageState();
+}
+
+class _SessionsPageState extends ConsumerState<SessionsPage> {
+  int _page = 1;
+
+  @override
+  Widget build(BuildContext context) => ScreenBody(
           child:
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         const ScreenHeading(
-            eyebrow: 'Saved sessions',
+            eyebrow: 'Payment records',
             title: 'Payments',
-            subtitle: 'Payment details saved on this device.'),
+            subtitle:
+                'Restaurant payments, including records from other devices.'),
         const SizedBox(height: 16),
-        AsyncPane<List<PaymentSession>>(
-            load: () =>
-                ref.read(sessionProvider.notifier).workspace!.sessions(),
-            builder: (sessions, refresh) => Column(
+        AsyncPane<PageData<PaymentSession>>(
+            loadKey: _page,
+            load: () => ref.read(restaurantApiProvider).payments(page: _page),
+            builder: (data, refresh) => Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      if (sessions.isEmpty)
+                      if (data.items.isEmpty)
                         const EmptyState('No payments',
-                            'Saved payment sessions will appear here.',
+                            'Restaurant payment records will appear here.',
                             icon: Icons.payments_outlined),
-                      for (final session in sessions)
+                      for (final session in data.items)
                         Padding(
                             padding: const EdgeInsets.only(bottom: 12),
                             child: Card(
@@ -260,11 +388,16 @@ class SessionsPage extends ConsumerWidget {
                                         style: const TextStyle(
                                             fontWeight: FontWeight.bold)),
                                     subtitle: Text(
-                                        '${session.methodLabel}${session.cash || ref.watch(sessionProvider).isDemo ? '' : ' · test'} · ${money(session.total)}\n${statusLabel(session.status)} · ${DateFormat('MMM d, HH:mm').format(session.created.toLocal())}'),
+                                        '${session.methodLabel}${session.testPayment ? ' · test' : ''} · ${money(session.total)}\n${statusLabel(session.status)} · ${DateFormat('MMM d, HH:mm').format(session.created.toLocal())}'),
                                     isThreeLine: true,
                                     trailing: const Icon(Icons.chevron_right),
                                     onTap: () => context
                                         .go('/sessions/${session.id}')))),
+                      PageButtons(
+                          page: data.page,
+                          pages: data.totalPages,
+                          total: data.totalCount,
+                          onPage: (page) => setState(() => _page = page)),
                     ])),
       ]));
 }
@@ -272,7 +405,15 @@ class SessionsPage extends ConsumerWidget {
 class PaymentDetail {
   final PaymentSession payment;
   final RestaurantOrder? order;
-  const PaymentDetail(this.payment, this.order);
+  final TableBill? bill;
+  const PaymentDetail(this.payment, this.order, [this.bill]);
+  bool get refundable =>
+      payment.paid &&
+      (order?.refundable ??
+          (const ['SERVED', 'CANCELLEDBYKITCHEN'].contains(
+                  code(payment.metadata['orderStatus'] as String? ?? '')) ||
+              code(payment.metadata['orderPaymentStatus'] as String? ?? '') ==
+                  'REFUNDPENDING'));
 }
 
 class PaymentPage extends ConsumerStatefulWidget {
@@ -289,12 +430,18 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
     final workspace = ref.read(sessionProvider.notifier).workspace!;
     final list = await workspace.sessions();
     final matches = list.where((p) => p.id == widget.id);
-    if (matches.isEmpty)
-      throw const ApiException(
-          'Payment details are not available on this device.');
     final api = ref.read(restaurantApiProvider);
-    final payment =
-        matches.first.withStatus(await api.paymentStatus(widget.id));
+    final staff = ref.read(sessionProvider).session!.staff;
+    final remote = await api.findPayment(widget.id, staff,
+        search: matches.isEmpty ? '' : matches.first.orderNumber);
+    if (remote == null && matches.isEmpty) {
+      throw const ApiException('This payment is no longer available.');
+    }
+    final payment = remote != null
+        ? matches.isEmpty
+            ? remote
+            : remote.withSavedDetails(matches.first)
+        : matches.first.withStatus(await api.paymentStatus(widget.id));
     await workspace.saveSession(payment);
     RestaurantOrder? order;
     if (ref.read(sessionProvider).session?.staff.can(P.ordersView) == true) {
@@ -304,7 +451,11 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
         if (e.status == 401) rethrow;
       }
     }
-    return PaymentDetail(payment, order);
+    TableBill? bill;
+    if (payment.billId != null) {
+      bill = await api.bill(payment.billId!);
+    }
+    return PaymentDetail(payment, order, bill);
   }
 
   Future<void> _run(
@@ -339,23 +490,21 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
               ])) ??
       false;
   Future<void> _refund(PaymentSession payment, VoidCallback refresh) async {
-    final offline = ref.read(sessionProvider).isDemo;
     if (!await _confirm(
         'Record refund?',
-        offline
-            ? 'Record this refund?'
-            : payment.cash
-                ? 'Return the cash to the customer before confirming.'
+        payment.cash
+            ? 'Return ${money(payment.total)} to the customer before confirming.${payment.billId == null ? '' : ' This refunds the full bill, including every order on it.'}'
+            : payment.receiptPayment
+                ? 'Return ${money(payment.total)} through ${payment.methodLabel} before confirming. Recording the refund does not send money.${payment.billId == null ? '' : ' This refunds the full bill.'}'
                 : 'Record a test refund? No money will be returned.',
         'Record refund')) return;
     if (!mounted) return;
     await _run(() async {
       final current = await _load();
       if (!ref.read(sessionProvider).session!.staff.can(P.paymentsRetract) ||
-          !current.payment.paid ||
-          current.order?.served != true)
+          !current.refundable)
         throw const ApiException(
-            'Only a settled payment on a SERVED order can be refunded.');
+            'Only a settled payment on a served, cancelled, or refund-pending order can be refunded.');
       final result = await ref.read(restaurantApiProvider).refund(payment.id);
       await ref.read(sessionProvider.notifier).workspace!.saveSession(
           result.withRequest(
@@ -372,9 +521,10 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
       final current = await _load();
       if (!ref.read(sessionProvider).session!.staff.can(P.paymentsRetract) ||
           !current.payment.paid ||
-          current.order?.served != true)
+          current.order?.served != true ||
+          current.payment.billId != null)
         throw const ApiException(
-            'Only a settled payment on a SERVED order can be transferred.');
+            'Only an individual order payment can be transferred.');
       final result =
           await ref.read(restaurantApiProvider).transfer(payment.id, target);
       final workspace = ref.read(sessionProvider.notifier).workspace!;
@@ -397,15 +547,13 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
             final payment = detail.payment;
             final state = ref.watch(sessionProvider);
             final staff = state.session?.staff;
-            final offline = state.isDemo;
             if (staff == null) return const SizedBox.shrink();
             final canManage = staff.can(P.paymentsRetract);
             final settledServed = payment.paid && detail.order?.served == true;
             return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  if (!payment.cash && !offline)
-                    const Notice(testPaymentNotice),
+                  if (payment.testPayment) const Notice(testPaymentNotice),
                   const SizedBox(height: 12),
                   Card(
                       child: Padding(
@@ -415,9 +563,16 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                               children: [
                                 const Eyebrow('Payment details'),
                                 const SizedBox(height: 6),
-                                Text(payment.orderNumber,
+                                Text(
+                                    detail.bill?.billNumber ??
+                                        payment.orderNumber,
                                     style:
                                         Theme.of(context).textTheme.titleLarge),
+                                if (detail.bill != null) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                      '${detail.bill!.locationLabel} · ${detail.bill!.orderIds.length} orders'),
+                                ],
                                 const SizedBox(height: 12),
                                 Align(
                                     alignment: Alignment.centerLeft,
@@ -440,10 +595,7 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                                 if (code(payment.method) == 'QRSCAN' &&
                                     payment.qrData != null) ...[
                                   const SizedBox(height: 24),
-                                  Text(
-                                      offline
-                                          ? 'QR code'
-                                          : 'Test QR · No money collected',
+                                  Text('Test QR · No money collected',
                                       textAlign: TextAlign.center,
                                       style: TextStyle(
                                           fontWeight: FontWeight.w800,
@@ -453,12 +605,30 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                                           data: payment.qrData!,
                                           size: 240,
                                           backgroundColor: Colors.white,
-                                          semanticsLabel: offline
-                                              ? 'Payment QR code'
-                                              : 'Test QR code. Does not collect money.')),
+                                          semanticsLabel:
+                                              'Test QR code. Does not collect money.')),
                                 ],
                               ]))),
                   const SizedBox(height: 16),
+                  if (payment.receiptPayment) ...[
+                    Text('Receipt: ${statusLabel(payment.verification)}',
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    if (code(payment.verification) != 'VERIFIED')
+                      const Notice(
+                          'This receipt was recorded without verification. Review it before releasing tips.'),
+                    if (payment.metadata['receiptUrl'] != null)
+                      SelectableText(payment.metadata['receiptUrl'] as String),
+                    if (payment.metadata['receiptReference'] != null)
+                      SelectableText(
+                          'Transaction: ${payment.metadata['receiptReference']}'),
+                    if (payment.metadata['verifiedPayerName'] != null)
+                      Text('Payer: ${payment.metadata['verifiedPayerName']}'),
+                    if (payment.metadata['verifiedBank'] != null)
+                      Text('Bank: ${payment.metadata['verifiedBank']}'),
+                    if (payment.metadata['verificationNote'] != null)
+                      Text(payment.metadata['verificationNote'] as String),
+                    const SizedBox(height: 16),
+                  ],
                   if (payment.tip > 0 ||
                       payment.tendered != null ||
                       (payment.change ?? 0) > 0)
@@ -498,12 +668,8 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                             ? null
                             : () async {
                                 if (!await _confirm(
-                                    offline
-                                        ? 'Cancel payment?'
-                                        : 'Cancel test payment?',
-                                    offline
-                                        ? 'Cancel this pending payment?'
-                                        : 'Cancel this pending test payment?',
+                                    'Cancel test payment?',
+                                    'Cancel this pending test payment?',
                                     'Cancel payment')) return;
                                 if (!mounted) return;
                                 await _run(() async {
@@ -517,22 +683,23 @@ class _PaymentPageState extends ConsumerState<PaymentPage> {
                                 }, refresh);
                               },
                         icon: const Icon(Icons.cancel_outlined),
-                        label: Text(
-                            offline ? 'Cancel payment' : 'Cancel test payment'))
+                        label: Text('Cancel test payment'))
                   ],
-                  if (canManage && settledServed) ...[
+                  if (canManage && detail.refundable) ...[
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
                         onPressed:
                             _busy ? null : () => _refund(payment, refresh),
                         icon: const Icon(Icons.undo),
                         label: const Text('Record refund')),
-                    const SizedBox(height: 12),
-                    OutlinedButton.icon(
-                        onPressed:
-                            _busy ? null : () => _transfer(payment, refresh),
-                        icon: const Icon(Icons.swap_horiz),
-                        label: const Text('Transfer payment'))
+                    if (payment.billId == null && settledServed) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                          onPressed:
+                              _busy ? null : () => _transfer(payment, refresh),
+                          icon: const Icon(Icons.swap_horiz),
+                          label: const Text('Transfer payment'))
+                    ],
                   ],
                   if (_busy)
                     const Padding(
@@ -557,56 +724,68 @@ class _TransferDialogState extends ConsumerState<TransferDialog> {
           content: SizedBox(
               width: 460,
               height: 450,
-              child: SingleChildScrollView(
-                  child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                    Text('Select an order for ${money(widget.payment.total)}.',
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
-                    AsyncPane<PageData<RestaurantOrder>>(
-                        loadKey: _page,
-                        load: () => ref.read(restaurantApiProvider).orders(
-                            page: _page,
-                            waiterId: ref
-                                    .read(sessionProvider)
-                                    .session!
-                                    .staff
-                                    .waiter
-                                ? ref.read(sessionProvider).session!.staff.id
-                                : null),
-                        builder: (data, refresh) {
-                          final targets = data.items
-                              .where((o) =>
-                                  o.id != widget.payment.orderId &&
-                                  o.canPay &&
-                                  (o.subtotal +
-                                              o.tax +
-                                              widget.payment.tip -
-                                              widget.payment.total)
-                                          .abs() <=
-                                      .01)
-                              .toList();
-                          return Column(children: [
-                            if (targets.isEmpty)
-                              const EmptyState('No matching orders', ''),
-                            for (final order in targets)
-                              Card(
-                                  child: ListTile(
-                                      title: Text(
-                                          '${order.orderNumber} · Table ${order.table}'),
-                                      subtitle: Text(
-                                          '${statusLabel(order.status)} · ${money(order.subtotal + order.tax + widget.payment.tip)}'),
-                                      trailing: const Icon(Icons.chevron_right),
-                                      onTap: () =>
-                                          Navigator.pop(context, order.id))),
-                            PageButtons(
-                                page: data.page,
-                                pages: data.totalPages,
-                                total: data.totalCount,
-                                onPage: (p) => setState(() => _page = p)),
-                          ]);
-                        }),
-                  ]))),
+              child: PullToRefresh(
+                  child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                                'Select an order for ${money(widget.payment.total)}.',
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w700)),
+                            AsyncPane<PageData<RestaurantOrder>>(
+                                loadKey: _page,
+                                load: () => ref
+                                    .read(restaurantApiProvider)
+                                    .orders(
+                                        page: _page,
+                                        waiterId: ref
+                                                .read(sessionProvider)
+                                                .session!
+                                                .staff
+                                                .waiter
+                                            ? ref
+                                                .read(sessionProvider)
+                                                .session!
+                                                .staff
+                                                .id
+                                            : null),
+                                builder: (data, refresh) {
+                                  final targets = data.items
+                                      .where((o) =>
+                                          o.id != widget.payment.orderId &&
+                                          o.canPayBill &&
+                                          (o.charge +
+                                                      widget.payment.tip -
+                                                      widget.payment.total)
+                                                  .abs() <=
+                                              .01)
+                                      .toList();
+                                  return Column(children: [
+                                    if (targets.isEmpty)
+                                      const EmptyState(
+                                          'No matching orders', ''),
+                                    for (final order in targets)
+                                      Card(
+                                          child: ListTile(
+                                              title: Text(
+                                                  '${order.orderNumber} · ${order.locationLabel}'),
+                                              subtitle: Text(
+                                                  '${statusLabel(order.status)} · ${money(order.charge + widget.payment.tip)}'),
+                                              trailing: const Icon(
+                                                  Icons.chevron_right),
+                                              onTap: () => Navigator.pop(
+                                                  context, order.id))),
+                                    PageButtons(
+                                        page: data.page,
+                                        pages: data.totalPages,
+                                        total: data.totalCount,
+                                        onPage: (p) =>
+                                            setState(() => _page = p)),
+                                  ]);
+                                }),
+                          ])))),
           actions: [
             TextButton(
                 onPressed: () => Navigator.pop(context),

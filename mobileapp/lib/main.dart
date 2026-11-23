@@ -5,6 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'core/session.dart';
 import 'core/widgets.dart';
 import 'core/router.dart';
+import 'core/order_alerts.dart';
+import 'core/order_alert_providers.dart';
+import 'features/notifications/notifications_sheet.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -22,15 +25,25 @@ class RmsApp extends ConsumerStatefulWidget {
 
 class _RmsAppState extends ConsumerState<RmsApp> with WidgetsBindingObserver {
   late SessionController _session;
+  late OrderAlertsController _alerts;
+  final _messenger = GlobalKey<ScaffoldMessengerState>();
   @override
   void initState() {
     super.initState();
     _session = ref.read(sessionProvider.notifier);
+    _alerts = ref.read(orderAlertsProvider.notifier);
+    _alerts.onOpen = (alert) {
+      if (mounted) ref.read(routerProvider).go(alert.route);
+    };
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    _alerts.setForeground(
+        lifecycle == null || lifecycle == AppLifecycleState.resumed);
     WidgetsBinding.instance.addObserver(this);
   }
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    _alerts.setForeground(state == AppLifecycleState.resumed);
     if (mounted && state == AppLifecycleState.resumed) {
       unawaited(_session.revalidate());
     }
@@ -38,14 +51,55 @@ class _RmsAppState extends ConsumerState<RmsApp> with WidgetsBindingObserver {
 
   @override
   void dispose() {
+    _alerts.setForeground(false);
+    _alerts.onOpen = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => MaterialApp.router(
-      title: restaurantName,
-      debugShowCheckedModeBanner: false,
-      theme: serviceTheme(),
-      routerConfig: ref.watch(routerProvider));
+  Widget build(BuildContext context) {
+    ref.listen(orderAlertsProvider, (before, after) {
+      if (before?.delivery == after.delivery || after.recent.isEmpty) return;
+      final alerts = after.recent;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted ||
+            !_alerts.foreground ||
+            _alerts.currentScope != alerts.first.scope) {
+          return;
+        }
+        final message = alerts.length == 1
+            ? '${alerts.first.title}: ${alerts.first.body}'
+            : '${alerts.length} new order alerts';
+        final messenger = _messenger.currentState;
+        messenger?.hideCurrentSnackBar();
+        messenger?.showSnackBar(SnackBar(
+            content: Text(message),
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+                label: 'View',
+                onPressed: () {
+                  if (_alerts.currentScope != alerts.first.scope) return;
+                  if (alerts.length == 1) {
+                    _alerts.open(alerts.first);
+                  } else {
+                    final context = ref
+                        .read(routerProvider)
+                        .routerDelegate
+                        .navigatorKey
+                        .currentState
+                        ?.overlay
+                        ?.context;
+                    if (context != null) showOrderNotifications(context);
+                  }
+                })));
+      });
+    });
+    return MaterialApp.router(
+        scaffoldMessengerKey: _messenger,
+        title: restaurantName,
+        debugShowCheckedModeBanner: false,
+        theme: serviceTheme(),
+        routerConfig: ref.watch(routerProvider));
+  }
 }

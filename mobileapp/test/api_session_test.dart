@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobileapp/core/api.dart';
 import 'package:mobileapp/core/models.dart';
+import 'package:mobileapp/core/permissions.dart';
 import 'package:mobileapp/core/router.dart';
 import 'package:mobileapp/core/session.dart';
 import 'support.dart';
@@ -46,7 +47,7 @@ void main() {
       return (status: 200, body: envelope(authJson()));
     });
     final session = SessionController(deps.api, deps.vault, deps.prefs);
-    await session.login('phone', '1234', true);
+    await session.login('phone', '1234');
     final refresh = session.refresh();
     await requested.future;
     await session.signOut(remote: false);
@@ -146,7 +147,7 @@ void main() {
     final api =
         ApiClient(testServer, transport: Dio()..httpClientAdapter = adapter);
     final session = SessionController(api, deps.vault, deps.prefs);
-    await session.login('+251911111111', '1234', true);
+    await session.login('+251911111111', '1234');
     final first = api.call('GET', 'orders'), second = api.call('GET', 'orders');
     await Future<void>.delayed(const Duration(milliseconds: 20));
     gate.complete();
@@ -159,7 +160,7 @@ void main() {
       () async {
     final deps = await setup();
     final session = SessionController(deps.api, deps.vault, deps.prefs);
-    await session.login('phone', '1234', true);
+    await session.login('phone', '1234');
     await session.workspace!.saveDraft({'lines': []});
     deps.api.dio.httpClientAdapter =
         FakeAdapter((r) async => (status: 401, body: null));
@@ -199,7 +200,7 @@ void main() {
   test('server change clears credentials, draft, and saved sessions', () async {
     final deps = await setup();
     final session = SessionController(deps.api, deps.vault, deps.prefs);
-    await session.login('phone', '1234', true);
+    await session.login('phone', '1234');
     await session.workspace!.saveDraft({'lines': []});
     await session.workspace!
         .saveSession(PaymentSession.fromJson(paymentJson()));
@@ -210,12 +211,27 @@ void main() {
     session.dispose();
   });
   test('role guards reject management and unauthorized service routes', () {
-    SessionState state(String role) =>
-        SessionState(ready: true, session: Session.fromJson(authJson(role)));
+    SessionState state(String role) => SessionState(
+        ready: true,
+        session: Session.fromTokens(
+            authJson(role),
+            Staff.fromJson({
+              ...staffJson(role),
+              'permissions': switch (role) {
+                'Kitchen' => [P.kitchenView],
+                'Bartender' => [P.barView],
+                'Waiter' || 'Cashier' => [P.ordersView, P.paymentsView],
+                _ => <String>[],
+              },
+            })));
     expect(routeRedirect(state('Owner'), '/orders'), '/unsupported');
     expect(routeRedirect(state('Kitchen'), '/orders/new'), '/queue');
     expect(routeRedirect(state('Cashier'), '/tips'), '/orders');
     expect(routeRedirect(state('Waiter'), '/queue'), '/orders');
-    expect(routeRedirect(state('Kitchen'), '/orders/$orderId'), isNull);
+    expect(routeRedirect(state('Kitchen'), '/orders/$orderId'),
+        '/queue/orders/$orderId');
+    expect(routeRedirect(state('Kitchen'), '/queue/orders/$orderId'), isNull);
+    expect(routeRedirect(state('Bartender'), '/queue/orders/$orderId'), isNull);
+    expect(routeRedirect(state('Waiter'), '/queue/orders/$orderId'), '/orders');
   });
 }

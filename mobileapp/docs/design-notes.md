@@ -20,4 +20,4 @@ The user wants an easy-to-read, fast restaurant service app. They rejected a red
 6. Preserve the fixed Review order action, lazy dish list, search/categories, and role-checked shortcuts. Cashier must never acquire Waiter actions through styling changes.
 7. Keep loading, empty, validation, and failure feedback useful. Do not add marketing copy or demo labels to the app.
 
-The latest user instruction is to skip tests. Current validation uses static analysis and Android compilation; do not claim a device usability review or performance benchmark that was not performed.
+The user authorized focused tests when needed and requested that the APK not be rebuilt after every change. Use static analysis and relevant tests for behavior changes; build the app only on explicit request. Do not claim a device usability review or performance benchmark that was not performed.
