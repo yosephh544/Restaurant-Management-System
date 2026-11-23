@@ -38,6 +38,9 @@ public class MenuItem
     /// <summary>Alcoholic classification; only valid for Cold Drinks items.</summary>
     public MenuItemAlcoholType AlcoholType { get; set; } = MenuItemAlcoholType.NotApplicable;
 
+    /// <summary>Day-part section (Breakfast or Lunch); required for food and beverage items, NotApplicable for extras.</summary>
+    public MenuSection Section { get; set; } = MenuSection.NotApplicable;
+
     /// <summary>Manual ordering within the category and on the public menu.</summary>
     public int DisplayOrder { get; set; }
 

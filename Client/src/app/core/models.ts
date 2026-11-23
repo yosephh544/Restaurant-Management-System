@@ -355,6 +355,19 @@ export const ALCOHOL_TYPE_LABEL: Record<MenuItemAlcoholType, string> = {
   [MenuItemAlcoholType.Alcoholic]: 'Alcoholic',
 };
 
+/** Mirrors RestaurantManagement.Infrustructure.Enums.Menu.MenuSection. */
+export enum MenuSection {
+  NotApplicable = 0,
+  Breakfast = 1,
+  Lunch = 2,
+}
+
+export const SECTION_LABEL: Record<MenuSection, string> = {
+  [MenuSection.NotApplicable]: 'Extras',
+  [MenuSection.Breakfast]: 'Breakfast',
+  [MenuSection.Lunch]: 'Lunch',
+};
+
 export interface MenuItem {
   id: string;
   categoryId: string;
@@ -368,6 +381,7 @@ export interface MenuItem {
   imageUrl?: string;
   fastingType: MenuItemFastingType;
   alcoholType: MenuItemAlcoholType;
+  section: MenuSection;
   displayOrder: number;
   featured: boolean;
   preparationTimeMinutes?: number;
@@ -404,6 +418,8 @@ export interface KitchenTicketItem {
   qty: number;
   notes?: string;
   status: ItemStatus;
+  /** Line was added to an order already on the board. */
+  isAddOn: boolean;
 }
 
 export interface KitchenTicket {

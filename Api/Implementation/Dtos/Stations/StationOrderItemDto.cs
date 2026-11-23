@@ -9,4 +9,6 @@ public class StationOrderItemDto
     public int Quantity { get; init; }
     public string? CustomerNotes { get; init; }
     public string ItemStatus { get; init; } = default!;
+    /// <summary>Line was added to an order already on the board (add-on).</summary>
+    public bool IsAddOn { get; init; }
 }

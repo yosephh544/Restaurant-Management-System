@@ -19,6 +19,7 @@ import {
   MenuItem,
   MenuItemAlcoholType,
   MenuItemFastingType,
+  MenuSection,
   MyShift,
   Order,
   OrderLine,
@@ -82,6 +83,7 @@ export interface MenuItemInput {
   available: boolean;
   fastingType?: MenuItemFastingType;
   alcoholType?: MenuItemAlcoholType;
+  section?: MenuSection;
   displayOrder?: number;
   featured?: boolean;
   preparationTimeMinutes?: number;
@@ -287,6 +289,7 @@ interface MenuItemDto {
   imageUrl?: string | null;
   fastingType: MenuItemFastingType;
   alcoholType: MenuItemAlcoholType;
+  section: MenuSection;
   displayOrder: number;
   isFeatured: boolean;
   preparationTimeMinutes?: number | null;
@@ -323,6 +326,7 @@ interface KitchenItemDto {
   quantity: number;
   customerNotes?: string | null;
   itemStatus: ItemStatus;
+  isAddOn?: boolean | null;
 }
 
 interface KitchenTicketDto {
@@ -580,6 +584,7 @@ export class Store {
           qty: i.quantity,
           notes: i.customerNotes ?? undefined,
           status: i.itemStatus,
+          isAddOn: i.isAddOn ?? false,
         })),
       }))
       .sort((a, b) =>
@@ -1174,6 +1179,7 @@ export class Store {
         isAvailable: input.available,
         fastingType: input.fastingType ?? MenuItemFastingType.NotApplicable,
         alcoholType: input.alcoholType ?? MenuItemAlcoholType.NotApplicable,
+        section: input.section ?? MenuSection.NotApplicable,
         displayOrder: input.displayOrder ?? 0,
         isFeatured: input.featured ?? false,
         preparationTimeMinutes: input.preparationTimeMinutes ?? null,
@@ -1514,6 +1520,7 @@ export class Store {
       imageUrl: i.imageUrl ?? undefined,
       fastingType: i.fastingType,
       alcoholType: i.alcoholType,
+      section: i.section ?? MenuSection.NotApplicable,
       displayOrder: i.displayOrder,
       featured: i.isFeatured,
       preparationTimeMinutes: i.preparationTimeMinutes ?? undefined,

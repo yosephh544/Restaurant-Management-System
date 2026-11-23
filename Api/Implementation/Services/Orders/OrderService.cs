@@ -325,7 +325,7 @@ public class OrderService : IOrderService
             order.Subtotal += net;
             order.TaxTotal += itemTax;
 
-            order.OrderItems.Add(new OrderItem
+            var orderItem = new OrderItem
             {
                 Id = Guid.NewGuid(),
                 OrderId = orderId,
@@ -336,8 +336,14 @@ public class OrderService : IOrderService
                 CustomerNotes = reqItem.CustomerNotes,
                 ItemStatus = OrderItemStatus.Active,
                 PreparationStation = PreparationStations.FromCategoryType(menuItem.Category?.Type ?? MenuCategoryType.Food),
+                IsAddOn = true,
                 CreatedAt = DateTime.UtcNow
-            });
+            };
+            order.OrderItems.Add(orderItem);
+            // OrderItem.Id is store-generated (NEWSEQUENTIALID). Detected via the tracked
+            // order's navigation, a client-set key would be attached as Modified (UPDATE,
+            // 0 rows) instead of Added — force the Added state explicitly.
+            _dbContext.Entry(orderItem).State = EntityState.Added;
         }
 
         order.Subtotal = Math.Round(order.Subtotal, 2);

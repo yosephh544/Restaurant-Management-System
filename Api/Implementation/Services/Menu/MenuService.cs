@@ -210,6 +210,9 @@ public class MenuService : IMenuService
         if (query.AlcoholType.HasValue)
             items = items.Where(i => i.AlcoholType == query.AlcoholType.Value);
 
+        if (query.Section.HasValue)
+            items = items.Where(i => i.Section == query.Section.Value);
+
         if (query.IsAvailable.HasValue)
             items = items.Where(i => i.IsAvailable == query.IsAvailable.Value);
 
@@ -257,6 +260,8 @@ public class MenuService : IMenuService
             nameof(request.FastingType),
             nameof(request.AlcoholType));
 
+        ValidateSection(category, request.Section, nameof(request.Section));
+
         var sku = NormalizeSku(request.SKU);
         await EnsureSkuAvailableAsync(sku, null, ct);
 
@@ -273,6 +278,7 @@ public class MenuService : IMenuService
             ImageUrl = request.ImageUrl,
             FastingType = request.FastingType,
             AlcoholType = request.AlcoholType,
+            Section = request.Section,
             DisplayOrder = request.DisplayOrder,
             IsFeatured = request.IsFeatured,
             PreparationTimeMinutes = request.PreparationTimeMinutes,
@@ -309,6 +315,15 @@ public class MenuService : IMenuService
 
         if (request.AlcoholType.HasValue)
             item.AlcoholType = request.AlcoholType.Value;
+
+        if (request.Section.HasValue)
+            item.Section = request.Section.Value;
+        else if (item.Category.Type is MenuCategoryType.Food or MenuCategoryType.Beverage
+                 && item.Section == MenuSection.NotApplicable)
+        {
+            // Legacy items created before sections existed get a valid default on edit.
+            item.Section = MenuSection.Breakfast;
+        }
 
         if (!string.IsNullOrWhiteSpace(request.Name))
             item.Name = request.Name.Trim();
@@ -359,6 +374,8 @@ public class MenuService : IMenuService
             await IsInColdDrinksBranchAsync(item.CategoryId, ct),
             nameof(request.FastingType),
             nameof(request.AlcoholType));
+
+        ValidateSection(item.Category, item.Section, nameof(request.Section));
 
         item.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync(ct);
@@ -495,6 +512,21 @@ public class MenuService : IMenuService
         return false;
     }
 
+    private static void ValidateSection(MenuCategory category, MenuSection section, string field)
+    {
+        if (category.Type is MenuCategoryType.Food or MenuCategoryType.Beverage)
+        {
+            if (section is not (MenuSection.Breakfast or MenuSection.Lunch))
+                throw new ValidationException(
+                    field,
+                    $"{category.Type} items must belong to the Breakfast or Lunch section.");
+        }
+        else if (section != MenuSection.NotApplicable)
+        {
+            throw new ValidationException(field, "Extras do not belong to a day section.");
+        }
+    }
+
     private static void ValidateClassifications(
         MenuCategory category,
         MenuItemFastingType fastingType,
@@ -552,6 +584,7 @@ public class MenuService : IMenuService
         ImageUrl = item.ImageUrl,
         FastingType = item.FastingType,
         AlcoholType = item.AlcoholType,
+        Section = item.Section,
         DisplayOrder = item.DisplayOrder,
         IsFeatured = item.IsFeatured,
         PreparationTimeMinutes = item.PreparationTimeMinutes,

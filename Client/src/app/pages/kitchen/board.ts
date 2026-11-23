@@ -29,30 +29,34 @@ import { IssueDialog } from '../../shared/issue-dialog';
         </div>
       </div>
 
-      <div class="grid grid-4" style="margin-bottom: 18px">
-        <div class="stat-card">
-          <div class="stat-icon" style="background: #f1ede7; color: var(--muted)"><app-icon name="bell" /></div>
-          <div class="stat-label">{{ 'New tickets' | t }}</div>
-          <div class="stat-value">{{ counts().new }}</div>
-          <div class="stat-foot">{{ 'Waiting for accept' | t }}</div>
+      <div class="stat-strip">
+        <div class="strip-stat">
+          <span class="strip-icon"><app-icon name="bell" /></span>
+          <span class="strip-body">
+            <span class="strip-value">{{ counts().new }}</span>
+            <span class="strip-label">{{ 'New tickets' | t }}</span>
+          </span>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background: var(--orange-soft); color: var(--orange)"><app-icon [name]="isBar ? 'glass' : 'utensils'" /></div>
-          <div class="stat-label">{{ 'Preparing' | t }}</div>
-          <div class="stat-value">{{ counts().preparing }}</div>
-          <div class="stat-foot">{{ isBar ? ('On the bar' | t) : ('On the line' | t) }}</div>
+        <div class="strip-stat">
+          <span class="strip-icon orange"><app-icon [name]="isBar ? 'glass' : 'utensils'" /></span>
+          <span class="strip-body">
+            <span class="strip-value">{{ counts().preparing }}</span>
+            <span class="strip-label">{{ 'Preparing' | t }}</span>
+          </span>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="check-circle" /></div>
-          <div class="stat-label">{{ isBar ? ('At the bar' | t) : ('At the pass' | t) }}</div>
-          <div class="stat-value">{{ counts().ready }}</div>
-          <div class="stat-foot">{{ 'Waiting for waiter' | t }}</div>
+        <div class="strip-stat">
+          <span class="strip-icon green"><app-icon name="check-circle" /></span>
+          <span class="strip-body">
+            <span class="strip-value">{{ counts().ready }}</span>
+            <span class="strip-label">{{ isBar ? ('At the bar' | t) : ('At the pass' | t) }}</span>
+          </span>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background: var(--red-soft); color: var(--red)"><app-icon name="clock" /></div>
-          <div class="stat-label">{{ 'Oldest ticket' | t }}</div>
-          <div class="stat-value">{{ oldest() }} <small>{{ 'min' | t }}</small></div>
-          <div class="stat-foot">{{ 'Target under 15 min' | t }}</div>
+        <div class="strip-stat">
+          <span class="strip-icon red"><app-icon name="clock" /></span>
+          <span class="strip-body">
+            <span class="strip-value">{{ oldest() }} <small>{{ 'min' | t }}</small></span>
+            <span class="strip-label">{{ 'Oldest ticket' | t }}</span>
+          </span>
         </div>
       </div>
 
@@ -62,7 +66,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
             <article [class]="'ticket ticket-' + ticket.status.toLowerCase()">
               <div class="ticket-head">
                 @if (ticket.queuePosition > 0) {
-                  <span class="queue-chip">{{ 'Q' | t }}{{ ticket.queuePosition }}</span>
+                  <span class="queue-chip" [class.tone-amber]="ticket.queuePosition === 1">{{ 'Q' | t }}{{ ticket.queuePosition }}</span>
                 }
                 <a class="ticket-num" [routerLink]="[stationPath, ticket.id]">#{{ ticket.number }}</a>
                 @if (isTakeaway(ticket)) {
@@ -75,38 +79,60 @@ import { IssueDialog } from '../../shared/issue-dialog';
               </div>
               <div class="ticket-waiter">
                 <app-icon name="user" /> <strong>{{ ticket.waiterName }}</strong>
-                @if (ticket.queuePosition === 1) {
-                  <span class="pill pill-amber no-dot">{{ 'Next up' | t }}</span>
-                }
               </div>
 
               <div class="ticket-items">
                 @for (item of ticket.items; track item.id) {
-                  <div class="ticket-item">
-                    <span class="ticket-qty">{{ item.qty }}</span>
-                    <div style="flex: 1">
-                      <span [style.text-decoration]="item.status === 'CANCELLED' ? 'line-through' : 'none'" [style.opacity]="item.status === 'CANCELLED' ? 0.45 : 1">
-                        {{ item.name }}
+                  @if (item.status === 'ACTIVE' && ticket.status !== 'PENDING') {
+                    <button class="ticket-item item-btn" type="button"
+                            [disabled]="itemBusy() === item.id"
+                            (click)="readyItem(ticket, item)">
+                      <span class="ticket-qty">{{ item.qty }}</span>
+                      <span class="item-main">
+                        <span>
+                          {{ item.name }}
+                          @if (item.isAddOn) {
+                            <span class="pill pill-amber no-dot add-on-pill">{{ 'Added' | t }}</span>
+                          }
+                        </span>
+                        @if (item.nameAm) {
+                          <span class="tiny muted" lang="am">{{ item.nameAm }}</span>
+                        }
+                        @if (item.notes) {
+                          <span class="tiny" style="color: var(--amber)">{{ item.notes }}</span>
+                        }
                       </span>
-                      @if (item.nameAm) {
-                        <div class="tiny muted" lang="am">{{ item.nameAm }}</div>
-                      }
-                      @if (item.notes) {
-                        <div class="tiny" style="color: var(--amber)">{{ item.notes }}</div>
+                      <span class="item-go">
+                        {{ itemBusy() === item.id ? ('Working…' | t) : ('Ready' | t) }}
+                        @if (itemBusy() !== item.id) {
+                          <app-icon name="check" />
+                        }
+                      </span>
+                    </button>
+                  } @else {
+                    <div class="ticket-item">
+                      <span class="ticket-qty">{{ item.qty }}</span>
+                      <span class="item-main">
+                        <span [style.text-decoration]="item.status === 'CANCELLED' ? 'line-through' : 'none'" [style.opacity]="item.status === 'CANCELLED' ? 0.45 : 1">
+                          {{ item.name }}
+                          @if (item.isAddOn && item.status === 'ACTIVE') {
+                            <span class="pill pill-amber no-dot add-on-pill">{{ 'Added' | t }}</span>
+                          }
+                        </span>
+                        @if (item.nameAm) {
+                          <span class="tiny muted" lang="am">{{ item.nameAm }}</span>
+                        }
+                        @if (item.notes) {
+                          <span class="tiny" style="color: var(--amber)">{{ item.notes }}</span>
+                        }
+                      </span>
+                      @if (item.status === 'CANCELLED') {
+                        <span class="tiny muted">{{ 'Removed' | t }}</span>
+                      } @else if (item.status === 'PREPARED') {
+                        <span class="pill pill-green no-dot">{{ 'Ready' | t }}</span>
                       }
                     </div>
-                    @if (item.status === 'CANCELLED') {
-                      <span class="tiny muted">{{ 'Removed' | t }}</span>
-                    } @else if (item.status === 'PREPARED') {
-                      <span class="pill pill-green no-dot">{{ 'Ready' | t }}</span>
-                    } @else if (ticket.status !== 'PENDING') {
-                      <button class="btn btn-sm btn-primary" type="button"
-                              [disabled]="itemBusy() === item.id"
-                              (click)="readyItem(ticket, item)">
-                        {{ itemBusy() === item.id ? ('Working…' | t) : ('Ready' | t) }}
-                      </button>
-                    }
-                  </div>
+                  }
                 }
               </div>
 
@@ -124,13 +150,6 @@ import { IssueDialog } from '../../shared/issue-dialog';
                 }
                 <button class="btn btn-secondary btn-block" type="button" (click)="issueTicket.set(ticket)">
                   <app-icon name="alert" /> {{ 'Report issue' | t }} </button>
-              </div>
-
-              <div class="ticket-foot">
-                <span [class]="'pill ' + (ticket.status === 'PENDING' ? 'pill-amber' : 'pill-orange')">
-                  {{ ticket.status === 'PENDING' ? ('New' | t) : ('Preparing' | t) }}
-                </span>
-                <span class="tiny muted">{{ ticket.items.length }} {{ 'lines' | t }}</span>
               </div>
             </article>
           }
