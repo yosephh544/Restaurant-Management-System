@@ -5,6 +5,7 @@ using RestaurantManagement.Api.Controllers.Common;
 using RestaurantManagement.Implementation.Dtos.Billing;
 using RestaurantManagement.Implementation.Interfaces.Billing;
 using RestaurantManagement.Infrustructure.Common.Constants;
+using RestaurantManagement.Infrustructure.Enums.Orders;
 
 namespace RestaurantManagement.Api.Controllers.Billing;
 
@@ -30,6 +31,56 @@ public class ReportsController : ApiControllerBase
     {
         var result = await _reportService.GetSalesSummaryAsync(request, ct);
         return OkResponse(result, "Sales summary report generated.");
+    }
+
+    /// <summary>
+    /// Lists every order opened in the range with its payment status and the amount
+    /// expected versus already collected.
+    /// </summary>
+    [HttpGet("orders")]
+    [Permission(Permissions.ReportsView)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<OrderReportResponse>), 200)]
+    public async Task<IActionResult> GetOrders([FromQuery] ReportDateRangeRequest request, CancellationToken ct)
+    {
+        var result = await _reportService.GetOrderReportAsync(request, ct);
+        return OkResponse(result, "Order report generated.");
+    }
+
+    /// <summary>
+    /// Personal performance for the signed-in waiter: own orders, expected and collected
+    /// revenue, and tips for the selected period.
+    /// </summary>
+    [HttpGet("my-waiter")]
+    [Permission(Permissions.OrdersView)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<WaiterReportResponse>), 200)]
+    public async Task<IActionResult> GetMyWaiterReport([FromQuery] ReportDateRangeRequest request, CancellationToken ct)
+    {
+        var result = await _reportService.GetMyWaiterReportAsync(request, ct);
+        return OkResponse(result, "Waiter report generated.");
+    }
+
+    /// <summary>
+    /// Kitchen throughput: tickets handled, items prepared, and preparation/pickup timing.
+    /// </summary>
+    [HttpGet("kitchen")]
+    [Permission(Permissions.KitchenView)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<StationReportResponse>), 200)]
+    public async Task<IActionResult> GetKitchenReport([FromQuery] ReportDateRangeRequest request, CancellationToken ct)
+    {
+        var result = await _reportService.GetStationReportAsync(PreparationStation.Kitchen, request, ct);
+        return OkResponse(result, "Kitchen report generated.");
+    }
+
+    /// <summary>
+    /// Bar throughput: tickets handled, drinks prepared, and preparation/pickup timing.
+    /// </summary>
+    [HttpGet("bar")]
+    [Permission(Permissions.BarView)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<StationReportResponse>), 200)]
+    public async Task<IActionResult> GetBarReport([FromQuery] ReportDateRangeRequest request, CancellationToken ct)
+    {
+        var result = await _reportService.GetStationReportAsync(PreparationStation.Bar, request, ct);
+        return OkResponse(result, "Bar report generated.");
     }
 
     /// <summary>

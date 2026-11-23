@@ -54,6 +54,7 @@ public static class DatabaseSeeder
             Permissions.MenuView, Permissions.CategoriesManage, Permissions.ItemsManage, Permissions.AvailabilityManage,
             Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems, Permissions.OrdersReorder, Permissions.OrdersServe,
             Permissions.KitchenView, Permissions.KitchenUpdate, Permissions.KitchenCancel,
+            Permissions.BarView,
             Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract, Permissions.TipsView,
             Permissions.ReportsView,
             Permissions.TablesView, Permissions.TablesManage, Permissions.BillsGenerate, Permissions.BillsReopen
@@ -64,6 +65,7 @@ public static class DatabaseSeeder
             Permissions.MenuView,
             Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems, Permissions.OrdersServe,
             Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract,
+            Permissions.ReportsView,
             Permissions.TablesView, Permissions.TablesManage, Permissions.BillsGenerate, Permissions.BillsReopen
         }, permissions, db, ct);
 

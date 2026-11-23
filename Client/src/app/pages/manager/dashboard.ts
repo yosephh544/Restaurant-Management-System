@@ -242,7 +242,7 @@ export class ManagerDashboardPage {
   protected readonly metrics = computed(() => {
     const today = dayKey(new Date().toISOString());
     const todaysOrders = this.store.orders().filter((o) => dayKey(o.createdAt) === today);
-    const paidToday = this.store.payments().filter((p) => p.status === 'PAID' && dayKey(p.createdAt) === today);
+    const paidToday = this.store.payments().filter((p) => p.status === 'PAID' && dayKey(p.settledAt ?? p.createdAt) === today);
     const refundedToday = this.store
       .payments()
       .filter((p) => p.status === 'REFUNDED' && dayKey(p.createdAt) === today);
@@ -250,7 +250,8 @@ export class ManagerDashboardPage {
     return {
       orders: todaysOrders.length,
       gross: collected,
-      collected: collected - refundedToday.reduce((sum, p) => sum + p.total, 0),
+      // Refunded payments no longer carry PAID, so they are not subtracted a second time.
+      collected,
       refunds: refundedToday.reduce((sum, p) => sum + p.total, 0),
       tips: paidToday.reduce((sum, p) => sum + p.tip, 0),
       outstanding: this.store.openBills().reduce((sum, b) => sum + b.total, 0),

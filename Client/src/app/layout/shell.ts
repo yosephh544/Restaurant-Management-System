@@ -270,6 +270,7 @@ export class Shell implements OnDestroy {
             { label: t('New Order'), path: '/waiter/new', icon: 'plus' },
             { label: t('My Orders'), path: '/waiter/orders', icon: 'receipt' },
             { label: t('Kitchen & Bar Issues'), path: '/waiter/issues', icon: 'alert', count: issues },
+            { label: t('My Performance'), path: '/waiter/reports', icon: 'chart' },
           ],
         },
       ];
@@ -279,7 +280,10 @@ export class Shell implements OnDestroy {
       return [
         {
           label: t('Workspace'),
-          items: [{ label: t('Kitchen Board'), path: '/kitchen', icon: 'table', count: queue }],
+          items: [
+            { label: t('Kitchen Board'), path: '/kitchen', icon: 'table', count: queue },
+            { label: t('Kitchen Performance'), path: '/kitchen/reports', icon: 'chart' },
+          ],
         },
       ];
     }
@@ -288,7 +292,10 @@ export class Shell implements OnDestroy {
       return [
         {
           label: t('Workspace'),
-          items: [{ label: t('Bar Board'), path: '/bar', icon: 'glass', count: this.store.barQueue().length }],
+          items: [
+            { label: t('Bar Board'), path: '/bar', icon: 'glass', count: this.store.barQueue().length },
+            { label: t('Bar Performance'), path: '/bar/reports', icon: 'chart' },
+          ],
         },
       ];
     }
@@ -300,6 +307,7 @@ export class Shell implements OnDestroy {
           items: [
             { label: t('Open Bills'), path: '/cashier/bills', icon: 'bill', count: bills },
             { label: t('Payments'), path: '/cashier/payments', icon: 'card' },
+            { label: t('Reports'), path: '/cashier/reports', icon: 'chart' },
           ],
         },
       ];

@@ -63,6 +63,11 @@ export const routes: Routes = [
             title: 'Kitchen & bar issues · Majete Corner',
             loadComponent: () => import('./pages/waiter/issues').then((m) => m.WaiterIssuesPage),
           },
+          {
+            path: 'reports',
+            title: 'My performance · Majete Corner',
+            loadComponent: () => import('./pages/waiter/reports').then((m) => m.WaiterReportsPage),
+          },
           { path: '', pathMatch: 'full', redirectTo: 'new' },
         ],
       },
@@ -75,6 +80,12 @@ export const routes: Routes = [
             path: '',
             title: 'Kitchen board · Majete Corner',
             loadComponent: () => import('./pages/kitchen/board').then((m) => m.KitchenBoardPage),
+          },
+          {
+            path: 'reports',
+            title: 'Kitchen performance · Majete Corner',
+            data: { station: 'KITCHEN' },
+            loadComponent: () => import('./pages/kitchen/reports').then((m) => m.StationReportsPage),
           },
           {
             path: ':id',
@@ -92,6 +103,12 @@ export const routes: Routes = [
             path: '',
             title: 'Bar board · Majete Corner',
             loadComponent: () => import('./pages/kitchen/board').then((m) => m.KitchenBoardPage),
+          },
+          {
+            path: 'reports',
+            title: 'Bar performance · Majete Corner',
+            data: { station: 'BAR' },
+            loadComponent: () => import('./pages/kitchen/reports').then((m) => m.StationReportsPage),
           },
           {
             path: ':id',
@@ -124,6 +141,11 @@ export const routes: Routes = [
             path: 'payments',
             title: 'Payments · Majete Corner',
             loadComponent: () => import('./pages/cashier/payments').then((m) => m.CashierPaymentsPage),
+          },
+          {
+            path: 'reports',
+            title: 'Reports · Majete Corner',
+            loadComponent: () => import('./pages/manager/reports').then((m) => m.ReportsPage),
           },
           { path: '', pathMatch: 'full', redirectTo: 'bills' },
         ],

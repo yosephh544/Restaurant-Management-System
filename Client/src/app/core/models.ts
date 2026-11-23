@@ -500,17 +500,44 @@ export const DEFAULT_SETTINGS: Settings = {
   paymentQr: '',
 };
 
+export interface FinancialDailyPoint {
+  date: string;
+  orders: number;
+  expected: number;
+  collected: number;
+  refunds: number;
+  tips: number;
+}
+
 export interface SalesSummary {
   grossSales: number;
   netRevenue: number;
   taxCollected: number;
   tipsCollected: number;
+  expectedAmount: number;
+  collectedAmount: number;
+  outstandingAmount: number;
+  refundedAmount: number;
   totalOrders: number;
   completedOrders: number;
   cancelledOrders: number;
+  paidOrders: number;
+  unpaidOrders: number;
+  pendingPaymentOrders: number;
+  refundPendingOrders: number;
+  refundedOrders: number;
+  transferredOrders: number;
+  phonePushAmount: number;
+  qrScanAmount: number;
+  cashAmount: number;
+  telebirrAmount: number;
+  cbeAmount: number;
   phonePushVolume: number;
   qrScanVolume: number;
   cashVolume: number;
+  telebirrVolume: number;
+  cbeVolume: number;
+  daily: FinancialDailyPoint[];
   periodFrom?: string;
   periodTo?: string;
 }
@@ -519,9 +546,84 @@ export interface WaiterPerformance {
   waiterId: string;
   waiterName: string;
   totalOrders: number;
+  completedOrders: number;
   totalRevenue: number;
+  expectedRevenue: number;
   totalTips: number;
+  unsettledTips: number;
   cancelledOrders: number;
+}
+
+export interface OrderReportItem {
+  orderId: string;
+  orderNumber: string;
+  tableNumber: string;
+  orderType: OrderType;
+  orderStatus: OrderStatus;
+  paymentStatus: PaymentStatus;
+  waiterId: string;
+  waiterName: string;
+  billNumber?: string;
+  expectedAmount: number;
+  collectedAmount: number;
+  tipAmount: number;
+  createdAt: string;
+  servedAt?: string;
+}
+
+export interface OrderReport {
+  orders: OrderReportItem[];
+  totalOrders: number;
+  expectedAmount: number;
+  collectedAmount: number;
+  outstandingAmount: number;
+  paidOrders: number;
+  unpaidOrders: number;
+  pendingPaymentOrders: number;
+  refundPendingOrders: number;
+  refundedOrders: number;
+  cancelledOrders: number;
+}
+
+export interface WaiterDailyPoint {
+  date: string;
+  orders: number;
+  expected: number;
+  collected: number;
+  tips: number;
+}
+
+export interface WaiterReport {
+  waiterId: string;
+  waiterName: string;
+  totalOrders: number;
+  completedOrders: number;
+  cancelledOrders: number;
+  expectedAmount: number;
+  collectedAmount: number;
+  tipsCollected: number;
+  tipsUnsettled: number;
+  tipsPaidOut: number;
+  daily: WaiterDailyPoint[];
+}
+
+export interface StationDailyPoint {
+  date: string;
+  orders: number;
+  items: number;
+  ready: number;
+}
+
+export interface StationReport {
+  station: 'KITCHEN' | 'BAR' | string;
+  totalOrders: number;
+  totalItems: number;
+  itemsReady: number;
+  itemsServed: number;
+  itemsInProgress: number;
+  avgPrepMinutes: number;
+  avgPickupMinutes: number;
+  daily: StationDailyPoint[];
 }
 
 export interface CancellationItem {
@@ -549,6 +651,9 @@ export interface Reports {
   waiters: WaiterPerformance[];
   cancellations: CancellationReport | null;
   turnaround: KitchenTurnaround | null;
+  orders: OrderReport | null;
+  kitchenStation: StationReport | null;
+  barStation: StationReport | null;
 }
 
 export function money(n: number | null | undefined): string {

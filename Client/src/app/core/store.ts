@@ -22,6 +22,7 @@ import {
   MyShift,
   Order,
   OrderLine,
+  OrderReport,
   OrderStatus,
   OrderType,
   PayMethod,
@@ -36,10 +37,12 @@ import {
   ShiftDay,
   ShiftDefinition,
   StaffUser,
+  StationReport,
   Table,
   TipEntry,
   VerificationState,
   WaiterPerformance,
+  WaiterReport,
 } from './models';
 import { SessionService } from './session.service';
 
@@ -407,7 +410,12 @@ export class Store {
     waiters: [],
     cancellations: null,
     turnaround: null,
+    orders: null,
+    kitchenStation: null,
+    barStation: null,
   });
+  readonly myReport = signal<WaiterReport | null>(null);
+  readonly stationReport = signal<StationReport | null>(null);
   readonly loaded = signal(false);
   readonly refreshing = signal(false);
   private scheduleRange: { from: string; to: string } | null = null;
@@ -435,11 +443,11 @@ export class Store {
     return {
       orders: summary?.totalOrders ?? this.orders().length,
       gross: summary?.grossSales ?? 0,
-      collected: summary?.netRevenue ?? 0,
+      collected: summary?.collectedAmount ?? 0,
       tips: summary?.tipsCollected ?? 0,
       tax: summary?.taxCollected ?? 0,
       cancelled: summary?.cancelledOrders ?? 0,
-      outstanding: this.openBills().reduce((sum, b) => sum + b.total, 0),
+      outstanding: summary?.outstandingAmount ?? this.openBills().reduce((sum, b) => sum + b.total, 0),
       activeIssues: this.openIssues().length,
       activeTickets: this.orders().filter((o) => o.status !== 'SERVED' && o.status !== 'CANCELLEDBYKITCHEN').length,
       avgPrep: this.reports().turnaround?.avgPrepMinutes ?? 0,
@@ -785,19 +793,47 @@ export class Store {
   }
 
   async loadReports(from: Date, to: Date): Promise<void> {
-    const params = { from: from.toISOString(), to: to.toISOString() };
-    const [summary, waiters, cancellations, turnaround] = await Promise.allSettled([
-      this.api.get<SalesSummary>('/reports/sales-summary', params),
-      this.api.get<{ waiters: WaiterPerformance[] }>('/reports/waiterperformance', params),
-      this.api.get<CancellationReport>('/reports/cancellations', params),
-      this.api.get<KitchenTurnaround>('/reports/kitchenturnaround', params),
-    ]);
+    const params = this.reportParams(from, to);
+    const [summary, waiters, cancellations, turnaround, orders, kitchenStation, barStation] =
+      await Promise.allSettled([
+        this.api.get<SalesSummary>('/reports/sales-summary', params),
+        this.api.get<{ waiters: WaiterPerformance[] }>('/reports/waiterperformance', params),
+        this.api.get<CancellationReport>('/reports/cancellations', params),
+        this.api.get<KitchenTurnaround>('/reports/kitchenturnaround', params),
+        this.api.get<OrderReport>('/reports/orders', params),
+        this.api.get<StationReport>('/reports/kitchen', params),
+        this.api.get<StationReport>('/reports/bar', params),
+      ]);
     this.reports.set({
       summary: summary.status === 'fulfilled' ? summary.value : null,
       waiters: waiters.status === 'fulfilled' ? waiters.value.waiters : [],
       cancellations: cancellations.status === 'fulfilled' ? cancellations.value : null,
       turnaround: turnaround.status === 'fulfilled' ? turnaround.value : null,
+      orders: orders.status === 'fulfilled' ? orders.value : null,
+      kitchenStation: kitchenStation.status === 'fulfilled' ? kitchenStation.value : null,
+      barStation: barStation.status === 'fulfilled' ? barStation.value : null,
     });
+  }
+
+  async loadMyWaiterReport(from: Date, to: Date): Promise<Result> {
+    return this.guard(async () => {
+      this.myReport.set(await this.api.get<WaiterReport>('/reports/my-waiter', this.reportParams(from, to)));
+    });
+  }
+
+  async loadStationReport(station: 'KITCHEN' | 'BAR', from: Date, to: Date): Promise<Result> {
+    return this.guard(async () => {
+      const path = station === 'BAR' ? '/reports/bar' : '/reports/kitchen';
+      this.stationReport.set(await this.api.get<StationReport>(path, this.reportParams(from, to)));
+    });
+  }
+
+  private reportParams(from: Date, to: Date): Record<string, unknown> {
+    return {
+      from: from.toISOString(),
+      to: to.toISOString(),
+      timezoneOffsetMinutes: new Date().getTimezoneOffset(),
+    };
   }
 
   /* ------------------------------------------------------------------ */
@@ -1292,7 +1328,17 @@ export class Store {
     this.shiftSchedule.set([]);
     this.myShift.set(null);
     this.scheduleRange = null;
-    this.reports.set({ summary: null, waiters: [], cancellations: null, turnaround: null });
+    this.reports.set({
+      summary: null,
+      waiters: [],
+      cancellations: null,
+      turnaround: null,
+      orders: null,
+      kitchenStation: null,
+      barStation: null,
+    });
+    this.myReport.set(null);
+    this.stationReport.set(null);
     this.loaded.set(false);
   }
 
