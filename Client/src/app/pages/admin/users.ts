@@ -283,7 +283,25 @@ interface UserDraft {
                       <span class="tiny muted" style="font-weight: 400">— {{ 'leave blank to keep' | t }}</span>
                     }
                   </label>
-                  <input id="user-password" class="input" name="new-user-password" [(ngModel)]="draft.password" autocomplete="new-password" />
+                  <div class="input-wrap">
+                    <app-icon name="lock" />
+                    <input
+                      id="user-password"
+                      class="input"
+                      name="new-user-password"
+                      [type]="showPassword() ? 'text' : 'password'"
+                      [(ngModel)]="draft.password"
+                      autocomplete="new-password"
+                    />
+                    <button
+                      class="pw-toggle"
+                      type="button"
+                      (click)="showPassword.set(!showPassword())"
+                      [attr.aria-label]="(showPassword() ? 'Hide password' : 'Show password') | t"
+                    >
+                      <app-icon [name]="showPassword() ? 'eye-off' : 'eye'" />
+                    </button>
+                  </div>
                 }
               </div>
               <div class="field">
@@ -319,6 +337,7 @@ export class UsersPage {
   protected readonly modalOpen = signal(false);
   protected readonly editingId = signal<string | null>(null);
   protected readonly passwordUnlocked = signal(false);
+  protected readonly showPassword = signal(false);
   protected readonly error = signal('');
   protected readonly busy = signal(false);
   protected readonly currentUserId = this.auth.user()?.id ?? '';

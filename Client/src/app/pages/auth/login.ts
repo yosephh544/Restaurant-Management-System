@@ -67,10 +67,18 @@ import { Icon } from '../../shared/icon';
                     id="password"
                     class="input"
                     name="password"
-                    type="password"
+                    [type]="showPassword() ? 'text' : 'password'"
                     [(ngModel)]="password"
                     autocomplete="current-password"
                   />
+                  <button
+                    class="pw-toggle"
+                    type="button"
+                    (click)="showPassword.set(!showPassword())"
+                    [attr.aria-label]="(showPassword() ? 'Hide password' : 'Show password') | t"
+                  >
+                    <app-icon [name]="showPassword() ? 'eye-off' : 'eye'" />
+                  </button>
                 </div>
               </div>
             } @else {
@@ -82,12 +90,20 @@ import { Icon } from '../../shared/icon';
                     id="pin"
                     class="input"
                     name="pin"
-                    type="password"
+                    [type]="showPin() ? 'text' : 'password'"
                     [(ngModel)]="pin"
                     maxlength="6"
                     inputmode="numeric"
                     autocomplete="off"
                   />
+                  <button
+                    class="pw-toggle"
+                    type="button"
+                    (click)="showPin.set(!showPin())"
+                    [attr.aria-label]="(showPin() ? 'Hide PIN' : 'Show PIN') | t"
+                  >
+                    <app-icon [name]="showPin() ? 'eye-off' : 'eye'" />
+                  </button>
                 </div>
               </div>
             }
@@ -125,6 +141,8 @@ export class LoginPage {
   protected password = '';
   protected pin = '';
   protected readonly mode = signal<'PASSWORD' | 'PIN'>('PASSWORD');
+  protected readonly showPassword = signal(false);
+  protected readonly showPin = signal(false);
   protected readonly error = signal('');
   protected readonly busy = signal(false);
 

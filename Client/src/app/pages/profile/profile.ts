@@ -1,4 +1,4 @@
-import { Component, inject, OnInit, signal } from '@angular/core';
+import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MyProfile, AuthService } from '../../core/auth.service';
 import { TranslatePipe, translate } from '../../core/i18n';
@@ -16,7 +16,7 @@ import { Icon } from '../../shared/icon';
         <div>
           <div class="eyebrow">{{ 'Account' | t }}</div>
           <h1 class="page-title">{{ 'My profile' | t }}</h1>
-          <p class="page-sub">{{ 'Update your name and phone number, or set a new password.' | t }}</p>
+          <p class="page-sub">{{ 'Update your name, username and phone number, or set a new password or PIN.' | t }}</p>
         </div>
       </div>
 
@@ -40,12 +40,24 @@ import { Icon } from '../../shared/icon';
                 <input id="profile-name" class="input" name="fullName" [(ngModel)]="fullName" autocomplete="name" />
               </div>
               <div class="field">
+                <label class="label" for="profile-username">{{ 'Username' | t }}</label>
+                <input
+                  id="profile-username"
+                  class="input"
+                  name="username"
+                  [(ngModel)]="username"
+                  autocomplete="username"
+                  autocapitalize="none"
+                  spellcheck="false"
+                />
+              </div>
+              <div class="field">
                 <label class="label" for="profile-phone">{{ 'Phone (optional)' | t }}</label>
                 <input id="profile-phone" class="input" name="phone" [(ngModel)]="phone" inputmode="tel" autocomplete="tel" />
               </div>
             </div>
             <p class="tiny muted mt-3">
-              {{ 'Your username is managed by the owner. Ask them if it needs to change.' | t }}
+              {{ 'You sign in with your username. Use 3–30 letters, numbers, dots, dashes or underscores.' | t }}
             </p>
             @if (identityError()) {
               <div class="auth-error mt-3">{{ identityError() }}</div>
@@ -71,10 +83,18 @@ import { Icon } from '../../shared/icon';
                   id="current-password"
                   class="input"
                   name="currentPassword"
-                  type="password"
+                  [type]="showCurrentPassword() ? 'text' : 'password'"
                   [(ngModel)]="currentPassword"
                   autocomplete="current-password"
                 />
+                <button
+                  class="pw-toggle"
+                  type="button"
+                  (click)="showCurrentPassword.set(!showCurrentPassword())"
+                  [attr.aria-label]="(showCurrentPassword() ? 'Hide password' : 'Show password') | t"
+                >
+                  <app-icon [name]="showCurrentPassword() ? 'eye-off' : 'eye'" />
+                </button>
               </div>
             </div>
             <div class="field mt-2">
@@ -85,10 +105,18 @@ import { Icon } from '../../shared/icon';
                   id="new-password"
                   class="input"
                   name="newPassword"
-                  type="password"
+                  [type]="showNewPassword() ? 'text' : 'password'"
                   [(ngModel)]="newPassword"
                   autocomplete="new-password"
                 />
+                <button
+                  class="pw-toggle"
+                  type="button"
+                  (click)="showNewPassword.set(!showNewPassword())"
+                  [attr.aria-label]="(showNewPassword() ? 'Hide password' : 'Show password') | t"
+                >
+                  <app-icon [name]="showNewPassword() ? 'eye-off' : 'eye'" />
+                </button>
               </div>
             </div>
             <div class="field mt-2">
@@ -99,10 +127,18 @@ import { Icon } from '../../shared/icon';
                   id="confirm-password"
                   class="input"
                   name="confirmPassword"
-                  type="password"
+                  [type]="showConfirmPassword() ? 'text' : 'password'"
                   [(ngModel)]="confirmPassword"
                   autocomplete="new-password"
                 />
+                <button
+                  class="pw-toggle"
+                  type="button"
+                  (click)="showConfirmPassword.set(!showConfirmPassword())"
+                  [attr.aria-label]="(showConfirmPassword() ? 'Hide password' : 'Show password') | t"
+                >
+                  <app-icon [name]="showConfirmPassword() ? 'eye-off' : 'eye'" />
+                </button>
               </div>
             </div>
             @if (passwordError()) {
@@ -112,12 +148,104 @@ import { Icon } from '../../shared/icon';
               {{ passwordBusy() ? ('Updating…' | t) : ('Update password' | t) }}
             </button>
           </form>
+
+          <h3 class="card-title" style="margin: 22px 0 4px">{{ 'Device PIN' | t }}</h3>
+          <p class="tiny muted" style="margin-bottom: 14px">
+            @if (profile()?.hasPin) {
+              {{ 'Change the 4–6 digit PIN used on shared devices.' | t }}
+            } @else {
+              {{ 'Set a 4–6 digit PIN to sign in quickly on shared devices.' | t }}
+            }
+          </p>
+
+          <form (ngSubmit)="changePin()">
+            @if (profile()?.hasPin) {
+              <div class="field">
+                <label class="label" for="current-pin">{{ 'Current PIN' | t }}</label>
+                <div class="input-wrap">
+                  <app-icon name="lock" />
+                  <input
+                    id="current-pin"
+                    class="input"
+                    name="currentPin"
+                    [type]="showCurrentPin() ? 'text' : 'password'"
+                    [(ngModel)]="currentPin"
+                    maxlength="6"
+                    inputmode="numeric"
+                    autocomplete="off"
+                  />
+                  <button
+                    class="pw-toggle"
+                    type="button"
+                    (click)="showCurrentPin.set(!showCurrentPin())"
+                    [attr.aria-label]="(showCurrentPin() ? 'Hide PIN' : 'Show PIN') | t"
+                  >
+                    <app-icon [name]="showCurrentPin() ? 'eye-off' : 'eye'" />
+                  </button>
+                </div>
+              </div>
+            }
+            <div class="field" [class.mt-2]="profile()?.hasPin">
+              <label class="label" for="new-pin">{{ 'New PIN' | t }}</label>
+              <div class="input-wrap">
+                <app-icon name="lock" />
+                <input
+                  id="new-pin"
+                  class="input"
+                  name="newPin"
+                  [type]="showNewPin() ? 'text' : 'password'"
+                  [(ngModel)]="newPin"
+                  maxlength="6"
+                  inputmode="numeric"
+                  autocomplete="new-password"
+                />
+                <button
+                  class="pw-toggle"
+                  type="button"
+                  (click)="showNewPin.set(!showNewPin())"
+                  [attr.aria-label]="(showNewPin() ? 'Hide PIN' : 'Show PIN') | t"
+                >
+                  <app-icon [name]="showNewPin() ? 'eye-off' : 'eye'" />
+                </button>
+              </div>
+            </div>
+            <div class="field mt-2">
+              <label class="label" for="confirm-pin">{{ 'Confirm new PIN' | t }}</label>
+              <div class="input-wrap">
+                <app-icon name="lock" />
+                <input
+                  id="confirm-pin"
+                  class="input"
+                  name="confirmPin"
+                  [type]="showConfirmPin() ? 'text' : 'password'"
+                  [(ngModel)]="confirmPin"
+                  maxlength="6"
+                  inputmode="numeric"
+                  autocomplete="new-password"
+                />
+                <button
+                  class="pw-toggle"
+                  type="button"
+                  (click)="showConfirmPin.set(!showConfirmPin())"
+                  [attr.aria-label]="(showConfirmPin() ? 'Hide PIN' : 'Show PIN') | t"
+                >
+                  <app-icon [name]="showConfirmPin() ? 'eye-off' : 'eye'" />
+                </button>
+              </div>
+            </div>
+            @if (pinError()) {
+              <div class="auth-error mt-3">{{ pinError() }}</div>
+            }
+            <button class="btn btn-secondary btn-block mt-4" type="submit" [disabled]="pinBusy()">
+              {{ pinBusy() ? ('Updating…' | t) : profile()?.hasPin ? ('Update PIN' | t) : ('Set PIN' | t) }}
+            </button>
+          </form>
         </div>
       </div>
     </div>
   `,
 })
-export class ProfilePage implements OnInit {
+export class ProfilePage {
   private readonly auth = inject(AuthService);
   private readonly api = inject(ApiService);
   private readonly toast = inject(ToastService);
@@ -125,14 +253,26 @@ export class ProfilePage implements OnInit {
   protected readonly initials = initials;
   protected readonly profile = signal<MyProfile | null>(null);
   protected fullName = '';
+  protected username = '';
   protected phone = '';
   protected currentPassword = '';
   protected newPassword = '';
   protected confirmPassword = '';
+  protected currentPin = '';
+  protected newPin = '';
+  protected confirmPin = '';
+  protected readonly showCurrentPassword = signal(false);
+  protected readonly showNewPassword = signal(false);
+  protected readonly showConfirmPassword = signal(false);
+  protected readonly showCurrentPin = signal(false);
+  protected readonly showNewPin = signal(false);
+  protected readonly showConfirmPin = signal(false);
   protected readonly identityBusy = signal(false);
   protected readonly passwordBusy = signal(false);
+  protected readonly pinBusy = signal(false);
   protected readonly identityError = signal('');
   protected readonly passwordError = signal('');
+  protected readonly pinError = signal('');
 
   protected roleName(): string {
     return roleLabel(this.profile()?.role ?? '');
@@ -150,10 +290,15 @@ export class ProfilePage implements OnInit {
   protected async saveIdentity(): Promise<void> {
     this.identityError.set('');
     const name = this.fullName.trim();
+    const username = this.username.trim().toLowerCase();
     const phone = this.phone.trim();
 
     if (!name) {
       this.identityError.set(translate('Enter your full name.'));
+      return;
+    }
+    if (!/^[a-z0-9._-]{3,30}$/.test(username)) {
+      this.identityError.set(translate('Use a username of 3–30 letters, numbers, dots, dashes or underscores.'));
       return;
     }
     if (phone && phone.replace(/\D/g, '').length < 7) {
@@ -163,7 +308,7 @@ export class ProfilePage implements OnInit {
 
     this.identityBusy.set(true);
     try {
-      const updated = await this.auth.updateMyProfile({ fullName: name, phone });
+      const updated = await this.auth.updateMyProfile({ fullName: name, username, phone });
       this.apply(updated);
       this.toast.show(translate('Profile updated'));
     } catch (error) {
@@ -209,9 +354,49 @@ export class ProfilePage implements OnInit {
     }
   }
 
+  protected async changePin(): Promise<void> {
+    this.pinError.set('');
+    const hasPin = this.profile()?.hasPin;
+
+    if (hasPin && !this.currentPin) {
+      this.pinError.set(translate('Enter your current PIN.'));
+      return;
+    }
+    if (!/^\d{4,6}$/.test(this.newPin)) {
+      this.pinError.set(translate('The PIN must be 4–6 digits.'));
+      return;
+    }
+    if (this.newPin !== this.confirmPin) {
+      this.pinError.set(translate('The two PINs do not match.'));
+      return;
+    }
+    if (hasPin && this.newPin === this.currentPin) {
+      this.pinError.set(translate('Choose a PIN different from the current one.'));
+      return;
+    }
+
+    this.pinBusy.set(true);
+    try {
+      const updated = await this.auth.updateMyProfile({
+        currentPin: hasPin ? this.currentPin : undefined,
+        newPin: this.newPin,
+      });
+      this.currentPin = '';
+      this.newPin = '';
+      this.confirmPin = '';
+      this.apply(updated);
+      this.toast.show(translate('PIN updated'));
+    } catch (error) {
+      this.pinError.set(this.api.message(error));
+    } finally {
+      this.pinBusy.set(false);
+    }
+  }
+
   private apply(profile: MyProfile): void {
     this.profile.set(profile);
     this.fullName = profile.fullName;
+    this.username = profile.username;
     this.phone = profile.phone ?? '';
   }
 }

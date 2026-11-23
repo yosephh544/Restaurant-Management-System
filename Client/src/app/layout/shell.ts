@@ -1,5 +1,7 @@
 import { Component, computed, HostListener, inject, OnDestroy, signal } from '@angular/core';
-import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { toSignal } from '@angular/core/rxjs-interop';
+import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { filter, map } from 'rxjs';
 import { AuthService, ROLE_HOME } from '../core/auth.service';
 import { I18nService, locale, TranslatePipe } from '../core/i18n';
 import { initials, MyShift, ROLE_LABEL, Role } from '../core/models';
@@ -19,6 +21,13 @@ interface NavItem {
 interface NavGroup {
   label: string;
   items: NavItem[];
+}
+
+interface NavSection {
+  label: string;
+  path: string;
+  icon: IconName;
+  tabs?: NavItem[];
 }
 
 @Component({
@@ -47,6 +56,7 @@ interface NavGroup {
                 class="nav-item"
                 [routerLink]="item.path"
                 routerLinkActive="active"
+                [class.active]="isSectionActive(item)"
                 [routerLinkActiveOptions]="item.path === '/manager' ? { exact: true } : { exact: false }"
                 (click)="mobileOpen.set(false)"
               >
@@ -196,6 +206,19 @@ interface NavGroup {
           </div>
         </header>
 
+        @if (activeSection(); as section) {
+          <nav class="section-tabs" [attr.aria-label]="section.label">
+            @for (tab of section.tabs ?? []; track tab.path) {
+              <a [routerLink]="tab.path" [class.active]="matches(tab.path)">
+                {{ tab.label }}
+                @if (tab.count) {
+                  <span class="section-tab-count">{{ tab.count }}</span>
+                }
+              </a>
+            }
+          </nav>
+        }
+
         <main class="page-wrap">
           <router-outlet />
         </main>
@@ -313,6 +336,20 @@ export class Shell implements OnDestroy {
       ];
     }
 
+    if (role === 'OWNER') {
+      return [
+        {
+          label: t('Workspace'),
+          items: this.ownerSections().map((section) => ({
+            label: section.label,
+            path: section.path,
+            icon: section.icon,
+            count: section.tabs?.reduce((sum, tab) => sum + (tab.count ?? 0), 0) || undefined,
+          })),
+        },
+      ];
+    }
+
     const items: NavItem[] = [
       { label: t('Overview'), path: '/manager', icon: 'home' },
       { label: t('Payments'), path: '/cashier/payments', icon: 'card' },
@@ -324,20 +361,74 @@ export class Shell implements OnDestroy {
       { label: t('Audit Log'), path: '/manager/audit', icon: 'clock' },
       { label: t('Menu'), path: '/manager/menu', icon: 'utensils' },
     ];
-    if (role === 'OWNER') {
-      return [
-        { label: t('Workspace'), items },
-        {
-          label: t('Administration'),
-          items: [
-            { label: t('Users & Roles'), path: '/admin/users', icon: 'shield' },
-            { label: t('Settings'), path: '/admin/settings', icon: 'settings' },
-          ],
-        },
-      ];
-    }
     return [{ label: t('Workspace'), items }];
   });
+
+  protected readonly ownerSections = computed<NavSection[]>(() => {
+    const t = (key: string) => this.i18n.t(key);
+    const issues = this.store.openIssues().length;
+    const resets = this.resets.pendingCount();
+    return [
+      { label: t('Overview'), path: '/manager', icon: 'home' },
+      {
+        label: t('Operations'),
+        path: '/manager/menu',
+        icon: 'utensils',
+        tabs: [
+          { label: t('Menu'), path: '/manager/menu', icon: 'utensils' },
+          { label: t('Kitchen & Bar Issues'), path: '/manager/issues', icon: 'alert', count: issues },
+          { label: t('Payments'), path: '/cashier/payments', icon: 'card' },
+        ],
+      },
+      {
+        label: t('Team'),
+        path: '/manager/staff',
+        icon: 'users',
+        tabs: [
+          { label: t('Staff'), path: '/manager/staff', icon: 'users' },
+          { label: t('Users & Roles'), path: '/admin/users', icon: 'shield' },
+          { label: t('Shifts'), path: '/manager/shifts', icon: 'clock' },
+        ],
+      },
+      { label: t('Reports'), path: '/manager/reports', icon: 'chart' },
+      {
+        label: t('Settings'),
+        path: '/admin/settings',
+        icon: 'settings',
+        tabs: [
+          { label: t('General'), path: '/admin/settings', icon: 'settings' },
+          { label: t('Password resets'), path: '/manager/password-resets', icon: 'lock', count: resets },
+          { label: t('Audit Log'), path: '/manager/audit', icon: 'clock' },
+        ],
+      },
+    ];
+  });
+
+  private readonly currentUrl = toSignal(
+    this.router.events.pipe(
+      filter((event) => event instanceof NavigationEnd),
+      map(() => this.router.url),
+    ),
+    { initialValue: this.router.url },
+  );
+
+  protected readonly activeSection = computed<NavSection | undefined>(() => {
+    if (this.user()?.role !== 'OWNER') return undefined;
+    return this.ownerSections().find((section) => section.tabs?.some((tab) => this.matches(tab.path)));
+  });
+
+  protected matches(path: string): boolean {
+    const url = this.currentUrl().split(/[?#]/)[0];
+    if (path === '/manager') return url === '/manager';
+    return url === path || url.startsWith(path + '/');
+  }
+
+  protected isSectionActive(item: NavItem): boolean {
+    if (this.user()?.role !== 'OWNER') return this.matches(item.path);
+    const section = this.ownerSections().find((entry) => (entry.tabs?.[0]?.path ?? entry.path) === item.path);
+    if (!section) return this.matches(item.path);
+    return this.matches(section.path) || (section.tabs ?? []).some((tab) => this.matches(tab.path));
+  }
 
   protected shiftBadge(shift: MyShift): string {
     if (shift.unrestricted) return this.i18n.t('Any time');

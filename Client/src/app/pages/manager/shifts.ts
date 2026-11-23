@@ -18,13 +18,6 @@ import { ToastService } from '../../core/toast.service';
 import { ConfirmDialog } from '../../shared/confirm-dialog';
 import { Icon } from '../../shared/icon';
 
-interface CoverTarget {
-  userId: string;
-  fullName: string;
-  shiftId: string;
-  shiftName: string;
-}
-
 interface SwapOption {
   userId: string;
   fullName: string;
@@ -105,7 +98,7 @@ interface ShiftDraft {
                   <span class="pill pill-grey no-dot">{{ column.staff.length }}</span>
                   @if (canManage()) {
                     <button class="btn btn-sm btn-ghost" type="button" (click)="openAssign(column)">
-                      <app-icon name="plus" /> {{ 'Add staff' | t }}
+                      <app-icon name="users" /> {{ 'Cover shift' | t }}
                     </button>
                   }
                 </div>
@@ -129,7 +122,7 @@ interface ShiftDraft {
                     </div>
                     @if (canManage()) {
                       <div class="shift-staff-actions">
-                        <button class="btn btn-sm btn-ghost" type="button" (click)="openCover(member, column)"> {{ 'Cover' | t }} </button>
+                        <button class="btn btn-sm btn-ghost" type="button" (click)="openAssign(column, member.userId)"> {{ 'Cover' | t }} </button>
                         <button class="btn btn-sm btn-ghost" type="button" (click)="openOff(member, column)"> {{ 'Off' | t }} </button>
                       </div>
                     }
@@ -260,56 +253,7 @@ interface ShiftDraft {
       }
     </div>
 
-    @if (coverOpen()) {
-      <div class="modal-backdrop" (click)="coverOpen.set(false)">
-        <div class="modal" (click)="$event.stopPropagation()">
-          <div class="modal-head">
-            <div>
-              <h3>{{ 'Cover shift' | t }}</h3>
-              <p>{{ 'Record who is covering' | t }} {{ coverTarget()?.shiftName }} {{ 'on' | t }} {{ dayLabel(selectedDate()) }}.</p>
-            </div>
-            <button class="modal-close" type="button" (click)="coverOpen.set(false)"><app-icon name="x" /></button>
-          </div>
-          <div class="modal-body">
-            @if (coverTarget(); as target) {
-              <div class="field">
-                <label class="label">{{ 'Absent staff' | t }}</label>
-                <div class="input" style="display: flex; align-items: center">{{ target.fullName }}</div>
-              </div>
-              <div class="field mt-3">
-                <label class="label" for="cover-user">{{ 'Covered by' | t }}</label>
-                <select
-                  id="cover-user"
-                  class="select"
-                  [ngModel]="coverUserId()"
-                  (ngModelChange)="coverUserId.set($event)"
-                >
-                  <option value="">{{ 'Select a staff member' | t }}</option>
-                  @for (candidate of coverCandidates(); track candidate.id) {
-                    <option [value]="candidate.id">{{ candidate.name }} · {{ roleLabel(candidate.role) }}</option>
-                  }
-                </select>
-                @if (!coverCandidates().length) {
-                  <p class="tiny muted" style="margin: 6px 0 0"> {{ 'Everyone else is already on this shift. Choose another shift or add a staff member.' | t }} </p>
-                }
-              </div>
-              <div class="field mt-3">
-                <label class="label" for="cover-note">{{ 'Note (optional)' | t }}</label>
-                <input id="cover-note" class="input" [ngModel]="coverNote()" (ngModelChange)="coverNote.set($event)" maxlength="300" />
-              </div>
-            }
-          </div>
-          <div class="modal-foot">
-            <button class="btn btn-ghost" type="button" (click)="coverOpen.set(false)">{{ 'Cancel' | t }}</button>
-            <button class="btn btn-primary" type="button" [disabled]="busy() || !coverUserId()" (click)="applyCover()">
-              {{ busy() ? ('Saving…' | t) : ('Record cover' | t) }}
-            </button>
-          </div>
-        </div>
-      </div>
-    }
-
-    @if (offOpen()) {
+      @if (offOpen()) {
       <div class="modal-backdrop" (click)="offOpen.set(false)">
         <div class="modal" style="max-width: 460px" (click)="$event.stopPropagation()">
           <div class="modal-head">
@@ -342,26 +286,82 @@ interface ShiftDraft {
         <div class="modal" (click)="$event.stopPropagation()">
           <div class="modal-head">
             <div>
-              <h3>{{ 'Add staff to shift' | t }}</h3>
+              <h3>{{ 'Cover shift' | t }}</h3>
               <p>{{ assignShift()?.name }} · {{ dayLabel(selectedDate()) }}</p>
             </div>
             <button class="modal-close" type="button" (click)="assignOpen.set(false)"><app-icon name="x" /></button>
           </div>
           <div class="modal-body">
-            <div class="field">
-              <label class="label" for="assign-user">{{ 'Staff member' | t }}</label>
-              <select id="assign-user" class="select" [ngModel]="assignUserId()" (ngModelChange)="assignUserId.set($event)">
-                <option value="">{{ 'Select a staff member' | t }}</option>
-                @for (candidate of assignCandidates(); track candidate.id) {
-                  <option [value]="candidate.id">{{ candidate.name }} · {{ roleLabel(candidate.role) }}</option>
-                }
-              </select>
-              @if (!assignCandidates().length) {
-                <p class="tiny muted" style="margin: 6px 0 0">
-                  {{ 'Every active staff member is already on this shift.' | t }}
-                </p>
-              }
+            <p class="tiny muted" style="margin: 0 0 12px">
+              {{ 'Add staff without moving anyone, or swap them with a staff member already on this shift.' | t }}
+            </p>
+            <div class="seg" style="flex-wrap: wrap; margin-bottom: 14px">
+              <button type="button" [class.active]="assignMode() === 'assign'" (click)="setAssignMode('assign')">
+                {{ 'Assign staff' | t }}
+              </button>
+              <button type="button" [class.active]="assignMode() === 'swap'" (click)="setAssignMode('swap')">
+                {{ 'Swap staff' | t }}
+              </button>
             </div>
+
+            @if (assignMode() === 'assign') {
+              <div class="field">
+                <label class="label" for="assign-user">{{ 'Staff member' | t }}</label>
+                <select id="assign-user" class="select" [ngModel]="assignUserId()" (ngModelChange)="assignUserId.set($event)">
+                  <option value="">{{ 'Select a staff member' | t }}</option>
+                  @for (candidate of assignCandidates(); track candidate.id) {
+                    <option [value]="candidate.id">{{ candidate.name }} · {{ candidate.role }}</option>
+                  }
+                </select>
+                @if (!assignCandidates().length) {
+                  <p class="tiny muted" style="margin: 6px 0 0">
+                    {{ 'Every active staff member is already on this shift.' | t }}
+                  </p>
+                }
+              </div>
+            } @else {
+              <div class="field">
+                <label class="label" for="swap-member">{{ 'Staff on this shift' | t }}</label>
+                <select
+                  id="swap-member"
+                  class="select"
+                  [ngModel]="swapMemberId()"
+                  (ngModelChange)="setSwapMember($event)"
+                  [disabled]="!coverSwapPool().members.length"
+                >
+                  <option value="">{{ 'Select staff' | t }}</option>
+                  @for (member of coverSwapPool().members; track member.id) {
+                    <option [value]="member.id">{{ member.name }} · {{ member.role }}</option>
+                  }
+                </select>
+                @if (!coverSwapPool().members.length) {
+                  <p class="tiny muted" style="margin: 6px 0 0">
+                    {{ 'No staff on this shift can be swapped today. Use Assign staff to add someone instead.' | t }}
+                  </p>
+                }
+              </div>
+              <div class="field mt-3">
+                <label class="label" for="swap-incoming">{{ 'Swap with' | t }}</label>
+                <select
+                  id="swap-incoming"
+                  class="select"
+                  [ngModel]="swapIncomingId()"
+                  (ngModelChange)="swapIncomingId.set($event)"
+                  [disabled]="!swapMemberId() || !coverSwapPool().incoming.length"
+                >
+                  <option value="">{{ 'Select staff' | t }}</option>
+                  @for (member of coverSwapPool().incoming; track member.id) {
+                    <option [value]="member.id">{{ member.name }} · {{ member.role }}</option>
+                  }
+                </select>
+                @if (swapMemberId() && !coverSwapPool().incoming.length) {
+                  <p class="tiny muted" style="margin: 6px 0 0">
+                    {{ 'No other staff can swap into this shift today.' | t }}
+                  </p>
+                }
+              </div>
+            }
+
             <div class="field mt-3">
               <label class="label" for="assign-note">{{ 'Note (optional)' | t }}</label>
               <input id="assign-note" class="input" [ngModel]="assignNote()" (ngModelChange)="assignNote.set($event)" maxlength="300" />
@@ -369,8 +369,8 @@ interface ShiftDraft {
           </div>
           <div class="modal-foot">
             <button class="btn btn-ghost" type="button" (click)="assignOpen.set(false)">{{ 'Cancel' | t }}</button>
-            <button class="btn btn-primary" type="button" [disabled]="busy() || !assignUserId()" (click)="applyAssign()">
-              {{ busy() ? ('Saving…' | t) : ('Add to shift' | t) }}
+            <button class="btn btn-primary" type="button" [disabled]="busy() || !assignReady()" (click)="applyAssign()">
+              {{ busy() ? ('Saving…' | t) : assignMode() === 'swap' ? ('Swap shifts' | t) : ('Add to shift' | t) }}
             </button>
           </div>
         </div>
@@ -526,14 +526,12 @@ export class ShiftsPage implements OnInit {
     () => this.store.shiftSchedule().find((day) => day.date === this.selectedDate()) ?? null,
   );
 
-  protected readonly coverOpen = signal(false);
-  protected readonly coverTarget = signal<CoverTarget | null>(null);
-  protected readonly coverUserId = signal('');
-  protected readonly coverNote = signal('');
-
   protected readonly assignOpen = signal(false);
   protected readonly assignShift = signal<ShiftColumn | null>(null);
+  protected readonly assignMode = signal<'assign' | 'swap'>('assign');
   protected readonly assignUserId = signal('');
+  protected readonly swapMemberId = signal('');
+  protected readonly swapIncomingId = signal('');
   protected readonly assignNote = signal('');
 
   protected readonly offOpen = signal(false);
@@ -557,21 +555,6 @@ export class ShiftsPage implements OnInit {
   protected readonly confirmLabel = signal('Confirm');
   private confirmAction: (() => Promise<void>) | null = null;
 
-  protected readonly coverCandidates = computed(() => {
-    const target = this.coverTarget();
-    const day = this.selectedDay();
-    if (!target || !day) return [];
-
-    const targetColumn = day.shifts.find((column) => column.shiftId === target.shiftId);
-    const alreadyOnShift = new Set(targetColumn?.staff.map((member) => member.userId) ?? []);
-
-    return this.store
-      .users()
-      .filter((user) => user.active && user.role !== 'OWNER' && user.id !== target.userId && !alreadyOnShift.has(user.id))
-      .sort((a, b) => a.name.localeCompare(b.name))
-      .map((user) => ({ id: user.id, name: user.name, role: translate(ROLE_LABEL[user.role]) }));
-  });
-
   protected readonly assignCandidates = computed(() => {
     const column = this.assignShift();
     const day = this.selectedDay();
@@ -585,6 +568,31 @@ export class ShiftsPage implements OnInit {
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((user) => ({ id: user.id, name: user.name, role: translate(ROLE_LABEL[user.role]) }));
   });
+
+  protected readonly coverSwapPool = computed(() => {
+    const column = this.assignShift();
+    const day = this.selectedDay();
+    if (!column || !day) return { members: [], incoming: [] };
+
+    const members = column.staff
+      .map((member) => ({ id: member.userId, name: member.fullName, role: this.roleLabel(member.role) }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+
+    const onShift = new Set(column.staff.map((member) => member.userId));
+    const incoming = this.store
+      .users()
+      .filter((user) => user.active && user.role !== 'OWNER' && !onShift.has(user.id))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((user) => ({ id: user.id, name: user.name, role: translate(ROLE_LABEL[user.role]) }));
+
+    return { members, incoming };
+  });
+
+  protected readonly assignReady = computed(() =>
+    this.assignMode() === 'swap'
+      ? !!this.swapMemberId() && !!this.swapIncomingId()
+      : !!this.assignUserId(),
+  );
 
   protected readonly swapSnapshots = computed(() => {
     const dates = this.swapDates();
@@ -700,51 +708,56 @@ export class ShiftsPage implements OnInit {
     return dateFromKey(date).toLocaleDateString(locale(), { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' });
   }
 
-  protected openCover(member: ShiftStaff, column: ShiftColumn): void {
-    this.coverTarget.set({
-      userId: member.userId,
-      fullName: member.fullName,
-      shiftId: column.shiftId,
-      shiftName: column.name,
-    });
-    this.coverUserId.set('');
-    this.coverNote.set('');
-    this.coverOpen.set(true);
-  }
-
-  protected async applyCover(): Promise<void> {
-    const target = this.coverTarget();
-    if (!target || !this.coverUserId()) return;
-
-    this.busy.set(true);
-    const result = await this.store.coverShift(
-      this.selectedDate(),
-      target.userId,
-      this.coverUserId(),
-      target.shiftId,
-      this.coverNote(),
-    );
-    this.busy.set(false);
-
-    if (!result.ok) {
-      this.toast.show(result.error, 'error');
-      return;
-    }
-
-    this.coverOpen.set(false);
-    this.toast.show(translate('Cover recorded for {shift}', { shift: target.shiftName }));
-  }
-
-  protected openAssign(column: ShiftColumn): void {
+  protected openAssign(column: ShiftColumn, swapMemberId = ''): void {
     this.assignShift.set(column);
+    this.assignMode.set(swapMemberId ? 'swap' : 'assign');
     this.assignUserId.set('');
+    this.swapMemberId.set(swapMemberId);
+    this.swapIncomingId.set('');
     this.assignNote.set('');
     this.assignOpen.set(true);
   }
 
+  protected setAssignMode(mode: 'assign' | 'swap'): void {
+    this.assignMode.set(mode);
+    this.assignUserId.set('');
+    this.swapMemberId.set('');
+    this.swapIncomingId.set('');
+  }
+
+  protected setSwapMember(userId: string): void {
+    this.swapMemberId.set(userId);
+    this.swapIncomingId.set('');
+  }
+
   protected async applyAssign(): Promise<void> {
     const column = this.assignShift();
-    if (!column || !this.assignUserId()) return;
+    if (!column) return;
+
+    if (this.assignMode() === 'swap') {
+      if (!this.swapMemberId() || !this.swapIncomingId()) return;
+
+      this.busy.set(true);
+      const result = await this.store.coverShift(
+        this.selectedDate(),
+        this.swapMemberId(),
+        this.swapIncomingId(),
+        column.shiftId,
+        this.assignNote(),
+      );
+      this.busy.set(false);
+
+      if (!result.ok) {
+        this.toast.show(result.error, 'error');
+        return;
+      }
+
+      this.assignOpen.set(false);
+      this.toast.show(translate('Cover recorded for {shift}', { shift: column.name }));
+      return;
+    }
+
+    if (!this.assignUserId()) return;
 
     this.busy.set(true);
     const result = await this.store.assignShift(

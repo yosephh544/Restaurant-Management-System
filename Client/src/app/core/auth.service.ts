@@ -8,7 +8,7 @@ export const ROLE_HOME: Record<Role, string> = {
   OWNER: '/manager',
   MANAGER: '/manager',
   CASHIER: '/cashier/bills',
-  WAITER: '/waiter/new',
+  WAITER: '/waiter/orders',
   KITCHEN: '/kitchen',
   BARTENDER: '/bar',
 };
@@ -25,13 +25,17 @@ export interface MyProfile {
   username: string;
   phone?: string | null;
   role: string;
+  hasPin: boolean;
 }
 
 export interface UpdateMyProfileBody {
   fullName?: string;
+  username?: string;
   phone?: string;
   currentPassword?: string;
   newPassword?: string;
+  currentPin?: string;
+  newPin?: string;
 }
 
 @Injectable({ providedIn: 'root' })

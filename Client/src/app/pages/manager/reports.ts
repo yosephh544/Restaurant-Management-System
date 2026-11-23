@@ -26,7 +26,7 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
             <button type="button" [class.active]="period() === 'week'" (click)="setPeriod('week')">{{ 'This week' | t }}</button>
             <button type="button" [class.active]="period() === 'month'" (click)="setPeriod('month')">{{ 'This month' | t }}</button>
           </div>
-          <button class="btn btn-secondary" type="button" (click)="exportCsv()"><app-icon name="printer" /> {{ 'Export' | t }}</button>
+          <button class="btn btn-secondary" type="button" (click)="exportOpen.set(true)"><app-icon name="printer" /> {{ 'Export' | t }}</button>
         </div>
       </div>
 
@@ -419,6 +419,34 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
         }
       }
     </div>
+
+    @if (exportOpen()) {
+      <div class="modal-backdrop" (click)="closeExport()">
+        <div class="modal" style="max-width: 480px" (click)="$event.stopPropagation()">
+          <div class="modal-head">
+            <div>
+              <h3>{{ 'Export report' | t }}</h3>
+              <p>{{ tabLabel() }} · {{ rangeLabel() }}</p>
+            </div>
+            <button class="modal-close" type="button" (click)="closeExport()"><app-icon name="x" /></button>
+          </div>
+          <div class="modal-body">
+            <p class="tiny muted" style="margin-bottom: 12px">{{ 'Choose a format for the report you are viewing.' | t }}</p>
+            <div class="grid" style="grid-template-columns: 1fr 1fr; gap: 10px">
+              <button class="btn btn-secondary" type="button" [disabled]="exporting()" (click)="exportPptx()">
+                <app-icon name="chart" /> {{ 'PowerPoint (.pptx)' | t }}
+              </button>
+              <button class="btn btn-secondary" type="button" [disabled]="exporting()" (click)="exportPdf()">
+                <app-icon name="printer" /> {{ 'PDF (.pdf)' | t }}
+              </button>
+            </div>
+            @if (exporting()) {
+              <p class="tiny muted mt-3">{{ 'Preparing your file…' | t }}</p>
+            }
+          </div>
+        </div>
+      </div>
+    }
   `,
 })
 export class ReportsPage implements OnInit {
@@ -429,6 +457,8 @@ export class ReportsPage implements OnInit {
   protected readonly tab = signal<Tab>('sales');
   protected readonly period = signal<Period>('today');
   protected readonly orderFilter = signal<OrderFilter>('all');
+  protected readonly exportOpen = signal(false);
+  protected readonly exporting = signal(false);
 
   protected readonly summary = computed(() => this.store.reports().summary);
   protected readonly cancellations = computed(() => this.store.reports().cancellations);
@@ -462,12 +492,12 @@ export class ReportsPage implements OnInit {
 
   protected readonly methods = computed(() => {
     const summary: SalesSummary | null = this.summary();
-    const entries: { amount: number; count: number; label: string; icon: IconName; tone: string }[] = [
-      { amount: summary?.cashAmount ?? 0, count: summary?.cashVolume ?? 0, label: translate('Cash'), icon: 'cash', tone: '' },
-      { amount: summary?.qrScanAmount ?? 0, count: summary?.qrScanVolume ?? 0, label: translate('QR code'), icon: 'qr', tone: 'green' },
-      { amount: summary?.phonePushAmount ?? 0, count: summary?.phonePushVolume ?? 0, label: translate('Phone'), icon: 'phone', tone: 'amber' },
-      { amount: summary?.telebirrAmount ?? 0, count: summary?.telebirrVolume ?? 0, label: translate('Telebirr'), icon: 'phone', tone: 'blue' },
-      { amount: summary?.cbeAmount ?? 0, count: summary?.cbeVolume ?? 0, label: translate('CBE'), icon: 'bill', tone: 'blue' },
+    const entries: { amount: number; count: number; key: string; label: string; icon: IconName; tone: string }[] = [
+      { amount: summary?.cashAmount ?? 0, count: summary?.cashVolume ?? 0, key: 'Cash', label: translate('Cash'), icon: 'cash', tone: '' },
+      { amount: summary?.qrScanAmount ?? 0, count: summary?.qrScanVolume ?? 0, key: 'QR code', label: translate('QR code'), icon: 'qr', tone: 'green' },
+      { amount: summary?.phonePushAmount ?? 0, count: summary?.phonePushVolume ?? 0, key: 'Phone', label: translate('Phone'), icon: 'phone', tone: 'amber' },
+      { amount: summary?.telebirrAmount ?? 0, count: summary?.telebirrVolume ?? 0, key: 'Telebirr', label: translate('Telebirr'), icon: 'phone', tone: 'blue' },
+      { amount: summary?.cbeAmount ?? 0, count: summary?.cbeVolume ?? 0, key: 'CBE', label: translate('CBE'), icon: 'bill', tone: 'blue' },
     ];
     const gross = entries.reduce((sum, entry) => sum + entry.amount, 0) || 1;
     return entries.map((entry) => ({ ...entry, share: Math.round((entry.amount / gross) * 100) }));
@@ -521,8 +551,8 @@ export class ReportsPage implements OnInit {
     }
   }
 
-  protected orderLabel(status: string): string {
-    return translate(
+  protected orderLabel(status: string, localize = true): string {
+    const label =
       status === 'SERVED'
         ? 'Served'
         : status === 'READY'
@@ -531,8 +561,8 @@ export class ReportsPage implements OnInit {
             ? 'Preparing'
             : status === 'CANCELLEDBYKITCHEN'
               ? 'Cancelled'
-              : 'Pending',
-    );
+              : 'Pending';
+    return localize ? translate(label) : label;
   }
 
   protected paymentTone(status: PaymentStatus): string {
@@ -551,27 +581,26 @@ export class ReportsPage implements OnInit {
     }
   }
 
-  protected paymentLabel(status: PaymentStatus): string {
-    switch (status) {
-      case 'PAID':
-        return translate('Paid');
-      case 'PAYMENTINITIATED':
-        return translate('Pending payment');
-      case 'REFUNDPENDING':
-        return translate('Refund pending');
-      case 'REFUNDED':
-        return translate('Refunded');
-      case 'TRANSFERRED':
-        return translate('Transferred');
-      case 'RETRACTED':
-        return translate('Retracted');
-      default:
-        return translate('Unpaid');
-    }
+  protected paymentLabel(status: PaymentStatus, localize = true): string {
+    const label =
+      status === 'PAID'
+        ? 'Paid'
+        : status === 'PAYMENTINITIATED'
+          ? 'Pending payment'
+          : status === 'REFUNDPENDING'
+            ? 'Refund pending'
+            : status === 'REFUNDED'
+              ? 'Refunded'
+              : status === 'TRANSFERRED'
+                ? 'Transferred'
+                : status === 'RETRACTED'
+                  ? 'Retracted'
+                  : 'Unpaid';
+    return localize ? translate(label) : label;
   }
 
-  protected dateTime(iso: string): string {
-    return new Date(iso).toLocaleString(locale(), {
+  protected dateTime(iso: string, localize = true): string {
+    return new Date(iso).toLocaleString(localize ? locale() : 'en-US', {
       day: 'numeric',
       month: 'short',
       hour: 'numeric',
@@ -579,69 +608,273 @@ export class ReportsPage implements OnInit {
     });
   }
 
-  protected reasonLabel(reason: string): string {
-    return translate(
+  protected reasonLabel(reason: string, localize = true): string {
+    const label =
       reason === 'OUT_OF_STOCK'
         ? 'Out of stock'
         : reason === 'EQUIPMENT_ISSUE'
           ? 'Equipment issue'
           : reason === 'PREP_DELAY'
             ? 'Prep delay'
-            : 'Other',
-    );
+            : 'Other';
+    return localize ? translate(label) : label;
   }
 
-  protected exportCsv(): void {
+  protected closeExport(): void {
+    if (!this.exporting()) this.exportOpen.set(false);
+  }
+
+  protected tabLabel(localize = true): string {
+    const label =
+      this.tab() === 'sales'
+        ? 'Money'
+        : this.tab() === 'orders'
+          ? 'Orders'
+          : this.tab() === 'waiters'
+            ? 'Waiters'
+            : this.tab() === 'cancellations'
+              ? 'Cancellations'
+              : 'Kitchen & bar';
+    return localize ? translate(label) : label;
+  }
+
+  protected async exportPptx(): Promise<void> {
+    if (this.exporting()) return;
+    this.exporting.set(true);
+    try {
+      const PptxGenJS = (await import('pptxgenjs')).default;
+      const data = this.buildExport();
+      const pptx = new PptxGenJS();
+      pptx.layout = 'LAYOUT_16x9';
+      pptx.author = 'Majete Corner';
+      pptx.title = data.title;
+
+      const brand = 'E4572E';
+      const ink = '20252B';
+      const border = { type: 'solid' as const, pt: 0.5, color: 'E3DED5' };
+
+      const cover = pptx.addSlide();
+      cover.background = { color: '0B4527' };
+      cover.addShape(pptx.ShapeType.rect, { x: 0.6, y: 1.9, w: 1.1, h: 0.08, fill: { color: brand } });
+      cover.addText('Majete Corner', { x: 0.6, y: 2.1, w: 8.8, h: 0.4, fontSize: 13, color: 'CDE3D6', charSpacing: 2 });
+      cover.addText(data.title, { x: 0.6, y: 2.5, w: 8.8, h: 0.9, fontSize: 30, bold: true, color: 'FFFFFF' });
+      cover.addText(data.subtitle, { x: 0.6, y: 3.5, w: 8.5, h: 0.9, fontSize: 12, color: 'CDE3D6' });
+
+      const addTable = (heading: string, head: string[], rows: string[][]) => {
+        if (!rows.length) return;
+        const slide = pptx.addSlide();
+        slide.background = { color: 'F7F4EE' };
+        slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 10, h: 0.06, fill: { color: brand } });
+        slide.addText(heading, { x: 0.45, y: 0.28, w: 9.1, h: 0.5, fontSize: 20, bold: true, color: ink });
+        const width = 9.1 / head.length;
+        const body = rows.map((row) => row.map((cell) => ({ text: cell, options: { color: ink } })));
+        slide.addTable(
+          [head.map((cell) => ({ text: cell, options: { bold: true, color: 'FFFFFF', fill: { color: brand } } })), ...body],
+          {
+            x: 0.45,
+            y: 1.0,
+            w: 9.1,
+            colW: head.map(() => width),
+            fontSize: 10,
+            valign: 'middle',
+            border,
+            margin: 0.05,
+            rowH: 0.28,
+            autoPage: true,
+            autoPageRepeatHeader: true,
+          },
+        );
+      };
+
+      if (data.summary.length) {
+        addTable(data.title, [translate('Metric'), translate('Value')], data.summary);
+      }
+      for (const table of data.tables) addTable(table.title, table.head, table.rows);
+
+      await pptx.writeFile({ fileName: `majete-${this.tab()}-${this.period()}.pptx` });
+      this.toast.show(translate('Report exported'));
+      this.exportOpen.set(false);
+    } catch {
+      this.toast.show(translate('Could not create the file. Please try again.'), 'error');
+    } finally {
+      this.exporting.set(false);
+    }
+  }
+
+  protected async exportPdf(): Promise<void> {
+    if (this.exporting()) return;
+    this.exporting.set(true);
+    try {
+      const { jsPDF } = await import('jspdf');
+      const autoTable = (await import('jspdf-autotable')).default;
+      // jsPDF's built-in fonts cannot render Ge'ez script, so PDFs use English labels.
+      const data = this.buildExport(false);
+      const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+      const brand: [number, number, number] = [228, 87, 46];
+      const margin = { left: 14, right: 14 };
+
+      doc.setFontSize(18);
+      doc.setTextColor(32, 37, 43);
+      doc.text(data.title, 14, 18);
+      doc.setFontSize(9);
+      doc.setTextColor(120, 115, 108);
+      doc.text(data.subtitle, 14, 25, { maxWidth: 182 });
+
+      let y = 32;
+      const runTable = (heading: string, head: string[], rows: string[][]) => {
+        if (!rows.length) return;
+        if (y > 20) y += 4;
+        doc.setFontSize(11);
+        doc.setTextColor(32, 37, 43);
+        doc.text(heading, 14, y);
+        y += 3;
+        autoTable(doc, {
+          startY: y,
+          head: [head],
+          body: rows,
+          theme: 'grid',
+          styles: { fontSize: 8, cellPadding: 1.8, textColor: [32, 37, 43] },
+          headStyles: { fillColor: brand, textColor: 255, fontStyle: 'bold' },
+          alternateRowStyles: { fillColor: [250, 246, 241] },
+          margin,
+        });
+        y = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 8;
+      };
+
+      runTable(data.title, ['Metric', 'Value'], data.summary);
+      for (const table of data.tables) runTable(table.title, table.head, table.rows);
+
+      doc.save(`majete-${this.tab()}-${this.period()}.pdf`);
+      this.toast.show(translate('Report exported'));
+      this.exportOpen.set(false);
+    } catch {
+      this.toast.show(translate('Could not create the file. Please try again.'), 'error');
+    } finally {
+      this.exporting.set(false);
+    }
+  }
+
+  private buildExport(localize = true): { title: string; subtitle: string; summary: string[][]; tables: { title: string; head: string[]; rows: string[][] }[] } {
+    const t = (text: string) => (localize ? translate(text) : text);
     const summary = this.summary();
-    const rows: (string | number)[][] = [
-      [translate('Metric'), translate('Value'), translate('Period')],
-      [translate('Total ordered'), this.num(summary?.expectedAmount), this.rangeLabel()],
-      [translate('Money received'), this.num(summary?.collectedAmount), this.rangeLabel()],
-      [translate('Not paid yet'), this.num(summary?.outstandingAmount), this.rangeLabel()],
-      [translate('Refunded'), this.num(summary?.refundedAmount), this.rangeLabel()],
-      [translate('Sales before refunds'), this.num(summary?.grossSales), this.rangeLabel()],
-      [translate('Tips received'), this.num(summary?.tipsCollected), this.rangeLabel()],
-      [translate('Average paid order'), this.num(this.avgPaidOrder()), this.rangeLabel()],
-      [translate('Orders opened'), summary?.totalOrders ?? 0, this.rangeLabel()],
-      [translate('Paid orders'), summary?.paidOrders ?? 0, this.rangeLabel()],
-      [translate('Not paid'), summary?.unpaidOrders ?? 0, this.rangeLabel()],
-      [translate('Payment pending'), summary?.pendingPaymentOrders ?? 0, this.rangeLabel()],
-      [translate('Refund pending'), summary?.refundPendingOrders ?? 0, this.rangeLabel()],
-      [translate('Cancelled orders'), summary?.cancelledOrders ?? 0, this.rangeLabel()],
-      [],
-      [translate('Date'), translate('Orders'), translate('Total ordered'), translate('Money received'), translate('Refunded'), translate('Tips')],
-      ...(summary?.daily ?? []).map((day) => [day.date, day.orders, this.num(day.expected), this.num(day.collected), this.num(day.refunds), this.num(day.tips)]),
-      [],
-      [translate('Order'), translate('Waiter'), translate('Order status'), translate('Payment status'), translate('Order total'), translate('Amount paid'), translate('Opened')],
-      ...this.orderRows().map((row) => [
-        row.orderNumber,
-        row.waiterName,
-        this.orderLabel(row.orderStatus),
-        this.paymentLabel(row.paymentStatus),
-        this.num(row.expectedAmount),
-        this.num(row.collectedAmount),
-        row.createdAt,
-      ]),
-    ];
-    const csv = rows
-      .map((row) => row.map((cell) => this.csvCell(String(cell ?? ''))).join(','))
-      .join('\n');
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `restopro-report-${this.period()}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-    this.toast.show(translate('Report exported'));
-  }
+    const cancellations = this.cancellations();
+    const kitchen = this.kitchen();
+    const moneyText = (value: number | null | undefined) => `${money(value ?? 0)} ETB`;
+    const range = localize
+      ? this.rangeLabel()
+      : this.period() === 'today'
+        ? 'Today'
+        : this.period() === 'week'
+          ? 'This week'
+          : 'This month';
+    const subtitle = [this.store.settings().restaurant, this.store.settings().branch, `${this.tabLabel(localize)} · ${range}`]
+      .filter(Boolean)
+      .join(' · ');
+    const summaryRows: string[][] = [];
+    const tables: { title: string; head: string[]; rows: string[][] }[] = [];
 
-  private num(value: number | undefined): string {
-    return (value ?? 0).toFixed(2);
-  }
+    switch (this.tab()) {
+      case 'sales':
+        summaryRows.push(
+          [t('Total ordered'), moneyText(summary?.expectedAmount)],
+          [t('Money received'), moneyText(summary?.collectedAmount)],
+          [t('Not paid yet'), moneyText(summary?.outstandingAmount)],
+          [t('Refunded'), moneyText(summary?.refundedAmount)],
+          [t('Sales before refunds'), moneyText(summary?.grossSales)],
+          [t('Tips received'), moneyText(summary?.tipsCollected)],
+          [t('Average paid order'), moneyText(this.avgPaidOrder())],
+          [t('Orders opened'), String(summary?.totalOrders ?? 0)],
+          [t('Completed'), String(summary?.completedOrders ?? 0)],
+          [t('Cancelled'), String(summary?.cancelledOrders ?? 0)],
+        );
+        tables.push({
+          title: t('How customers paid'),
+          head: [t('Method'), t('Payments'), t('Amount')],
+          rows: this.methods().map((method) => [localize ? method.label : method.key, String(method.count), moneyText(method.amount)]),
+        });
+        tables.push({
+          title: t('Daily breakdown'),
+          head: [t('Date'), t('Orders'), t('Total ordered'), t('Money received'), t('Refunded'), t('Tips')],
+          rows: (summary?.daily ?? []).map((day) => [
+            day.date,
+            String(day.orders),
+            moneyText(day.expected),
+            moneyText(day.collected),
+            moneyText(day.refunds),
+            moneyText(day.tips),
+          ]),
+        });
+        break;
 
-  private csvCell(value: string): string {
-    return /[",\n]/.test(value) ? `"${value.replaceAll('"', '""')}"` : value;
+      case 'orders':
+        tables.push({
+          title: t('Order report'),
+          head: [t('Order'), t('Waiter'), t('Order status'), t('Payment status'), t('Order total'), t('Amount paid'), t('Opened')],
+          rows: this.filteredOrders().map((row) => [
+            `#${row.orderNumber}`,
+            row.waiterName,
+            this.orderLabel(row.orderStatus, localize),
+            this.paymentLabel(row.paymentStatus, localize),
+            moneyText(row.expectedAmount),
+            moneyText(row.collectedAmount),
+            this.dateTime(row.createdAt, localize),
+          ]),
+        });
+        break;
+
+      case 'waiters':
+        tables.push({
+          title: t('Waiter performance'),
+          head: [t('Waiter'), t('Orders'), t('Completed'), t('Total ordered'), t('Amount paid'), t('Tips'), t('Tips not paid out'), t('Cancelled')],
+          rows: this.waiterRows().map((row) => [
+            row.waiterName,
+            String(row.totalOrders ?? 0),
+            String(row.completedOrders ?? 0),
+            moneyText(row.expectedRevenue),
+            moneyText(row.totalRevenue),
+            moneyText(row.totalTips),
+            moneyText(row.unsettledTips),
+            String(row.cancelledOrders),
+          ]),
+        });
+        break;
+
+      case 'cancellations':
+        summaryRows.push(
+          [t('Cancellations'), String(cancellations?.totalCancellations ?? 0)],
+          [t('Lost sales'), moneyText(cancellations?.totalLostRevenue)],
+          [t('Recovery rate'), `${cancellations?.recoveryRatePercentage ?? 0}%`],
+        );
+        tables.push({
+          title: t('Cancellations by reason'),
+          head: [t('Reason'), t('Count'), t('Lost'), t('Reordered')],
+          rows: this.cancelRows().map((row) => [this.reasonLabel(row.reasonCode, localize), String(row.count), moneyText(row.lostRevenue), String(row.reordersCreated)]),
+        });
+        break;
+
+      default:
+        summaryRows.push(
+          [t('Tickets analysed'), String(kitchen?.totalOrdersAnalyzed ?? 0)],
+          [t('Avg. preparation'), `${kitchen?.avgPrepMinutes ?? 0} ${t('min')}`],
+          [t('Avg. pickup'), `${kitchen?.avgPickupMinutes ?? 0} ${t('min')}`],
+        );
+        tables.push({
+          title: t('Kitchen & bar'),
+          head: [t('Station'), t('Orders handled'), t('Items handled'), t('Items ready'), t('Items in progress'), t('Avg. preparation'), t('Avg. pickup')],
+          rows: this.stationCards().map((station) => [
+            station.station === 'BAR' ? t('Bar') : t('Kitchen'),
+            String(station.totalOrders),
+            String(station.totalItems),
+            String(station.itemsReady),
+            String(station.itemsInProgress),
+            `${station.avgPrepMinutes} ${t('min')}`,
+            `${station.avgPickupMinutes} ${t('min')}`,
+          ]),
+        });
+        break;
+    }
+
+    return { title: `${t('Reports')} — ${this.tabLabel(localize)}`, subtitle, summary: summaryRows, tables };
   }
 
   private async reload(): Promise<void> {

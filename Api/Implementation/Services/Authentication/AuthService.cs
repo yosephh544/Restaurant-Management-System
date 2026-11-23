@@ -190,6 +190,18 @@ public class AuthService : IAuthService
         if (!string.IsNullOrWhiteSpace(request.FullName))
             user.FullName = request.FullName.Trim();
 
+        if (!string.IsNullOrWhiteSpace(request.Username))
+        {
+            var username = request.Username.Trim().ToLowerInvariant();
+            if (username != user.Username)
+            {
+                if (await _dbContext.Users.AnyAsync(u => u.Username == username && u.Id != userId, ct))
+                    throw new ConflictException("That username is already taken.");
+
+                user.Username = username;
+            }
+        }
+
         if (request.Phone is not null)
         {
             var phone = request.Phone.Trim();
@@ -211,6 +223,24 @@ public class AuthService : IAuthService
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword);
         }
 
+        if (!string.IsNullOrWhiteSpace(request.NewPin))
+        {
+            // The first PIN has nothing to verify against; later changes require the current PIN.
+            if (!string.IsNullOrEmpty(user.PinHash))
+            {
+                if (string.IsNullOrEmpty(request.CurrentPin))
+                    throw new ValidationException("CurrentPin", "Enter your current PIN.");
+
+                if (!BCrypt.Net.BCrypt.Verify(request.CurrentPin, user.PinHash))
+                    throw new ValidationException("CurrentPin", "Your current PIN is incorrect.");
+
+                if (request.NewPin == request.CurrentPin)
+                    throw new ValidationException("NewPin", "Choose a PIN different from the current one.");
+            }
+
+            user.PinHash = BCrypt.Net.BCrypt.HashPassword(request.NewPin);
+        }
+
         user.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync(ct);
 
@@ -223,7 +253,8 @@ public class AuthService : IAuthService
         FullName = user.FullName,
         Username = user.Username,
         Phone = user.Phone,
-        Role = user.RoleEntity?.Name ?? user.Role.ToString()
+        Role = user.RoleEntity?.Name ?? user.Role.ToString(),
+        HasPin = !string.IsNullOrEmpty(user.PinHash)
     };
 
     private string Encrypt(string plainText)

@@ -83,14 +83,44 @@ import { Icon } from '../../shared/icon';
                 <label class="label" for="new">{{ 'New password' | t }}</label>
                 <div class="input-wrap">
                   <app-icon name="lock" />
-                  <input id="new" class="input" name="password" type="password" [(ngModel)]="password" autocomplete="new-password" />
+                  <input
+                    id="new"
+                    class="input"
+                    name="password"
+                    [type]="showPassword() ? 'text' : 'password'"
+                    [(ngModel)]="password"
+                    autocomplete="new-password"
+                  />
+                  <button
+                    class="pw-toggle"
+                    type="button"
+                    (click)="showPassword.set(!showPassword())"
+                    [attr.aria-label]="(showPassword() ? 'Hide password' : 'Show password') | t"
+                  >
+                    <app-icon [name]="showPassword() ? 'eye-off' : 'eye'" />
+                  </button>
                 </div>
               </div>
               <div class="field">
                 <label class="label" for="confirm">{{ 'Confirm password' | t }}</label>
                 <div class="input-wrap">
                   <app-icon name="lock" />
-                  <input id="confirm" class="input" name="confirm" type="password" [(ngModel)]="confirm" autocomplete="new-password" />
+                  <input
+                    id="confirm"
+                    class="input"
+                    name="confirm"
+                    [type]="showConfirm() ? 'text' : 'password'"
+                    [(ngModel)]="confirm"
+                    autocomplete="new-password"
+                  />
+                  <button
+                    class="pw-toggle"
+                    type="button"
+                    (click)="showConfirm.set(!showConfirm())"
+                    [attr.aria-label]="(showConfirm() ? 'Hide password' : 'Show password') | t"
+                  >
+                    <app-icon [name]="showConfirm() ? 'eye-off' : 'eye'" />
+                  </button>
                 </div>
               </div>
               @if (error()) {
@@ -125,6 +155,8 @@ export class ResetPasswordPage {
   protected code = this.route.snapshot.queryParamMap.get('code') ?? '';
   protected password = '';
   protected confirm = '';
+  protected readonly showPassword = signal(false);
+  protected readonly showConfirm = signal(false);
   protected readonly busy = signal(false);
   protected readonly done = signal(false);
   protected readonly error = signal('');

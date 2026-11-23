@@ -269,6 +269,55 @@ svg {
   z-index: 30;
 }
 
+.section-tabs {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: none;
+  padding: 0 28px;
+  background: rgba(246, 241, 234, 0.95);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--line);
+  position: sticky;
+  top: 64px;
+  z-index: 25;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.section-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.section-tabs a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 12px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--muted);
+  border-bottom: 2px solid transparent;
+  white-space: nowrap;
+}
+
+.section-tabs a:hover {
+  color: var(--ink);
+}
+
+.section-tabs a.active {
+  color: var(--brand);
+  border-bottom-color: var(--brand);
+}
+
+.section-tabs .section-tab-count {
+  background: rgba(228, 87, 46, 0.12);
+  color: var(--brand);
+  border-radius: 999px;
+  font-size: 10px;
+  padding: 1px 6px;
+}
+
 .hamburger {
   display: none;
   background: var(--card);
@@ -842,6 +891,32 @@ svg {
 
 .input-wrap .input {
   padding-left: 34px;
+}
+
+.input-wrap:has(.pw-toggle) .input {
+  padding-right: 38px;
+}
+
+.input-wrap .pw-toggle {
+  position: absolute;
+  right: 6px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-2);
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.input-wrap .pw-toggle:hover {
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.06);
 }
 
 .search {
@@ -3156,6 +3231,7 @@ svg {
 
   .sidebar,
   .topbar,
+  .section-tabs,
   .no-print,
   .notify-menu,
   .toast-wrap {
@@ -3222,6 +3298,16 @@ svg {
     padding: 0 16px;
     gap: 9px;
     height: 58px;
+  }
+
+  .section-tabs {
+    padding: 0 10px;
+    top: 58px;
+  }
+
+  .section-tabs a {
+    padding: 11px 10px 9px;
+    font-size: 12.5px;
   }
 
   .top-date {
