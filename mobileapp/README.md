@@ -1,18 +1,10 @@
 # Majete Corner mobile app
 
-Android app for Waiter, Kitchen, and Cashier accounts, using the existing ASP.NET Core API in `Api`. The interface uses English and displays monetary amounts in ETB.
+Android app for Waiter, Kitchen, Bartender, and Cashier accounts, using the existing ASP.NET Core API in `Api`. The interface uses English and displays monetary amounts in ETB.
 
 The restaurant logo is bundled from `assets/images/logo.jpg` and appears on the sign-in screen, navigation, and Android/iOS launcher icons. To regenerate the launcher icons after replacing the logo, run `powershell -ExecutionPolicy Bypass -File tool/generate_brand_icons.ps1` on Windows.
 
 ## Run locally
-
-### Try without a backend
-
-Run `flutter run`, tap **Continue** on the sign-in screen, and choose **Waiter**, **Kitchen**, or **Cashier**. No server, phone number, or PIN is needed.
-
-The demo includes today's sample orders, dishes, a paid order, and an unavailable dish. Create an order as Waiter, use **Profile → Change role** to prepare it as Kitchen, then switch back to Waiter to serve it and record a pretend cash payment. Cashier can explore paid-order History, refunds, transfers, and pending electronic test payments. Phone/QR demo payments stay pending and can be cancelled by Cashier; they never contact a payment provider.
-
-Demo changes are shared across roles while the app runs. **Profile → Sign out** or a full app restart resets the sample restaurant. Demo credentials, drafts, and payments stay in memory; your configured backend URL is preserved. The user requested normal app wording with no visible demo, sample-data, or test labels in this offline flow. The implementation is temporary; see [the removal guide](docs/offline-demo-removal.md) when the backend is ready.
 
 ### Connect to a backend
 
@@ -31,10 +23,10 @@ Start an Android emulator, then run:
 ```bash
 cd mobileapp
 flutter pub get
-flutter run --dart-define=API_BASE_URL=http://10.0.2.2:5012/api/v1
+flutter run --dart-define=API_BASE_URL=http://192.168.1.2:5012/api/v1
 ```
 
-`10.0.2.2` is the Android emulator's address for this computer. It is also the app's default server. For a physical device on the same Wi-Fi, replace it with the computer's LAN IP:
+`10.0.2.2` is the Android emulator's address for this computer. Use the build-time API URL above for emulator testing. For a physical device on the same Wi-Fi, replace it with the computer's LAN IP:
 
 ```bash
 flutter run --dart-define=API_BASE_URL=http://192.168.1.20:5012/api/v1
@@ -47,38 +39,49 @@ adb reverse tcp:5012 tcp:5012
 flutter run --dart-define=API_BASE_URL=http://127.0.0.1:5012/api/v1
 ```
 
-The **Restaurant server** control on the sign-in screen can save another full API URL. A saved URL takes precedence over the build-time default. Changing servers signs out the current user and clears drafts and saved test sessions for that account on this device.
+The **Restaurant server** control on the sign-in screen can save another full API URL. A saved URL takes precedence over the build-time default. Changing servers signs out the current user and clears drafts and saved payment sessions for that account on this device.
 
 ## Accounts and supported workflows
 
-The backend applies its migrations and seeds the initial Owner when it starts. On a fresh database, sign in through Swagger with phone `0920496730` and password `P@ssw0rd`, authorize with the returned bearer token, then create Waiter/Kitchen/Cashier users through `POST /api/v1/users`. An existing Owner password is preserved. Owner/Manager accounts belong in the administration client, not this service app. Offline demo accounts are separate from backend accounts; the app does not create real staff accounts.
+Debug builds temporarily offer **Add quick sign-in account**. Enter a real staff username/PIN and select **Save account**; repeat to add more accounts without signing in. Each saved username/role has a separate sign-in button and **Remove** control. Saving the same username again updates its PIN/details while preserving the other accounts. Normal sign-ins do not replace the saved list. Credentials stay in secure device storage, are tied to the configured server, and are cleared when changing servers. The shortcuts are hidden in profile/release builds and still require a reachable backend, valid credentials, and an allowed shift. See [the temporary feature removal notes](docs/temporary-quick-login.md).
 
-- **Waiter:** phone and PIN/password sign-in; today's own orders; today's paid orders in Payments; saved drafts; notes; create/add/serve orders; unpaid replacement orders; cash/electronic test payments. History is available only to Cashier.
+The backend applies its migrations and seeds the initial Owner when it starts. On a fresh database, sign in through Swagger with username `joseph` and the configured Owner password, authorize with the returned bearer token, then create Waiter/Kitchen/Bartender/Cashier users through `POST /api/v1/users`, assign their default shifts, and configure active tables. An existing Owner password is preserved. Owner/Manager accounts belong in the administration client, not this service app. The app does not create staff accounts.
+
+- **Waiter:** username and PIN sign-in; today's own orders; today's paid orders in Payments; saved drafts; notes; create/add/serve orders; unpaid replacement orders; cash/electronic test payments. History is available only to Cashier.
 - **Kitchen:** queue and item instructions; pending → preparing → ready; item or full-order cancellation with a required explanation.
+- **Bartender:** drink queue; pending → preparing → ready; cancellation of drink items with an explanation. Bartender uses the live Bar API.
 - **Cashier:** view existing orders; cash payment with tendered amount and change; electronic test sessions; paid-order History; pending-session retraction; recording refunds and transfers. Cashiers do not create new or replacement orders, add items, or mark orders served in this app.
 - **Manager/Owner:** unsupported in this service app. Use a management client for those accounts.
 
-Navigation and actions use the `permissions` returned by `GET /auth/me`, with creation, additions, replacements, and serving additionally reserved for Waiter in this service app. Login and token refresh first receive tokens, then retrieve the staff profile with the access token. The backend remains authoritative for permission and ownership checks; its broader staff grants do not enable waiter actions for Cashier in the app. Dish selection is available within order creation, adding items, and replacement orders; there is no separate Menu section for these roles.
+Navigation and actions use the `permissions` returned by `GET /auth/me`, with creation, additions, replacements, and serving additionally reserved for Waiter in this service app. Mobile sign-in uses `username` and a 4–6 digit PIN through `/auth/pin-login`. Staff accounts need a PIN configured by their manager; password sign-in is available only in the administration client. Login and token refresh first receive tokens, then retrieve and decrypt the AES-GCM staff profile with the access token. The current profile omits phone and active fields; a successful `/auth/me` response confirms the account is active. Shift restrictions apply to both sign-in and token refresh. Profile displays the staff member’s shift windows in EAT. The backend remains authoritative for permission and ownership checks; its broader staff grants do not enable waiter actions for Cashier in the app. Dish selection is available within order creation, adding items, and replacement orders; there is no separate Menu section for these roles.
 
-Kitchen detail reads pending/preparing tickets from the existing paginated `GET /api/v1/kitchen/queue` endpoint, using `kitchen.view`. Item instructions and statuses are available; order-level notes are not returned by this endpoint. Users without `orders.view` see no bill totals and return to the queue when a ticket is ready or fully cancelled. This app update requires no backend changes or migrations.
+Kitchen detail reads food tickets from paginated `GET /api/v1/kitchen/queue`, using `kitchen.view`. Bartender uses the matching Bar endpoints. Preparation screens use `stationStatus`, so food can be ready while drinks are still preparing. Staff can start or ready individual items, or use **Ready all**. Waiters can serve individual ready items while the rest are cooking, or use **Serve all** once the whole order is ready. Served lines leave the station board. Item instructions and statuses are available; order-level notes are not returned by this endpoint. Queue positions come from the backend. Preparation staff see only their station’s items, with no bill totals. This app update requires the current backend and its existing migrations; it adds no backend changes or migrations.
 
-Only waiters can add items, while an order is pending or preparing. Once it is ready, create a new order for extra dishes so they appear in the current backend's kitchen queue.
+Only waiters can add items while an order is pending or preparing and no bill has been generated. New and replacement orders choose **Dine in** or **Takeaway**; this choice is saved with drafts. Dine-in orders select a configured active table and check its session before submitting. A table with a generated bill must be paid or reopened by an authorized cashier before more orders are placed. Takeaway tickets need no table and are billed independently, including the server's snapshotted packaging fee.
 
-The waiter selects dishes, quantities, and instructions, then submits the order to the kitchen. Kitchen staff prepare it and mark it ready; the waiter marks it served and then accepts payment. Order entry and detail pages show no subtotal, tax, tip, or order total. Payment amounts are displayed when accepting payment. Waiters can initiate payment only after the order is served.
+The waiter selects dishes, quantities, and instructions, then submits the order. Food goes to Kitchen and drinks to Bar; the full order becomes ready after both stations finish. The waiter marks it served and then accepts payment. Order entry and detail pages show no subtotal, tax, tip, or order total. Payment amounts are displayed when accepting payment. Waiters can initiate payment only after the order is served.
 
 Status chips filter the Orders list directly. Cards use prominent table labels, concise status text, and shortcuts for the current role: Waiter can mark a ready order served, Kitchen can start preparation or mark a ticket ready, and eligible Waiter/Cashier accounts can open payment entry. Serving and kitchen shortcuts re-read the current record and permissions before changing its status. Additional Cashier filters are available under **More filters**. The visual direction favors readable text and alignment over repeated icon tiles, colored strips, gradients, and decorative containers; see [design notes](docs/design-notes.md).
 
-Order entry uses a scrolling menu that renders visible dishes and nearby dishes as needed, with search and category filters for larger menus. The fixed **Review order** button opens selected items, quantities, table, and notes, with **Send to kitchen** fixed at the bottom. **Back to dishes** preserves the selection and menu position. These screens work with both the live API and the temporary offline transport.
+Order entry uses a scrolling menu that renders visible dishes and nearby dishes as needed, with search and category filters for larger menus. The fixed **Review order** button opens selected items, quantities, table, and notes, with **Send order** fixed at the bottom. **Back to dishes** preserves the selection and menu position. Selected quantities and notes are retained while reviewing or refreshing the menu.
+
+## Order notifications
+
+Waiters receive alerts when their own orders become READY. Kitchen and Bartender accounts receive alerts for new tickets and newly added items in their station's queue. The header bell shows unread alerts; tap an entry or a notification's **View** action to open its order. Android/iOS phone notifications use sound and vibration where permitted by the device, with in-app alerts available even when phone permission is denied.
+
+Notifications check the existing API every five seconds across screens while the app is open, pause in the background, and check again on resume. They do not arrive for new events while the app is closed. Ready alerts follow the backend's whole-order READY status; station readiness and collection behavior are unchanged. See [notification behavior and verification](docs/order-notifications.md).
 
 ## Payments and current API limitations
 
-**Cash payments are manual records; phone and QR sessions remain test-only.** Waiters accept payment after serving the order; cashiers can accept payment for READY/SERVED orders. For cash, enter the amount actually received; the server marks the payment paid immediately and returns the change due. The electronic adapter still generates placeholder sessions rather than contacting ArifPay. The app displays those returned QR payloads with test labels.
+**Cash payments are manual records; phone requests and generated QR sessions remain test-only.** Waiters accept payment after serving the order; cashiers can accept payment for READY/SERVED orders. Checkout reviews the table's eligible orders or the single takeaway ticket and generates or reuses its bill. Every included order must be ready; Waiters must serve all their own included orders first. Payment submits `billId` and uses the server bill's subtotal, tax, discount, and packaging fee. Tax-inclusive menu pricing is already reflected in these totals. For cash, enter the amount received; the server marks the payment paid immediately and returns change. Manual tip entry has been removed: cash tips stay outside the system.
+
+**Telebirr/CBE receipts:** choose the receipt payment method, scan the customer's transaction QR or paste its receipt link, and enter the transferred amount. CBE also accepts a transaction number without a link. Android/iOS request camera permission only for scanning; manual receipt entry remains available. The backend checks receipts through check.et, and its verified amount takes precedence over the entered amount. Any overpayment becomes the waiter tip. The payment page saves and displays receipt and verification details. When the backend has no check.et configuration, it can record an unverified receipt; mobile identifies it explicitly. See [backend compatibility notes](docs/backend-compatibility.md).
 
 The app never invokes the provider webhook or simulates success. During local testing, a developer can exercise callback behavior separately through the API's development tools, then observe status changes in the app.
 
-Payment IDs and their metadata are stored securely by user and server and recovered after an app restart. Sessions created on another device/account cannot be retrieved through the current API; their order-level payment state is still visible. Logout clears the local session history, so keep the creating account signed in when testing session recovery.
+Payment IDs and metadata are stored securely by user and server and recovered after restart. Payment detail also retrieves server records, including payments created on other devices. Refresh keeps a locally saved test QR when the server's payment list omits it. Logout clears local payment storage.
 
-The cashier's History tab lists today's orders currently marked PAID on the server, with search and pagination. It includes paid orders across the restaurant, including payments accepted by waiters or on other devices. Open an entry to view its order details. Waiters do not have a History tab.
+The cashier's History tab lists today's orders currently marked PAID on the server, with search and pagination. It includes paid orders across the restaurant, including payments accepted by waiters or on other devices. Open an entry to view its order details. **All payment records** opens paginated server payments of every status, so cancelled prepaid and refunded payments can be reviewed. Waiters do not have a History tab.
 
 The waiter's Payments tab lists only their own orders created today and currently marked PAID on the server, with search and pagination. It includes their orders paid by a cashier or on another device. Pending payments remain in Orders, with saved payment details accessible after checkout or through the order's saved-payment link.
 
@@ -88,9 +91,11 @@ Orders for Waiter and Cashier, Waiter's Payments, and Cashier's History use the 
 
 Partial cancellations reduce the server subtotal and snapshotted tax. Cancelled lines remain visible but are excluded from charged totals. The waiter can accept payment for the remaining order after serving it. Kitchen cancellation is limited to pending/preparing tickets. Reorders create fresh unpaid tickets and no longer send the obsolete `carryOverPayment` field.
 
-Refunds are full backend records allowed only for paid, served orders. Return cash manually before recording a cash refund; an electronic refund record does not contact a provider. Transfers require a paid/served source and a different eligible READY/SERVED target with the matching total, including the source tip. The app saves the destination's new payment ID and marks the source saved payment as transferred.
+Refunds require a settled payment whose representative order is served, cancelled, or refund-pending. They refund the full payment and, for a bill payment, every included order; the confirmation states this scope. Return cash or electronic funds manually before recording a refund; recording does not contact a payment provider. Transfers require a paid/served source and a different eligible READY/SERVED target with a matching total including packaging and the source tip. Payment-pending targets are supported by the current API. The app saves the destination payment ID and marks the source as transferred. Transfer remains limited to legacy individual-order source payments in this app. Bills retain their `billId` in secure storage and can be reopened by an authorized cashier before payment. Ambiguous bill-generation or payment failures are never retried automatically.
 
-Billing/receipts, issue approval, push notifications, management screens, and live electronic provider operations remain outside this app's current capabilities. Kitchen and order screens poll every 5 seconds; pending payment sessions poll every 3 seconds. Polling pauses in the background and backs off after failures.
+Table-bill review and generation are supported. Receipt printing, issue approval, push notifications, management screens, and live electronic provider operations remain outside this app's current capabilities. Kitchen and order screens poll every 5 seconds; pending payment sessions poll every 3 seconds. Polling pauses in the background and backs off after failures.
+
+Pull down to refresh Orders, order details, History, Payments, Kitchen/Bar queues, Profile, dish selection, and bill/transfer lists. Short and empty lists support the same gesture. Refresh keeps existing data visible on connection failures. Dish refresh updates menu prices/availability and active tables while preserving selected quantities, notes, and search; it never reloads an older saved draft. Saved payment lists retrieve current server statuses when refreshed.
 
 Order and payment mutations are never automatically retried after an ambiguous network failure. The draft is retained and the user must check the existing order/session before submitting again.
 
@@ -100,18 +105,18 @@ Use Flutter 3.27/Dart 3.6 or a compatible later SDK, Java 17 or 21, Android SDK 
 
 ```bash
 flutter analyze
-flutter test
-flutter build apk --debug
 ```
 
-Debug APK: `build/app/outputs/flutter-apk/app-debug.apk`.
+Use focused tests when needed for behavior changes. APK builds run only on explicit request. Debug APK output: `build/app/outputs/flutter-apk/app-debug.apk`.
 
-Run `flutter test test/demo_test.dart` to validate offline role entry/switching/exit, order preparation, payments, cancellation, permissions, pagination, and isolation from the live server and secure storage. The older API/widget fixtures reflect earlier response contracts and need updating before the full test suite can validate the live backend flows. For manual backend verification, create staff/menu data, sign in, create an order, prepare it in Kitchen, mark it ready, record cash or an electronic test session, then verify the updated backend status. Refund/transfer actions require a served order.
+The older API/widget fixtures reflect earlier response contracts and need updating before the full test suite can validate live backend flows. Focused current-contract tests cover takeaway checkout/drafts, cash totals, receipt payments and recovery, cancelled prepaid refunds, stale payment protection, role restrictions, kitchen navigation, and notifications. For manual verification, create staff/menu data, sign in, prepare and serve an order, record cash or a receipt payment, and check its backend status. Camera scanning and live check.et verification require a device and configured backend.
 
 HTTP is enabled only for Android debug builds. Release configuration requires a trusted HTTPS server:
 
 ```bash
-flutter build apk --release --dart-define=API_BASE_URL=https://your-api.example/api/v1
+flutter build apk --release --dart-define=API_BASE_URL=https://your-api.example/api/v1 --dart-define=RESPONSE_ENCRYPTION_KEY=your-profile-key
 ```
+
+`RESPONSE_ENCRYPTION_KEY` must match the server’s `ResponseEncryption:Key` (`ResponseEncryption__Key` environment variable). Debug builds default to the same development key supplied by the backend’s HTTP/HTTPS launch profiles; release builds require an explicit key. This is the profile response key, separate from the JWT signing key.
 
 The starter application ID and debug signing setup remain in place. Configure your own application ID and release signing before distributing a production build.

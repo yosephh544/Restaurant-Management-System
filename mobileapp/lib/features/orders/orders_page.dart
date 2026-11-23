@@ -240,7 +240,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                           'on this page',
                           accent: true),
                       ServiceStat(
-                          'In kitchen',
+                          'Preparing',
                           orders
                               .where((o) => ['PENDING', 'PREPARING']
                                   .contains(code(o.status)))
@@ -277,7 +277,8 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                                     child: Text(_servingId == order.id
                                         ? 'Updating…'
                                         : 'Mark served'))
-                                : staff.canTakePayment(order) && order.canPay
+                                : staff.canTakePayment(order) &&
+                                        order.canPayBill
                                     ? OutlinedButton(
                                         onPressed: () =>
                                             startPayment(context, ref, order),
@@ -315,6 +316,8 @@ class OrderCard extends StatelessWidget {
         OrderHeading(
             number: order.orderNumber,
             table: order.table,
+            takeaway: order.takeaway,
+            queuePosition: order.queuePosition,
             status: order.status,
             subtitle: showWaiter ? order.waiterName : null),
         if (!order.paid && code(order.paymentStatus) != 'UNPAID') ...[

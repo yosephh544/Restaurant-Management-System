@@ -333,11 +333,15 @@ class StatRow extends StatelessWidget {
 class OrderHeading extends StatelessWidget {
   final String number, table, status;
   final String? subtitle;
+  final bool takeaway;
+  final int queuePosition;
   const OrderHeading(
       {required this.number,
       required this.table,
       required this.status,
       this.subtitle,
+      this.takeaway = false,
+      this.queuePosition = 0,
       super.key});
   @override
   Widget build(BuildContext context) {
@@ -349,11 +353,16 @@ class OrderHeading extends StatelessWidget {
           style: const TextStyle(
               color: muted, fontSize: 11, fontWeight: FontWeight.w700)),
       const SizedBox(height: 4),
-      Text('Table $table',
+      Text(takeaway ? 'Takeaway' : 'Table $table',
           style: Theme.of(context)
               .textTheme
               .titleLarge
               ?.copyWith(fontSize: 21, fontWeight: FontWeight.w800)),
+      if (queuePosition > 0) ...[
+        const SizedBox(height: 4),
+        Text('Queue $queuePosition',
+            style: const TextStyle(color: muted, fontSize: 12)),
+      ],
     ]);
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       LayoutBuilder(
@@ -523,6 +532,42 @@ class PageButtons extends StatelessWidget {
           ]));
 }
 
+/// Refreshes the data panes inside a scroll view without resetting their state.
+class PullToRefresh extends StatefulWidget {
+  final Widget child;
+  final Future<void> Function()? onRefresh;
+  const PullToRefresh({required this.child, this.onRefresh, super.key});
+  @override
+  State<PullToRefresh> createState() => _PullToRefreshState();
+}
+
+class _PullToRefreshState extends State<PullToRefresh> {
+  final _callbacks = <Future<void> Function()>{};
+  Future<void> _refresh() async {
+    try {
+      await widget.onRefresh?.call();
+      if (!mounted) return;
+      await Future.wait(_callbacks.toList().map((refresh) => refresh()));
+    } catch (e) {
+      if (mounted) showError(context, e);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => _PullRefreshScope(
+      owner: this,
+      child: RefreshIndicator(
+          color: forest, onRefresh: _refresh, child: widget.child));
+}
+
+class _PullRefreshScope extends InheritedWidget {
+  final _PullToRefreshState owner;
+  const _PullRefreshScope({required this.owner, required super.child});
+  @override
+  bool updateShouldNotify(_PullRefreshScope oldWidget) =>
+      owner != oldWidget.owner;
+}
+
 /// Refreshes only a visible, resumed route; preserves data on transient failures.
 class AsyncPane<T> extends StatefulWidget {
   final Future<T> Function() load;
@@ -549,6 +594,8 @@ class _AsyncPaneState<T> extends State<AsyncPane<T>>
   Object? _error;
   DateTime? _updated;
   bool _busy = false, _resumed = true;
+  Future<void>? _loading;
+  _PullToRefreshState? _refreshHost;
   int _generation = 0, _failures = 0;
   Timer? _timer;
   @override
@@ -559,10 +606,22 @@ class _AsyncPaneState<T> extends State<AsyncPane<T>>
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final host =
+        context.dependOnInheritedWidgetOfExactType<_PullRefreshScope>()?.owner;
+    if (identical(host, _refreshHost)) return;
+    _refreshHost?._callbacks.remove(_load);
+    _refreshHost = host;
+    _refreshHost?._callbacks.add(_load);
+  }
+
+  @override
   void didUpdateWidget(covariant AsyncPane<T> oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.loadKey != widget.loadKey) {
       _generation++;
+      _loading = null;
       _busy = false;
       _data = null;
       _error = null;
@@ -598,7 +657,17 @@ class _AsyncPaneState<T> extends State<AsyncPane<T>>
     });
   }
 
-  Future<void> _load() async {
+  Future<void> _load() {
+    if (!mounted || !_resumed) return Future.value();
+    if (_loading != null) return _loading!;
+    final pending = _fetch();
+    _loading = pending;
+    return pending.whenComplete(() {
+      if (identical(_loading, pending)) _loading = null;
+    });
+  }
+
+  Future<void> _fetch() async {
     if (_busy || !mounted || !_resumed) return;
     final generation = _generation;
     setState(() => _busy = true);
@@ -627,6 +696,7 @@ class _AsyncPaneState<T> extends State<AsyncPane<T>>
 
   @override
   void dispose() {
+    _refreshHost?._callbacks.remove(_load);
     _generation++;
     _timer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
@@ -708,14 +778,19 @@ class _AsyncPaneState<T> extends State<AsyncPane<T>>
 
 class ScreenBody extends StatelessWidget {
   final Widget child;
-  const ScreenBody({required this.child, super.key});
+  final Future<void> Function()? onRefresh;
+  const ScreenBody({required this.child, this.onRefresh, super.key});
   @override
-  Widget build(BuildContext context) => SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-          16, 5, 16, 24 + MediaQuery.viewInsetsOf(context).bottom),
-      child: Center(
-          child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 960), child: child)));
+  Widget build(BuildContext context) => PullToRefresh(
+      onRefresh: onRefresh,
+      child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: EdgeInsets.fromLTRB(
+              16, 5, 16, 24 + MediaQuery.viewInsetsOf(context).bottom),
+          child: Center(
+              child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 960),
+                  child: child))));
 }
 
 class Totals extends StatelessWidget {

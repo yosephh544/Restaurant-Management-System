@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/api.dart';
+import '../../core/billing.dart';
 import '../../core/models.dart';
 import '../../core/permissions.dart';
 import '../../core/session.dart';
@@ -24,12 +25,16 @@ class _CartPageState extends ConsumerState<CartPage> {
   final _menuScroll = ScrollController();
   final List<DraftLine> _lines = [];
   List<MenuCategory> _menu = [];
+  List<RestaurantTable> _tables = [];
   LocalWorkspace? _workspace;
   RestaurantOrder? _original;
   Json? _otherDraft;
   String _search = '';
+  String _orderType = 'DINE_IN';
+  bool get _takeaway => _orderType == 'TAKEAWAY';
   String? _categoryId;
   bool _reviewing = false;
+  bool _refreshing = false;
   String? _error;
   bool _loading = true, _busy = false, _uncertain = false, _loaded = false;
   Timer? _saveTimer;
@@ -46,6 +51,7 @@ class _CartPageState extends ConsumerState<CartPage> {
   Json _draft() => {
         'route': _route,
         'table': _table.text,
+        'orderType': _orderType,
         'note': _note.text,
         'uncertain': _uncertain,
         'lines': _lines.map((l) => l.toJson()).toList()
@@ -94,6 +100,11 @@ class _CartPageState extends ConsumerState<CartPage> {
         return;
       }
       _menu = await ref.read(restaurantApiProvider).menu();
+      if (widget.orderId == null || widget.replacement) {
+        _tables = access.can(P.tablesView)
+            ? await ref.read(restaurantApiProvider).tables()
+            : [];
+      }
       if (widget.orderId != null) {
         _original =
             await ref.read(restaurantApiProvider).order(widget.orderId!);
@@ -110,9 +121,14 @@ class _CartPageState extends ConsumerState<CartPage> {
               'This order cannot be changed in its current state.');
         }
         _table.text = _original!.table;
+        _orderType = _original!.takeaway ? 'TAKEAWAY' : 'DINE_IN';
       }
       if (draft != null) {
         _table.text = draft['table'] as String? ?? _table.text;
+        if (draft['orderType'] != null) {
+          _orderType =
+              draft['orderType'] == 'TAKEAWAY' ? 'TAKEAWAY' : 'DINE_IN';
+        }
         _note.text = draft['note'] as String? ?? '';
         _uncertain = draft['uncertain'] == true;
         _lines.clear();
@@ -161,6 +177,56 @@ class _CartPageState extends ConsumerState<CartPage> {
     }
   }
 
+  Future<void> _refreshMenu() async {
+    if (_busy || _refreshing || !_loaded || _otherDraft != null) return;
+    setState(() => _refreshing = true);
+    final api = ref.read(restaurantApiProvider);
+    final account = ref.read(sessionProvider).session?.staff.id;
+    try {
+      final menu = await api.menu();
+      final tables = (widget.orderId == null || widget.replacement) &&
+              ref.read(sessionProvider).session!.staff.can(P.tablesView)
+          ? await api.tables()
+          : _tables;
+      if (!mounted ||
+          _workspace?.active != true ||
+          ref.read(sessionProvider).session?.staff.id != account) {
+        return;
+      }
+      final current = {
+        for (final category in menu)
+          for (final item in category.items) item.id: item
+      };
+      setState(() {
+        _menu = menu;
+        _tables = tables;
+        if (_categoryId != null && !menu.any((c) => c.id == _categoryId)) {
+          _categoryId = null;
+        }
+        for (var index = 0; index < _lines.length; index++) {
+          final line = _lines[index];
+          final item = current[line.item.id] ??
+              MenuItem(
+                  id: line.item.id,
+                  categoryId: line.item.categoryId,
+                  name: line.item.name,
+                  description: line.item.description,
+                  categoryName: line.item.categoryName,
+                  image: line.item.image,
+                  price: line.item.price,
+                  taxRate: line.item.taxRate,
+                  available: false);
+          _lines[index] = DraftLine(item, line.quantity, line.note);
+        }
+      });
+      _saveSoon();
+    } catch (e) {
+      if (mounted) showError(context, e);
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
   @override
   void dispose() {
     _saveTimer?.cancel();
@@ -181,6 +247,21 @@ class _CartPageState extends ConsumerState<CartPage> {
       } else if (_lines[index].quantity < 100) {
         _lines[index] =
             _lines[index].copy(quantity: _lines[index].quantity + 1);
+      }
+    });
+    _saveSoon();
+  }
+
+  void _decrease(MenuItem item) {
+    if (_busy) return;
+    final index = _lines.indexWhere((line) => line.item.id == item.id);
+    if (index < 0) return;
+    setState(() {
+      final line = _lines[index];
+      if (line.quantity <= 1) {
+        _lines.removeAt(index);
+      } else {
+        _lines[index] = line.copy(quantity: line.quantity - 1);
       }
     });
     _saveSoon();
@@ -224,6 +305,7 @@ class _CartPageState extends ConsumerState<CartPage> {
 
   Future<void> _submit() async {
     if (_busy ||
+        _refreshing ||
         _uncertain ||
         !_form.currentState!.validate() ||
         _lines.isEmpty) {
@@ -262,10 +344,24 @@ class _CartPageState extends ConsumerState<CartPage> {
               'The order changed. Check its current status before continuing.');
         }
       }
+      if ((widget.orderId == null || widget.replacement) && !_takeaway) {
+        final api = ref.read(restaurantApiProvider);
+        final matches =
+            (await api.tables()).where((t) => t.number == _table.text.trim());
+        if (matches.isEmpty)
+          throw const ApiException(
+              'Choose an active table before sending the order.');
+        final session = await api.tableSession(matches.first.id);
+        if (session != null && code(session['status'] as String) != 'ACTIVE') {
+          throw const ApiException(
+              'This table has a bill awaiting payment. Ask the cashier to reopen it before adding another order.');
+        }
+      }
       final body = <String, dynamic>{
         'items': _lines.map((l) => l.toRequest()).toList(),
         if (widget.orderId == null || widget.replacement) ...{
-          'tableNumber': _table.text.trim(),
+          'orderType': _orderType,
+          'tableNumber': _takeaway ? 'Takeaway' : _table.text.trim(),
           'customerNotes': _note.text.trim().isEmpty ? null : _note.text.trim()
         },
         if (widget.replacement) ...{
@@ -320,6 +416,7 @@ class _CartPageState extends ConsumerState<CartPage> {
     }
     if (!_loaded) {
       return ScreenBody(
+          onRefresh: _load,
           child: EmptyState(
               'Unable to load order', _error ?? 'Check the server connection.',
               action: FilledButton(
@@ -351,18 +448,50 @@ class _CartPageState extends ConsumerState<CartPage> {
                             style: const TextStyle(color: muted, fontSize: 12)),
                         const SizedBox(height: 18),
                         if (widget.orderId == null || widget.replacement) ...[
-                          TextFormField(
-                              controller: _table,
-                              enabled: !_busy,
-                              maxLength: 20,
+                          DropdownButtonFormField<String>(
+                              value: _orderType,
                               decoration: const InputDecoration(
-                                  labelText: 'Table',
-                                  hintText: 'Table or takeaway',
-                                  counterText: ''),
-                              onChanged: (_) => _saveSoon(),
-                              validator: (v) => v == null || v.trim().isEmpty
-                                  ? 'Enter a table or counter.'
-                                  : null),
+                                  labelText: 'Order type'),
+                              items: const [
+                                DropdownMenuItem(
+                                    value: 'DINE_IN', child: Text('Dine in')),
+                                DropdownMenuItem(
+                                    value: 'TAKEAWAY', child: Text('Takeaway')),
+                              ],
+                              onChanged: _busy
+                                  ? null
+                                  : (value) {
+                                      setState(() => _orderType = value!);
+                                      _saveSoon();
+                                    }),
+                          const SizedBox(height: 12),
+                          if (!_takeaway)
+                            DropdownButtonFormField<String>(
+                                value:
+                                    _tables.any((t) => t.number == _table.text)
+                                        ? _table.text
+                                        : null,
+                                isExpanded: true,
+                                decoration:
+                                    const InputDecoration(labelText: 'Table'),
+                                items: [
+                                  for (final table in _tables)
+                                    DropdownMenuItem(
+                                        value: table.number,
+                                        child: Text(table.label,
+                                            overflow: TextOverflow.ellipsis))
+                                ],
+                                onChanged: _busy
+                                    ? null
+                                    : (value) {
+                                        _table.text = value ?? '';
+                                        _saveSoon();
+                                      },
+                                validator: (value) =>
+                                    value == null ? 'Choose a table.' : null),
+                          if (!_takeaway && _tables.isEmpty)
+                            const Notice(
+                                'No active tables are available. Ask your manager to configure tables or choose Takeaway.'),
                           const SizedBox(height: 12),
                           TextFormField(
                               controller: _note,
@@ -400,6 +529,7 @@ class _CartPageState extends ConsumerState<CartPage> {
         ]));
     final submitButton = FilledButton.icon(
         onPressed: _busy ||
+                _refreshing ||
                 _uncertain ||
                 _lines.isEmpty ||
                 _lines.any((l) => !l.item.available)
@@ -410,7 +540,7 @@ class _CartPageState extends ConsumerState<CartPage> {
             ? 'Sending…'
             : widget.orderId != null && !widget.replacement
                 ? 'Add items'
-                : 'Send to kitchen'));
+                : 'Send order'));
     final menuItems = _menu
         .expand((c) => c.items)
         .where((i) =>
@@ -506,6 +636,7 @@ class _CartPageState extends ConsumerState<CartPage> {
           ]),
         ]));
     final menu = CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
         key: PageStorageKey('$_route/dishes'),
         controller: _menuScroll,
         keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
@@ -580,6 +711,12 @@ class _CartPageState extends ConsumerState<CartPage> {
                                     ])),
                                 const SizedBox(width: 10),
                                 if (quantity > 0) ...[
+                                  QuantityButton(
+                                      tooltip: 'Decrease ${item.name} quantity',
+                                      onPressed:
+                                          _busy ? null : () => _decrease(item),
+                                      icon: Icons.remove),
+                                  const SizedBox(width: 8),
                                   Text('$quantity',
                                       style: const TextStyle(
                                           color: forestDark,
@@ -610,22 +747,27 @@ class _CartPageState extends ConsumerState<CartPage> {
                       if (_reviewing)
                         Expanded(
                             child: ScreenBody(
+                                onRefresh: _refreshMenu,
                                 child: Column(
                                     crossAxisAlignment:
                                         CrossAxisAlignment.stretch,
                                     children: [
-                              Align(
-                                  alignment: Alignment.centerLeft,
-                                  child: TextButton.icon(
-                                      onPressed: _busy
-                                          ? null
-                                          : () => _showReview(false),
-                                      icon: const Icon(Icons.arrow_back),
-                                      label: const Text('Back to dishes'))),
-                              cart,
-                            ])))
+                                      Align(
+                                          alignment: Alignment.centerLeft,
+                                          child: TextButton.icon(
+                                              onPressed: _busy
+                                                  ? null
+                                                  : () => _showReview(false),
+                                              icon:
+                                                  const Icon(Icons.arrow_back),
+                                              label: const Text(
+                                                  'Back to dishes'))),
+                                      cart,
+                                    ])))
                       else
-                        Expanded(child: menu),
+                        Expanded(
+                            child: PullToRefresh(
+                                onRefresh: _refreshMenu, child: menu)),
                       Container(
                           padding: const EdgeInsets.all(16),
                           decoration: const BoxDecoration(

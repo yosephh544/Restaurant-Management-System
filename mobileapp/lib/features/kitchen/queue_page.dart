@@ -4,7 +4,6 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 import '../../core/models.dart';
 import '../../core/api.dart';
-import '../../core/permissions.dart';
 import '../../core/session.dart';
 import '../../core/widgets.dart';
 import '../orders/orders_page.dart';
@@ -24,16 +23,19 @@ class _QueuePageState extends ConsumerState<QueuePage> {
     setState(() => _updatingId = order.orderId);
     try {
       final api = ref.read(restaurantApiProvider);
-      final current = await api.kitchenOrder(order.orderId);
       final staff = ref.read(sessionProvider).session?.staff;
-      if (staff?.kitchen != true ||
-          staff?.can(P.kitchenUpdate) != true ||
-          code(current.status) !=
-              (next == 'PREPARING' ? 'PENDING' : 'PREPARING')) {
+      if (staff == null || !staff.preparationStaff || !staff.canUpdateStation) {
+        throw const ApiException('Preparation permission is required.');
+      }
+      final current =
+          await api.kitchenOrder(order.orderId, station: staff.station);
+      if (!(next == 'PREPARING'
+          ? code(current.status) == 'PENDING'
+          : const ['PENDING', 'PREPARING'].contains(code(current.status)))) {
         throw const ApiException(
             'This ticket changed. Check its current status before continuing.');
       }
-      await api.kitchenStatus(order.orderId, next);
+      await api.kitchenStatus(order.orderId, next, station: staff.station);
     } catch (e) {
       if (mounted) showError(context, e);
     } finally {
@@ -47,18 +49,20 @@ class _QueuePageState extends ConsumerState<QueuePage> {
   @override
   Widget build(BuildContext context) {
     final staff = ref.watch(sessionProvider).session?.staff;
-    if (staff?.can(P.kitchenView) != true) return const SizedBox.shrink();
-    final canUpdate = staff!.kitchen && staff.can(P.kitchenUpdate);
+    if (staff?.canViewStation != true) return const SizedBox.shrink();
+    final canUpdate = staff!.preparationStaff && staff.canUpdateStation;
     return ScreenBody(
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       AsyncPane<PageData<KitchenTicket>>(
           headerBuilder: (refreshControl) => RefreshHeading(
               eyebrow: '${DateFormat('EEEE').format(DateTime.now())} service',
-              title: 'Kitchen display',
+              title: staff.bartender ? 'Bar display' : 'Kitchen display',
               refreshControl: refreshControl),
-          loadKey: _page,
-          load: () => ref.read(restaurantApiProvider).queue(_page),
+          loadKey: '${staff.station}/$_page',
+          load: () => ref
+              .read(restaurantApiProvider)
+              .queue(_page, station: staff.station),
           interval: const Duration(seconds: 5),
           builder: (data, refresh) =>
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -76,10 +80,11 @@ class _QueuePageState extends ConsumerState<QueuePage> {
                           .where((o) => code(o.status) == 'PREPARING')
                           .length,
                       'on this page'),
-                  ServiceStat('In queue', data.totalCount, 'in the kitchen'),
+                  ServiceStat('In queue', data.totalCount,
+                      staff.bartender ? 'in the bar' : 'in the kitchen'),
                 ]),
                 const SizedBox(height: 20),
-                const SectionHeading('Kitchen queue'),
+                SectionHeading(staff.bartender ? 'Bar queue' : 'Kitchen queue'),
                 if (data.items.isEmpty)
                   const EmptyState('All caught up',
                       'New tickets will appear when a waiter sends an order.',
@@ -95,20 +100,35 @@ class _QueuePageState extends ConsumerState<QueuePage> {
                               action: canUpdate &&
                                       ['PENDING', 'PREPARING']
                                           .contains(code(order.status))
-                                  ? OutlinedButton(
-                                      onPressed: _updatingId == null
-                                          ? () => _update(
-                                              order,
-                                              code(order.status) == 'PENDING'
-                                                  ? 'PREPARING'
-                                                  : 'READY',
-                                              refresh)
-                                          : null,
-                                      child: Text(_updatingId == order.orderId
-                                          ? 'Updating…'
-                                          : code(order.status) == 'PENDING'
-                                              ? 'Start preparation'
-                                              : 'Mark ready'))
+                                  ? Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.stretch,
+                                      children: [
+                                          if (code(order.status) == 'PENDING')
+                                            OutlinedButton(
+                                                onPressed: _updatingId == null
+                                                    ? () => _update(
+                                                        order,
+                                                        code(order.status) ==
+                                                                'PENDING'
+                                                            ? 'PREPARING'
+                                                            : 'READY',
+                                                        refresh)
+                                                    : null,
+                                                child: Text(_updatingId ==
+                                                        order.orderId
+                                                    ? 'Updating…'
+                                                    : code(order.status) ==
+                                                            'PENDING'
+                                                        ? 'Start preparation'
+                                                        : 'Mark ready')),
+                                          OutlinedButton(
+                                              onPressed: _updatingId == null
+                                                  ? () => _update(
+                                                      order, 'READY', refresh)
+                                                  : null,
+                                              child: const Text('Ready all')),
+                                        ])
                                   : null))
                   ]);
                 }),
@@ -128,11 +148,13 @@ class _TicketCard extends StatelessWidget {
   const _TicketCard(this.order, {this.action});
   @override
   Widget build(BuildContext context) => OrderCardFrame(
-      onTap: () => context.go('/orders/${order.orderId}'),
+      onTap: () => context.go('/queue/orders/${order.orderId}'),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         OrderHeading(
             number: order.orderNumber,
             table: order.table,
+            takeaway: code(order.orderType) == 'TAKEAWAY',
+            queuePosition: order.queuePosition,
             status: order.status,
             subtitle: order.waiterName),
         const SizedBox(height: 16),
@@ -164,9 +186,8 @@ class _TicketCard extends StatelessWidget {
                           child: Text(item.note,
                               style:
                                   const TextStyle(color: amber, fontSize: 13))),
-                    if (item.cancelled)
-                      const Text('Cancelled',
-                          style: TextStyle(color: red, fontSize: 12)),
+                    Text(statusLabel(item.status),
+                        style: const TextStyle(color: muted, fontSize: 12)),
                   ])),
         OrderCardFooter(
             created: order.created,

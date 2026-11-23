@@ -77,6 +77,13 @@ class _PaidOrdersPageState extends ConsumerState<PaidOrdersPage> {
                           refreshControl: refreshControl),
                       if (!staff.waiter) ...[
                         search,
+                        if (staff.can(P.paymentsView))
+                          Align(
+                              alignment: Alignment.centerLeft,
+                              child: TextButton(
+                                  onPressed: () =>
+                                      context.push('/payment-records'),
+                                  child: const Text('All payment records'))),
                         const SizedBox(height: 16)
                       ],
                     ]),

@@ -25,6 +25,9 @@ String statusLabel(String value) => switch (code(value)) {
       'PHONEPUSH' => 'Phone request',
       'QRSCAN' => 'QR code',
       'USSD' => 'USSD phone request',
+      'TELEBIRR' => 'Telebirr',
+      'CBE' => 'CBE',
+      'PREPARED' => 'Ready',
       'PAIDOUT' => 'Paid out',
       'NOTSUBMITTED' => 'Not submitted',
       _ => value.isEmpty
@@ -33,7 +36,7 @@ String statusLabel(String value) => switch (code(value)) {
     };
 
 class Staff {
-  final String id, name, phone, role;
+  final String id, name, phone, role, username;
   final bool active;
   final List<String> permissions;
   const Staff(
@@ -42,13 +45,15 @@ class Staff {
       required this.phone,
       required this.role,
       required this.active,
+      this.username = '',
       this.permissions = const []});
   factory Staff.fromJson(Json j) => Staff(
       id: j['id'] as String,
       name: j['fullName'] as String,
-      phone: j['phone'] as String,
+      phone: j['phone'] as String? ?? '',
+      username: j['username'] as String? ?? '',
       role: j['role'] as String,
-      active: j['isActive'] == true,
+      active: j['isActive'] != false,
       permissions: List<String>.from(j['permissions'] as List? ?? []));
   bool can(String permission) =>
       active &&
@@ -63,6 +68,12 @@ class Staff {
       can(P.ordersServe) &&
       ownsOrOversees(order) &&
       code(order.status) == 'READY';
+  bool canServeItem(RestaurantOrder order, OrderLine item) =>
+      waiter &&
+      can(P.ordersServe) &&
+      ownsOrOversees(order) &&
+      !order.cancelled &&
+      item.ready;
   bool ownsOrOversees(RestaurantOrder order) => !waiter || order.waiterId == id;
   bool canTakePayment(RestaurantOrder order) =>
       can(P.paymentsInitiate) &&
@@ -70,14 +81,24 @@ class Staff {
       ownsOrOversees(order) &&
       (!waiter || code(order.status) == 'SERVED');
   bool get supported =>
-      const ['WAITER', 'KITCHEN', 'CASHIER'].contains(code(role));
+      const ['WAITER', 'KITCHEN', 'CASHIER', 'BARTENDER'].contains(code(role));
   bool get waiter => code(role) == 'WAITER';
   bool get kitchen => code(role) == 'KITCHEN';
   bool get cashier => code(role) == 'CASHIER';
+  bool get bartender => code(role) == 'BARTENDER';
+  bool get preparationStaff => kitchen || bartender;
+  String get station => bartender ? 'bar' : 'kitchen';
+  bool get canViewStation =>
+      preparationStaff && can(bartender ? P.barView : P.kitchenView);
+  bool get canUpdateStation =>
+      preparationStaff && can(bartender ? P.barUpdate : P.kitchenUpdate);
+  bool get canCancelStation =>
+      preparationStaff && can(bartender ? P.barCancel : P.kitchenCancel);
   Json toJson() => {
         'id': id,
         'fullName': name,
         'phone': phone,
+        'username': username,
         'role': role,
         'isActive': active,
         'permissions': permissions
@@ -193,6 +214,9 @@ class OrderLine {
       status: j['itemStatus'] as String? ?? 'UNKNOWN',
       note: j['customerNotes'] as String? ?? '');
   bool get cancelled => code(status) == 'CANCELLED';
+  bool get ready => code(status) == 'PREPARED';
+  bool get served => code(status) == 'SERVED';
+  bool get active => code(status) == 'ACTIVE';
 }
 
 class RestaurantOrder {
@@ -205,6 +229,9 @@ class RestaurantOrder {
       paymentStatus,
       note;
   final String? parentId;
+  final String orderType;
+  final double takeawayFee;
+  final int queuePosition;
   final double subtotal, tax, tip, total;
   final DateTime created;
   final List<OrderLine> items;
@@ -223,11 +250,17 @@ class RestaurantOrder {
       required this.created,
       required this.items,
       this.note = '',
+      this.orderType = 'DINE_IN',
+      this.takeawayFee = 0,
+      this.queuePosition = 0,
       this.parentId});
   factory RestaurantOrder.fromJson(Json j) => RestaurantOrder(
       id: j['id'] as String,
       orderNumber: j['orderNumber'] as String,
       table: j['tableNumber'] as String,
+      orderType: j['orderType'] as String? ?? 'DINE_IN',
+      takeawayFee: number(j['takeawayFee']),
+      queuePosition: (j['queuePosition'] as num?)?.toInt() ?? 0,
       waiterId: j['waiterId'] as String,
       waiterName: j['waiterName'] as String? ?? '',
       status: j['orderStatus'] as String,
@@ -243,6 +276,11 @@ class RestaurantOrder {
           .map((v) => OrderLine.fromJson(jsonObject(v)))
           .toList());
   bool get paid => code(paymentStatus) == 'PAID';
+  bool get takeaway => code(orderType) == 'TAKEAWAY';
+  String get locationLabel => takeaway ? 'Takeaway' : 'Table $table';
+  double get charge => subtotal + tax + takeawayFee;
+  bool get refundable =>
+      served || cancelled || code(paymentStatus) == 'REFUNDPENDING';
   bool get createdToday {
     final now = DateTime.now();
     final local = created.toLocal();
@@ -264,16 +302,22 @@ class RestaurantOrder {
       total > 0 &&
       const ['UNPAID', 'RETRACTED', 'TRANSFERRED']
           .contains(code(paymentStatus));
+  bool get canPayBill =>
+      canPay || (pendingPayment && payableStage && !cancelled && total > 0);
   bool get canKitchenCancel =>
-      !paid && const ['PENDING', 'PREPARING'].contains(code(status));
+      const ['PENDING', 'PREPARING'].contains(code(status)) &&
+      !items.any((item) => item.served);
   bool get canAdd =>
       const ['UNPAID', 'RETRACTED'].contains(code(paymentStatus)) &&
       !cancelled &&
-      // READY orders no longer appear in this backend's kitchen queue.
+      // Extras must be sent before the waiter collects the order.
       const ['PENDING', 'PREPARING'].contains(code(status));
 }
 
 class KitchenTicket {
+  final String orderStatus;
+  final String orderType;
+  final int queuePosition;
   final String orderId,
       orderNumber,
       table,
@@ -292,13 +336,19 @@ class KitchenTicket {
       required this.paymentStatus,
       required this.created,
       required this.items,
+      this.orderStatus = '',
+      this.orderType = 'DINE_IN',
+      this.queuePosition = 0,
       this.note = ''});
   factory KitchenTicket.fromJson(Json j) => KitchenTicket(
       orderId: j['orderId'] as String,
       orderNumber: j['orderNumber'] as String,
       table: j['tableNumber'] as String,
+      orderType: j['orderType'] as String? ?? 'DINE_IN',
+      queuePosition: (j['queuePosition'] as num?)?.toInt() ?? 0,
       waiterName: j['waiterName'] as String? ?? '',
-      status: j['orderStatus'] as String,
+      status: j['stationStatus'] as String? ?? j['orderStatus'] as String,
+      orderStatus: j['orderStatus'] as String,
       paymentStatus: j['paymentStatus'] as String,
       note: j['customerNotes'] as String? ?? '',
       created: date(j['createdAt']) ?? DateTime.now().toUtc(),
@@ -309,6 +359,8 @@ class KitchenTicket {
       id: orderId,
       orderNumber: orderNumber,
       table: table,
+      orderType: orderType,
+      queuePosition: queuePosition,
       waiterId: '',
       waiterName: waiterName,
       status: status,
@@ -342,10 +394,11 @@ class PageData<T> {
 
 class PaymentSession {
   final String id, orderId, orderNumber, method, status;
-  final String? qrData, phone, requestedMethod;
+  final String? qrData, phone, requestedMethod, billId;
   final double? tendered, change;
   final double base, tip, total;
   final DateTime created;
+  final Json metadata;
   const PaymentSession(
       {required this.id,
       required this.orderId,
@@ -357,15 +410,39 @@ class PaymentSession {
       required this.total,
       required this.created,
       this.qrData,
+      this.billId,
       this.phone,
       this.requestedMethod,
       this.tendered,
+      this.metadata = const {},
       this.change});
   factory PaymentSession.fromJson(Json j) => PaymentSession(
       id: j['id'] as String,
+      billId: j['billId'] as String?,
       orderId: j['orderId'] as String,
       orderNumber: j['orderNumber'] as String? ?? '',
       method: j['method'] as String,
+      metadata: {
+        for (final key in [
+          'receiptUrl',
+          'receiptReference',
+          'amountPaid',
+          'verificationStatus',
+          'verifiedAmount',
+          'verifiedPayerName',
+          'verifiedBank',
+          'verifiedAt',
+          'verifiedVia',
+          'verificationNote',
+          'settledAt',
+          'orderStatus',
+          'orderPaymentStatus',
+          'waiterId',
+          'billNumber',
+          'tipPaidOut',
+        ])
+          if (j.containsKey(key)) key: j[key]
+      },
       status: j['status'] as String,
       base: number(j['baseAmount']),
       tip: number(j['tipAmount']),
@@ -378,12 +455,26 @@ class PaymentSession {
       change: j['changeGiven'] == null ? null : number(j['changeGiven']),
       created: date(j['createdAt']) ?? DateTime.now().toUtc());
   bool get cash => code(method) == 'CASH';
+  bool get receiptPayment => const ['TELEBIRR', 'CBE'].contains(code(method));
+  bool get testPayment =>
+      const ['PHONEPUSH', 'QRSCAN', 'USSD'].contains(code(method));
+  String get verification =>
+      metadata['verificationStatus'] as String? ?? 'NOT_REQUIRED';
   bool get pending => code(status) == 'INITIATED';
   bool get paid => code(status) == 'PAID';
   String get methodLabel => statusLabel(requestedMethod ?? method);
+  PaymentSession withSavedDetails(PaymentSession saved) =>
+      PaymentSession.fromJson({
+        ...saved.toJson(),
+        ...toJson(),
+        'qrData': qrData ?? saved.qrData,
+        'customerPhone': phone ?? saved.phone,
+        'requestedMethod': saved.requestedMethod ?? requestedMethod,
+      });
   PaymentSession withRequest(String selected, String customerPhone) =>
       PaymentSession(
           id: id,
+          billId: billId,
           orderId: orderId,
           orderNumber: orderNumber,
           method: method,
@@ -395,11 +486,14 @@ class PaymentSession {
           qrData: qrData,
           phone: customerPhone.isEmpty ? phone : customerPhone,
           requestedMethod: selected,
+          metadata: metadata,
           tendered: tendered,
           change: change);
   Json toJson() => {
+        ...metadata,
         'id': id,
         'orderId': orderId,
+        'billId': billId,
         'orderNumber': orderNumber,
         'method': method,
         'status': status,
@@ -415,6 +509,7 @@ class PaymentSession {
       };
   PaymentSession withStatus(String value) => PaymentSession(
       id: id,
+      billId: billId,
       orderId: orderId,
       orderNumber: orderNumber,
       method: method,
@@ -426,6 +521,7 @@ class PaymentSession {
       qrData: qrData,
       phone: phone,
       requestedMethod: requestedMethod,
+      metadata: metadata,
       tendered: tendered,
       change: change);
 }

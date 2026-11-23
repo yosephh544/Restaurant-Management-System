@@ -12,10 +12,18 @@ import '../features/orders/cart_page.dart';
 import '../features/orders/order_detail_page.dart';
 import '../features/kitchen/queue_page.dart';
 import '../features/payments/payment_pages.dart';
+import 'order_alert_providers.dart';
+import '../features/notifications/notifications_sheet.dart';
 
 List<(String, String, IconData)> destinationsFor(Staff staff) => [
-      if (staff.can(P.kitchenView))
-        ('/queue', 'Queue', Icons.soup_kitchen_outlined),
+      if (staff.canViewStation)
+        (
+          '/queue',
+          staff.bartender ? 'Bar' : 'Queue',
+          staff.bartender
+              ? Icons.local_bar_outlined
+              : Icons.soup_kitchen_outlined
+        ),
       if (staff.can(P.ordersView))
         ('/orders', 'Orders', Icons.receipt_long_outlined),
       if (staff.cashier && staff.can(P.ordersView))
@@ -39,17 +47,26 @@ String? routeRedirect(SessionState state, String path) {
   if (path == '/sessions' && staff.cashier) {
     return staff.can(P.ordersView) ? '/history' : homeFor(staff);
   }
-  if (path == '/queue' && !staff.can(P.kitchenView) ||
+  if (staff.preparationStaff && staff.canViewStation) {
+    final orderLink = RegExp(r'^/orders/([^/]+)$').firstMatch(path);
+    if (orderLink != null && orderLink.group(1) != 'new') {
+      return '/queue/orders/${orderLink.group(1)}';
+    }
+  }
+  if ((path == '/queue' || path.startsWith('/queue/')) &&
+          !staff.canViewStation ||
       path == '/history' && !(staff.cashier && staff.can(P.ordersView)) ||
       path == '/sessions' && staff.waiter && !staff.can(P.ordersView) ||
       path.startsWith('/sessions') && !staff.can(P.paymentsView) ||
+      path == '/payment-records' &&
+          !(staff.cashier && staff.can(P.paymentsView)) ||
       path == '/orders' && !staff.can(P.ordersView) ||
       path == '/orders/new' && !staff.canCreateOrders ||
       path.endsWith('/add') && !staff.canAddItems ||
       path.endsWith('/replace') && !staff.canReplaceOrders ||
       path.startsWith('/orders/') &&
           path != '/orders/new' &&
-          !(staff.can(P.ordersView) || staff.can(P.kitchenView))) {
+          !(staff.can(P.ordersView) || staff.canViewStation)) {
     return homeFor(staff);
   }
   return null;
@@ -156,11 +173,26 @@ final routerProvider = Provider<GoRouter>((ref) {
               GoRoute(
                   path: '/queue',
                   pageBuilder: (_, state) => NoTransitionPage(
-                      key: state.pageKey, child: const QueuePage())),
+                      key: state.pageKey, child: const QueuePage()),
+                  routes: [
+                    GoRoute(
+                        path: 'orders/:id',
+                        pageBuilder: (context, s) => _detailPage(
+                            context,
+                            s,
+                            OrderDetailPage(
+                                key:
+                                    ValueKey('queue/${s.pathParameters['id']}'),
+                                id: s.pathParameters['id']!))),
+                  ]),
               GoRoute(
                   path: '/history',
                   pageBuilder: (_, state) => NoTransitionPage(
                       key: state.pageKey, child: const PaidOrdersPage())),
+              GoRoute(
+                  path: '/payment-records',
+                  pageBuilder: (context, state) =>
+                      _detailPage(context, state, const SessionsPage())),
               GoRoute(
                   path: '/sessions',
                   pageBuilder: (_, state) => NoTransitionPage(
@@ -203,6 +235,7 @@ class ServiceShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider);
+    final alerts = ref.watch(orderAlertsProvider);
     final staff = session.session?.staff;
     if (staff == null) return const SizedBox.shrink();
     final destinations = destinationsFor(staff);
@@ -221,11 +254,14 @@ class ServiceShell extends ConsumerWidget {
             ? 'Add items'
             : path.endsWith('/replace')
                 ? 'Replacement order'
-                : path.startsWith('/orders/')
+                : path.startsWith('/orders/') ||
+                        path.startsWith('/queue/orders/')
                     ? 'Order details'
-                    : path.startsWith('/sessions/')
-                        ? 'Payment details'
-                        : destinations[selected].$2;
+                    : path == '/payment-records'
+                        ? 'Payment records'
+                        : path.startsWith('/sessions/')
+                            ? 'Payment details'
+                            : destinations[selected].$2;
     final wide = MediaQuery.sizeOf(context).width >= 600;
     return Scaffold(
         appBar: AppBar(
@@ -253,6 +289,14 @@ class ServiceShell extends ConsumerWidget {
           bottom: const PreferredSize(
               preferredSize: Size.fromHeight(1), child: Divider(height: 1)),
           actions: [
+            if (alerts.enabled)
+              IconButton(
+                  tooltip: 'Notifications',
+                  onPressed: () => showOrderNotifications(context),
+                  icon: Badge.count(
+                      count: alerts.unread,
+                      isLabelVisible: alerts.unread > 0,
+                      child: const Icon(Icons.notifications_outlined))),
             if (MediaQuery.sizeOf(context).width >= 360)
               Padding(
                   padding: const EdgeInsets.only(right: 6),

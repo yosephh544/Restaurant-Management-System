@@ -1,5 +1,7 @@
 import 'package:dio/dio.dart';
 import 'models.dart';
+import 'billing.dart';
+import 'permissions.dart';
 
 class ApiException implements Exception {
   final String message;
@@ -23,7 +25,7 @@ String normalizeServer(String input, {required bool allowHttp}) {
       !['http', 'https'].contains(uri.scheme) ||
       uri.path != '/api/v1') {
     throw const ApiException(
-        'Enter a server URL ending in /api/v1, for example http://10.0.2.2:5012/api/v1.');
+        'Enter a server URL ending in /api/v1, for example http://192.168.1.2:5012/api/v1.');
   }
   if (!allowHttp && uri.scheme != 'https') {
     throw const ApiException('Release builds require an HTTPS server.');
@@ -33,6 +35,7 @@ String normalizeServer(String input, {required bool allowHttp}) {
 
 class ApiClient {
   final Dio dio;
+  String? authFailureMessage;
   String? Function()? token;
   Future<bool> Function()? refresh;
   void Function()? expired;
@@ -73,7 +76,8 @@ class ApiClient {
         return call(method, path, body: body, query: query, replay: false);
       }
       expired?.call();
-      throw const ApiException('Your session expired. Please sign in again.',
+      throw ApiException(
+          authFailureMessage ?? 'Your session expired. Please sign in again.',
           status: 401);
     }
     final j =
@@ -90,7 +94,7 @@ class ApiClient {
       final fallback = response.statusCode == 403
           ? 'You do not have access to this action.'
           : response.statusCode == 401
-              ? 'Check your phone number and sign-in credentials.'
+              ? 'Check your username and sign-in credentials.'
               : 'The request could not be completed.';
       final fieldText =
           fields.values.expand((v) => v is List ? v : [v]).join('\n');
@@ -119,6 +123,100 @@ class ApiClient {
 class RestaurantApi {
   final ApiClient client;
   RestaurantApi(this.client);
+  Future<List<RestaurantTable>> tables() async =>
+      ((await client.call('GET', 'tables'))['data'] as List)
+          .map((j) => RestaurantTable.fromJson(jsonObject(j)))
+          .toList();
+  Future<Json?> tableSession(String tableId) async {
+    final data = (await client.call('GET', 'tables/$tableId/session'))['data'];
+    return data == null ? null : jsonObject(data);
+  }
+
+  Future<TableBill?> activeBill(String tableId) async {
+    final data = (await client.call('GET', 'bills/active/$tableId'))['data'];
+    return data == null ? null : TableBill.fromJson(jsonObject(data));
+  }
+
+  Future<TableBill> bill(String id) async =>
+      TableBill.fromJson(await client.data('GET', 'bills/$id'));
+  Future<TableBill?> activeBillForOrder(String orderId) async {
+    final data =
+        (await client.call('GET', 'bills/active/order/$orderId'))['data'];
+    return data == null ? null : TableBill.fromJson(jsonObject(data));
+  }
+
+  Future<TableBill> generateBill({String? tableId, String? orderId}) async =>
+      TableBill.fromJson(await client.data('POST', 'bills/generate', body: {
+        if (tableId != null) 'tableId': tableId,
+        if (orderId != null) 'orderId': orderId,
+      }));
+  Future<Json> myShift() => client.data('GET', 'shifts/me');
+  Future<void> reopenBill(String id) async =>
+      client.call('POST', 'bills/$id/reopen');
+  Future<BillPreview> previewBill(RestaurantOrder order, Staff staff) async {
+    if ((!order.takeaway && !staff.can(P.tablesView)) ||
+        !staff.can(P.paymentsView)) {
+      throw const ApiException(
+          'Table and payment access are required. Contact your manager.');
+    }
+    if (order.takeaway) {
+      final current = await this.order(order.id);
+      final active = await activeBillForOrder(order.id);
+      if (!staff.canTakePayment(current) ||
+          !current.canPayBill ||
+          (active != null &&
+              (!active.payable || !active.orderIds.contains(order.id)))) {
+        throw const ApiException(
+            'The takeaway order is no longer eligible for payment.');
+      }
+      return BillPreview(null, active, [current]);
+    }
+    final matches = (await tables()).where((t) => t.number == order.table);
+    if (matches.isEmpty) {
+      throw const ApiException('This table is no longer active.');
+    }
+    final table = matches.first;
+    final active = await activeBill(table.id);
+    final orders = <RestaurantOrder>[];
+    if (active != null) {
+      if (!active.orderIds.contains(order.id)) {
+        throw const ApiException(
+            'This order is not part of the current table bill. Refresh the order.');
+      }
+      for (final id in active.orderIds) {
+        orders.add(await this.order(id));
+      }
+    } else {
+      final session = await tableSession(table.id);
+      if (session == null || code(session['status'] as String) != 'ACTIVE') {
+        throw const ApiException(
+            'There is no open dining session for this table.');
+      }
+      var page = 1;
+      while (true) {
+        final data = await this.orders(page: page, search: order.table);
+        orders.addAll(data.items.where((o) =>
+            o.table == order.table &&
+            !o.cancelled &&
+            const ['UNPAID', 'RETRACTED'].contains(code(o.paymentStatus))));
+        if (page >= data.totalPages) break;
+        page++;
+      }
+      if (!orders.any((o) => o.id == order.id)) {
+        throw const ApiException(
+            'The order is no longer eligible for billing.');
+      }
+    }
+    if (orders.isEmpty ||
+        orders.any((o) =>
+            !staff.canTakePayment(o) ||
+            !const ['READY', 'SERVED'].contains(code(o.status)))) {
+      throw const ApiException(
+          'Every order on the table must be ready. Waiters must serve all their orders before payment.');
+    }
+    return BillPreview(table, active, orders);
+  }
+
   Future<List<MenuCategory>> menu() async =>
       ((await client.call('GET', 'menu/categories'))['data'] as List)
           .map((j) => MenuCategory.fromJson(jsonObject(j)))
@@ -130,17 +228,16 @@ class RestaurantApi {
       client.call('PATCH', 'menu/items/$id/availability',
           body: {'isAvailable': available});
   Future<PageData<RestaurantOrder>> orders(
-          {required int page,
-          String? waiterId,
-          String? status,
-          String? payment,
-          String search = '',
-          bool excludePaid = false,
-          bool todayOnly = false}) async {
+      {required int page,
+      String? waiterId,
+      String? status,
+      String? payment,
+      String search = '',
+      bool excludePaid = false,
+      bool todayOnly = false}) async {
     final now = DateTime.now();
-    final from = todayOnly
-        ? DateTime(now.year, now.month, now.day).toUtc()
-        : null;
+    final from =
+        todayOnly ? DateTime(now.year, now.month, now.day).toUtc() : null;
     final to = todayOnly
         ? DateTime(now.year, now.month, now.day + 1)
             .subtract(const Duration(microseconds: 1))
@@ -188,12 +285,14 @@ class RestaurantApi {
         totalPages: totalPages,
         totalCount: orders.length);
   }
+
   Future<RestaurantOrder> order(String id) async =>
       RestaurantOrder.fromJson(await client.data('GET', 'orders/$id'));
-  Future<RestaurantOrder> kitchenOrder(String id) async {
+  Future<RestaurantOrder> kitchenOrder(String id,
+      {String station = 'kitchen'}) async {
     var page = 1;
     while (true) {
-      final tickets = await queue(page);
+      final tickets = await queue(page, station: station);
       for (final ticket in tickets.items) {
         if (ticket.orderId == id) return ticket.asOrder();
       }
@@ -201,9 +300,10 @@ class RestaurantApi {
       page++;
     }
     throw const ApiException(
-        'This ticket is no longer in the active kitchen queue.',
+        'This ticket is no longer in the active preparation queue.',
         status: 404);
   }
+
   Future<RestaurantOrder> submitOrder(Json body,
           {String? orderId, bool replacement = false}) async =>
       RestaurantOrder.fromJson(await client.data(
@@ -214,31 +314,92 @@ class RestaurantApi {
           body: body));
   Future<void> served(String id) async =>
       client.call('PATCH', 'orders/$id/served');
-  Future<PageData<KitchenTicket>> queue(int page) async => PageData.fromJson(
-      await client
-          .call('GET', 'kitchen/queue', query: {'page': page, 'pageSize': 20}),
-      KitchenTicket.fromJson);
-  Future<void> kitchenStatus(String id, String status) async => client
-      .call('PATCH', 'kitchen/orders/$id/status', body: {'status': status});
+  Future<void> serveItem(String id, String itemId) async =>
+      client.call('PATCH', 'orders/$id/items/$itemId/served');
+  Future<PageData<KitchenTicket>> queue(int page,
+          {String station = 'kitchen'}) async =>
+      PageData.fromJson(
+          await client.call('GET', '$station/queue',
+              query: {'page': page, 'pageSize': 20}),
+          KitchenTicket.fromJson);
+  Future<void> kitchenStatus(String id, String status,
+          {String station = 'kitchen'}) async =>
+      client.call('PATCH', '$station/orders/$id/status',
+          body: {'status': status});
+  Future<void> kitchenItemStatus(String id, String itemId, String status,
+          {String station = 'kitchen'}) async =>
+      client.call('PATCH', '$station/orders/$id/items/$itemId/status',
+          body: {'status': status});
   Future<void> cancel(String id, String reason, String note,
-          {String? itemId}) async =>
-      client.call('POST', 'kitchen/orders/$id/cancel', body: {
+          {String? itemId, String station = 'kitchen'}) async =>
+      client.call('POST', '$station/orders/$id/cancel', body: {
         'reasonCode': reason,
         'reasonNote': note,
         if (itemId != null) 'orderItemId': itemId
       });
-  Future<PaymentSession> initiate(
-          String id, String method, double tip, String phone,
-          {double? tendered}) async =>
+  Future<PaymentSession> initiate(String id, String method, String phone,
+          {double? tendered, String? billId}) async =>
       PaymentSession.fromJson(
               await client.data('POST', 'payments/initiate', body: {
-        'orderId': id,
+        if (billId == null) 'orderId': id else 'billId': billId,
         'method': method,
-        'tipAmount': tip,
         if (phone.isNotEmpty) 'customerPhone': phone,
         if (tendered != null) 'amountTendered': tendered
       }))
           .withRequest(method, phone);
+  Future<PaymentSession> recordDigital(String billId, String method,
+          {String? receiptUrl,
+          String? transactionNumber,
+          double? amountPaid}) async =>
+      PaymentSession.fromJson(
+          await client.data('POST', 'payments/record', body: {
+        'billId': billId,
+        'method': method,
+        if (receiptUrl != null && receiptUrl.isNotEmpty)
+          'receiptUrl': receiptUrl,
+        if (transactionNumber != null && transactionNumber.isNotEmpty)
+          'transactionNumber': transactionNumber,
+        if (amountPaid != null) 'amountPaid': amountPaid,
+      }));
+  Future<PageData<PaymentSession>> payments(
+          {int page = 1, String? waiterId, String search = ''}) async =>
+      PageData.fromJson(
+          await client.call('GET', 'payments', query: {
+            'page': page,
+            'pageSize': 100,
+            if (waiterId != null) 'waiterId': waiterId,
+            if (search.isNotEmpty) 'search': search,
+          }),
+          PaymentSession.fromJson);
+  Future<PaymentSession?> findPayment(String id, Staff staff,
+      {String search = ''}) async {
+    var page = 1;
+    while (true) {
+      final data = await payments(
+          page: page, waiterId: staff.waiter ? staff.id : null, search: search);
+      for (final payment in data.items) {
+        if (payment.id == id) return payment;
+      }
+      if (page >= data.totalPages) return null;
+      page++;
+    }
+  }
+
+  Future<List<PaymentSession>> orderPayments(
+      RestaurantOrder order, Staff staff) async {
+    final result = <PaymentSession>[];
+    var page = 1;
+    while (true) {
+      final data = await payments(
+          page: page,
+          waiterId: staff.waiter ? staff.id : null,
+          search: order.orderNumber);
+      result.addAll(data.items.where((payment) => payment.orderId == order.id));
+      if (page >= data.totalPages) return result;
+      page++;
+    }
+  }
+
   Future<String> paymentStatus(String id) async =>
       (await client.data('GET', 'payments/$id/status'))['status'] as String;
   Future<String> retract(String id) async =>
