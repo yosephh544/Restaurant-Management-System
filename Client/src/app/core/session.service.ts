@@ -43,6 +43,7 @@ export class SessionService {
       phone: undefined,
       role: roleFrom(profile.role),
       active: true,
+      hasPassword: true,
       createdAt: '',
       defaultShifts: [],
     };

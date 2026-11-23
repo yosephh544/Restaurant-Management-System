@@ -179,11 +179,6 @@ public class ReportService : IReportService
 
         var expected = Math.Round(orders.Where(o => !IsCancelled(o)).Sum(OrderBase), 2);
         var outstanding = Math.Round(orders.Where(IsOutstanding).Sum(OrderBase), 2);
-        var taxCollected = Math.Round(
-            orders.Where(o => o.PaymentStatus == PaymentStatus.Paid).Sum(o => o.TaxTotal), 2);
-
-        // Net revenue is food + tax revenue, excluding tips, and net of refunds and tax.
-        var netRevenue = Math.Round(grossSales - refundedBase - taxCollected, 2);
 
         var timezone = request.TimezoneOffsetMinutes;
         var fallbackDates = orders.Select(o => o.CreatedAt)
@@ -230,8 +225,6 @@ public class ReportService : IReportService
         return new SalesSummaryResponse
         {
             GrossSales = grossSales,
-            NetRevenue = netRevenue,
-            TaxCollected = taxCollected,
             TipsCollected = Math.Round(settledTips - refundedTips, 2),
             ExpectedAmount = expected,
             CollectedAmount = collected,

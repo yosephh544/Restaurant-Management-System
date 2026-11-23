@@ -22,15 +22,10 @@ public class FinancialDailyPoint
 
 public class SalesSummaryResponse
 {
-    /// <summary>Settled food + tax revenue in the period, before refunds.</summary>
+    /// <summary>All settled payment amounts (food, drinks and tax) in the period, before refunds.</summary>
     public decimal GrossSales { get; init; }
 
-    /// <summary>Collected revenue excluding tax, tips and refunds.</summary>
-    public decimal NetRevenue { get; init; }
-
-    public decimal TaxCollected { get; init; }
-
-    /// <summary>Tips captured on settlements in the period.</summary>
+    /// <summary>Tips captured on settlements in the period, net of refunded tips.</summary>
     public decimal TipsCollected { get; init; }
 
     /// <summary>Value of non-cancelled orders opened in the period (food + tax).</summary>

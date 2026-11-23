@@ -8,6 +8,7 @@ public class UserResponse
     public string? Phone { get; init; }
     public string Role { get; init; } = default!;
     public bool IsActive { get; init; }
+    public bool HasPassword { get; init; }
     public DateTime CreatedAt { get; init; }
     public DateTime? UpdatedAt { get; init; }
     public List<UserDefaultShiftResponse> DefaultShifts { get; init; } = new();

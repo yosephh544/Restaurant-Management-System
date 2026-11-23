@@ -49,6 +49,9 @@ public class AuthService : IAuthService
         if (string.IsNullOrEmpty(user.PasswordHash) || !BCrypt.Net.BCrypt.Verify(request.Password, user.PasswordHash))
             throw new UnauthorizedException(ErrorMessages.InvalidCredentials);
 
+        if (!user.IsActive)
+            throw new ForbiddenException(ErrorMessages.UserDeactivated);
+
         await _shiftService.EnsureCanSignInAsync(user, ct);
 
         return await GenerateAuthResponseAsync(user, request.DeviceToken, ct);
@@ -65,11 +68,11 @@ public class AuthService : IAuthService
             .FirstOrDefaultAsync(u => u.Username == username, ct)
             ?? throw new UnauthorizedException(ErrorMessages.InvalidCredentials);
 
-        if (!user.IsActive)
-            throw new UnauthorizedException(ErrorMessages.InvalidCredentials);
-
         if (string.IsNullOrEmpty(user.PinHash) || !BCrypt.Net.BCrypt.Verify(request.Pin, user.PinHash))
-            throw new UnauthorizedException(ErrorMessages.InvalidCredentials);
+            throw new UnauthorizedException(ErrorMessages.InvalidPin);
+
+        if (!user.IsActive)
+            throw new ForbiddenException(ErrorMessages.UserDeactivated);
 
         await _shiftService.EnsureCanSignInAsync(user, ct);
 

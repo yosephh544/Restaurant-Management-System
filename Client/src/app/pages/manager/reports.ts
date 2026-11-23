@@ -47,25 +47,25 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
         <div class="grid grid-4" style="margin-bottom: 18px">
           <div class="stat-card">
             <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="receipt" /></div>
-            <div class="stat-label">{{ 'Expected (orders)' | t }}</div>
+            <div class="stat-label">{{ 'Total ordered' | t }}</div>
             <div class="stat-value">{{ money(summary()?.expectedAmount ?? 0) }}</div>
             <div class="stat-foot">{{ summary()?.totalOrders ?? 0 }} {{ 'orders opened' | t }}</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="cash" /></div>
-            <div class="stat-label">{{ 'Collected (net)' | t }}</div>
+            <div class="stat-label">{{ 'Money received' | t }}</div>
             <div class="stat-value">{{ money(summary()?.collectedAmount ?? 0) }}</div>
-            <div class="stat-foot">{{ 'Includes tips, after refunds' | t }}</div>
+            <div class="stat-foot">{{ 'After refunds, includes tips' | t }}</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon" style="background: var(--red-soft); color: var(--red)"><app-icon name="wallet" /></div>
-            <div class="stat-label">{{ 'Outstanding' | t }}</div>
+            <div class="stat-label">{{ 'Not paid yet' | t }}</div>
             <div class="stat-value">{{ money(summary()?.outstandingAmount ?? 0) }}</div>
             <div class="stat-foot">{{ summary()?.unpaidOrders ?? 0 }} {{ 'unpaid' | t }} · {{ summary()?.pendingPaymentOrders ?? 0 }} {{ 'pending' | t }}</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon" style="background: var(--amber-soft); color: var(--amber)"><app-icon name="retract" /></div>
-            <div class="stat-label">{{ 'Refunds' | t }}</div>
+            <div class="stat-label">{{ 'Refunded' | t }}</div>
             <div class="stat-value">{{ money(summary()?.refundedAmount ?? 0) }}</div>
             <div class="stat-foot">{{ summary()?.refundPendingOrders ?? 0 }} {{ 'refund pending' | t }}</div>
           </div>
@@ -80,15 +80,15 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
           </div>
           <div class="stat-card">
             <div class="stat-icon" style="background: var(--brand-soft); color: var(--brand-dark)"><app-icon name="cash" /></div>
-            <div class="stat-label">{{ 'Tips' | t }}</div>
+            <div class="stat-label">{{ 'Tips received' | t }}</div>
             <div class="stat-value">{{ money(summary()?.tipsCollected ?? 0) }}</div>
-            <div class="stat-foot">{{ 'Captured on settlements' | t }}</div>
+            <div class="stat-foot">{{ 'Included in money received' | t }}</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon"><app-icon name="chart" /></div>
-            <div class="stat-label">{{ 'Gross sales' | t }}</div>
+            <div class="stat-label">{{ 'Sales before refunds' | t }}</div>
             <div class="stat-value">{{ money(summary()?.grossSales ?? 0) }}</div>
-            <div class="stat-foot">{{ 'Food + tax, before refunds' | t }}</div>
+            <div class="stat-foot">{{ 'Food and drinks, no tips' | t }}</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon" style="background: var(--red-soft); color: var(--red)"><app-icon name="alert" /></div>
@@ -100,29 +100,27 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
 
         <div class="split">
           <div class="card card-pad">
-            <div class="card-title">{{ 'Sales summary' | t }}</div>
+            <div class="card-title">{{ 'Money summary' | t }}</div>
             <div class="card-sub" style="margin-bottom: 14px">{{ rangeLabel() }}</div>
             <div class="stack">
-              <div class="between small"><span class="muted">{{ 'Gross sales' | t }}</span><span class="strong num">{{ money(summary()?.grossSales ?? 0) }} ETB</span></div>
-              <div class="between small"><span class="muted">{{ 'Net revenue' | t }}</span><span class="strong num">{{ money(summary()?.netRevenue ?? 0) }} ETB</span></div>
-              <div class="between small"><span class="muted">{{ 'Tax collected' | t }}</span><span class="strong num">{{ money(summary()?.taxCollected ?? 0) }} ETB</span></div>
-              <div class="between small"><span class="muted">{{ 'Tips collected' | t }}</span><span class="strong num">{{ money(summary()?.tipsCollected ?? 0) }} ETB</span></div>
+              <div class="between small"><span class="muted">{{ 'Sales before refunds' | t }}</span><span class="strong num">{{ money(summary()?.grossSales ?? 0) }} ETB</span></div>
+              <div class="between small"><span class="muted">{{ 'Tips received' | t }}</span><span class="strong num">{{ money(summary()?.tipsCollected ?? 0) }} ETB</span></div>
               <div class="divider"></div>
-              <div class="between small"><span class="muted">{{ 'Expected from opened orders' | t }}</span><span class="strong num">{{ money(summary()?.expectedAmount ?? 0) }} ETB</span></div>
-              <div class="between small"><span class="muted">{{ 'Collected net of refunds' | t }}</span><span class="strong num">{{ money(summary()?.collectedAmount ?? 0) }} ETB</span></div>
-              <div class="between small"><span class="muted">{{ 'Still outstanding' | t }}</span><span class="strong num">{{ money(summary()?.outstandingAmount ?? 0) }} ETB</span></div>
+              <div class="between small"><span class="muted">{{ 'Total ordered' | t }}</span><span class="strong num">{{ money(summary()?.expectedAmount ?? 0) }} ETB</span></div>
+              <div class="between small"><span class="muted">{{ 'Money received' | t }}</span><span class="strong num">{{ money(summary()?.collectedAmount ?? 0) }} ETB</span></div>
+              <div class="between small"><span class="muted">{{ 'Not paid yet' | t }}</span><span class="strong num">{{ money(summary()?.outstandingAmount ?? 0) }} ETB</span></div>
               <div class="between small"><span class="muted">{{ 'Refunded' | t }}</span><span class="strong num">{{ money(summary()?.refundedAmount ?? 0) }} ETB</span></div>
               <div class="divider"></div>
               <div class="between small"><span class="muted">{{ 'Orders opened' | t }}</span><span class="strong">{{ summary()?.totalOrders ?? 0 }}</span></div>
               <div class="between small"><span class="muted">{{ 'Completed' | t }}</span><span class="strong">{{ summary()?.completedOrders ?? 0 }}</span></div>
               <div class="between small"><span class="muted">{{ 'Cancelled' | t }}</span><span class="strong">{{ summary()?.cancelledOrders ?? 0 }}</span></div>
-              <div class="between small"><span class="muted">{{ 'Average ticket' | t }}</span><span class="strong">{{ money(avgTicket()) }} ETB</span></div>
+              <div class="between small"><span class="muted">{{ 'Average paid order' | t }}</span><span class="strong">{{ money(avgPaidOrder()) }} ETB</span></div>
             </div>
           </div>
 
           <div class="card card-pad">
-            <div class="card-title">{{ 'Payment mix' | t }}</div>
-            <div class="card-sub" style="margin-bottom: 14px">{{ 'Settled food + tax by method' | t }}</div>
+            <div class="card-title">{{ 'How customers paid' | t }}</div>
+            <div class="card-sub" style="margin-bottom: 14px">{{ 'Sales before refunds, by payment method' | t }}</div>
 
             @for (method of methods(); track method.label) {
               <div class="bar-row">
@@ -140,8 +138,8 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
             <div class="card-title" style="font-size: 13px; margin-bottom: 8px">{{ 'Payment status' | t }}</div>
             <div class="stack">
               <div class="between small"><span class="muted">{{ 'Paid' | t }}</span><span class="strong">{{ summary()?.paidOrders ?? 0 }}</span></div>
-              <div class="between small"><span class="muted">{{ 'Unpaid' | t }}</span><span class="strong">{{ summary()?.unpaidOrders ?? 0 }}</span></div>
-              <div class="between small"><span class="muted">{{ 'Pending payment' | t }}</span><span class="strong">{{ summary()?.pendingPaymentOrders ?? 0 }}</span></div>
+              <div class="between small"><span class="muted">{{ 'Not paid' | t }}</span><span class="strong">{{ summary()?.unpaidOrders ?? 0 }}</span></div>
+              <div class="between small"><span class="muted">{{ 'Payment pending' | t }}</span><span class="strong">{{ summary()?.pendingPaymentOrders ?? 0 }}</span></div>
               <div class="between small"><span class="muted">{{ 'Refund pending' | t }}</span><span class="strong">{{ summary()?.refundPendingOrders ?? 0 }}</span></div>
               <div class="between small"><span class="muted">{{ 'Refunded' | t }}</span><span class="strong">{{ summary()?.refundedOrders ?? 0 }}</span></div>
               <div class="between small"><span class="muted">{{ 'Transferred' | t }}</span><span class="strong">{{ summary()?.transferredOrders ?? 0 }}</span></div>
@@ -153,7 +151,7 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
           <div class="card-head">
             <div>
               <div class="card-title">{{ 'Daily breakdown' | t }}</div>
-              <div class="card-sub">{{ 'Expected is based on orders opened that day; collected is cash settled that day.' | t }}</div>
+              <div class="card-sub">{{ 'Total ordered is the value of orders placed that day. Money received is what customers paid that day after refunds, before tips.' | t }}</div>
             </div>
             <span class="tiny muted">{{ rangeLabel() }}</span>
           </div>
@@ -164,9 +162,9 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
                   <tr>
                     <th>{{ 'Date' | t }}</th>
                     <th class="t-right">{{ 'Orders' | t }}</th>
-                    <th class="t-right">{{ 'Expected' | t }}</th>
-                    <th class="t-right">{{ 'Collected' | t }}</th>
-                    <th class="t-right">{{ 'Refunds' | t }}</th>
+                    <th class="t-right">{{ 'Total ordered' | t }}</th>
+                    <th class="t-right">{{ 'Money received' | t }}</th>
+                    <th class="t-right">{{ 'Refunded' | t }}</th>
                     <th class="t-right">{{ 'Tips' | t }}</th>
                   </tr>
                 </thead>
@@ -218,8 +216,8 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
                     <th>{{ 'Waiter' | t }}</th>
                     <th>{{ 'Status' | t }}</th>
                     <th>{{ 'Payment' | t }}</th>
-                    <th class="t-right">{{ 'Expected' | t }}</th>
-                    <th class="t-right">{{ 'Collected' | t }}</th>
+                    <th class="t-right">{{ 'Order total' | t }}</th>
+                    <th class="t-right">{{ 'Amount paid' | t }}</th>
                     <th class="t-right">{{ 'Opened' | t }}</th>
                   </tr>
                 </thead>
@@ -256,7 +254,7 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
           <div class="card-head">
             <div>
               <div class="card-title">{{ 'Waiter performance' | t }}</div>
-              <div class="card-sub">{{ 'Collected revenue excludes tips; tips are shown separately.' | t }}</div>
+              <div class="card-sub">{{ 'Amounts paid exclude tips; tips are listed separately.' | t }}</div>
             </div>
           </div>
           @if (waiterRows().length) {
@@ -267,10 +265,10 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
                     <th>{{ 'Waiter' | t }}</th>
                     <th class="t-right">{{ 'Orders' | t }}</th>
                     <th class="t-right">{{ 'Completed' | t }}</th>
-                    <th class="t-right">{{ 'Expected' | t }}</th>
-                    <th class="t-right">{{ 'Collected' | t }}</th>
+                    <th class="t-right">{{ 'Total ordered' | t }}</th>
+                    <th class="t-right">{{ 'Amount paid' | t }}</th>
                     <th class="t-right">{{ 'Tips' | t }}</th>
-                    <th class="t-right">{{ 'Unsettled tips' | t }}</th>
+                    <th class="t-right">{{ 'Tips not paid out' | t }}</th>
                     <th class="t-right">{{ 'Cancelled' | t }}</th>
                   </tr>
                 </thead>
@@ -315,7 +313,7 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
           </div>
           <div class="stat-card">
             <div class="stat-icon" style="background: var(--amber-soft); color: var(--amber)"><app-icon name="wallet" /></div>
-            <div class="stat-label">{{ 'Lost revenue' | t }}</div>
+            <div class="stat-label">{{ 'Lost sales' | t }}</div>
             <div class="stat-value">{{ money(cancellations()?.totalLostRevenue ?? 0) }} <small>{{ 'ETB' | t }}</small></div>
             <div class="stat-foot">{{ 'Removed from bills' | t }}</div>
           </div>
@@ -455,10 +453,11 @@ export class ReportsPage implements OnInit {
     await this.reload();
   }
 
-  protected readonly avgTicket = computed(() => {
-    const summary = this.summary();
-    if (!summary || !summary.completedOrders) return 0;
-    return Math.round((summary.grossSales / summary.completedOrders) * 100) / 100;
+  protected readonly avgPaidOrder = computed(() => {
+    const paid = this.orderRows().filter((row) => row.paymentStatus === 'PAID');
+    if (!paid.length) return 0;
+    const total = paid.reduce((sum, row) => sum + row.collectedAmount, 0);
+    return Math.round((total / paid.length) * 100) / 100;
   });
 
   protected readonly methods = computed(() => {
@@ -596,25 +595,24 @@ export class ReportsPage implements OnInit {
     const summary = this.summary();
     const rows: (string | number)[][] = [
       [translate('Metric'), translate('Value'), translate('Period')],
-      [translate('Expected from opened orders'), this.num(summary?.expectedAmount), this.rangeLabel()],
-      [translate('Collected net of refunds'), this.num(summary?.collectedAmount), this.rangeLabel()],
-      [translate('Still outstanding'), this.num(summary?.outstandingAmount), this.rangeLabel()],
+      [translate('Total ordered'), this.num(summary?.expectedAmount), this.rangeLabel()],
+      [translate('Money received'), this.num(summary?.collectedAmount), this.rangeLabel()],
+      [translate('Not paid yet'), this.num(summary?.outstandingAmount), this.rangeLabel()],
       [translate('Refunded'), this.num(summary?.refundedAmount), this.rangeLabel()],
-      [translate('Gross sales'), this.num(summary?.grossSales), this.rangeLabel()],
-      [translate('Net revenue'), this.num(summary?.netRevenue), this.rangeLabel()],
-      [translate('Tax collected'), this.num(summary?.taxCollected), this.rangeLabel()],
-      [translate('Tips collected'), this.num(summary?.tipsCollected), this.rangeLabel()],
+      [translate('Sales before refunds'), this.num(summary?.grossSales), this.rangeLabel()],
+      [translate('Tips received'), this.num(summary?.tipsCollected), this.rangeLabel()],
+      [translate('Average paid order'), this.num(this.avgPaidOrder()), this.rangeLabel()],
       [translate('Orders opened'), summary?.totalOrders ?? 0, this.rangeLabel()],
       [translate('Paid orders'), summary?.paidOrders ?? 0, this.rangeLabel()],
-      [translate('Unpaid orders'), summary?.unpaidOrders ?? 0, this.rangeLabel()],
-      [translate('Pending payment orders'), summary?.pendingPaymentOrders ?? 0, this.rangeLabel()],
-      [translate('Refund pending orders'), summary?.refundPendingOrders ?? 0, this.rangeLabel()],
+      [translate('Not paid'), summary?.unpaidOrders ?? 0, this.rangeLabel()],
+      [translate('Payment pending'), summary?.pendingPaymentOrders ?? 0, this.rangeLabel()],
+      [translate('Refund pending'), summary?.refundPendingOrders ?? 0, this.rangeLabel()],
       [translate('Cancelled orders'), summary?.cancelledOrders ?? 0, this.rangeLabel()],
       [],
-      [translate('Date'), translate('Orders'), translate('Expected'), translate('Collected'), translate('Refunds'), translate('Tips')],
+      [translate('Date'), translate('Orders'), translate('Total ordered'), translate('Money received'), translate('Refunded'), translate('Tips')],
       ...(summary?.daily ?? []).map((day) => [day.date, day.orders, this.num(day.expected), this.num(day.collected), this.num(day.refunds), this.num(day.tips)]),
       [],
-      [translate('Order'), translate('Waiter'), translate('Order status'), translate('Payment status'), translate('Expected'), translate('Collected'), translate('Opened')],
+      [translate('Order'), translate('Waiter'), translate('Order status'), translate('Payment status'), translate('Order total'), translate('Amount paid'), translate('Opened')],
       ...this.orderRows().map((row) => [
         row.orderNumber,
         row.waiterName,

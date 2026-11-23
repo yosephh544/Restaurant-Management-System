@@ -28,6 +28,12 @@ public class UserService : IUserService
     private static bool IsOwnerAccount(User user) =>
         string.Equals(user.RoleEntity?.Name, Roles.Owner, StringComparison.OrdinalIgnoreCase);
 
+    // Password-based roles cannot use the floor PIN, so they need a password to sign in.
+    private static bool UsesPassword(string roleName) =>
+        string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(roleName, Roles.Manager, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(roleName, Roles.Cashier, StringComparison.OrdinalIgnoreCase);
+
     private static UserRole ParseLegacyRole(string roleName) =>
         Enum.TryParse<UserRole>(roleName, true, out var role) ? role : UserRole.Waiter;
 
@@ -45,6 +51,9 @@ public class UserService : IUserService
 
         var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == roleName && r.IsActive, ct)
             ?? throw new ValidationException("Role", "Role does not exist or is inactive.");
+
+        if (UsesPassword(roleName) && string.IsNullOrWhiteSpace(request.Password))
+            throw new ValidationException("Password", "Set a password so this account can sign in.");
 
         var defaultShifts = await ResolveDefaultShiftsAsync(request.ShiftIds, roleName, ct);
 
@@ -168,6 +177,10 @@ public class UserService : IUserService
 
         if (!string.IsNullOrWhiteSpace(request.Pin)) user.PinHash = BCrypt.Net.BCrypt.HashPassword(request.Pin);
         if (!string.IsNullOrWhiteSpace(request.Password)) user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+
+        if (UsesPassword(finalRoleName) && string.IsNullOrEmpty(user.PasswordHash))
+            throw new ValidationException("Password", "This account has no password yet. Set one so the member can sign in.");
+
         user.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync(ct);
         return MapToResponse(user);
@@ -249,6 +262,7 @@ public class UserService : IUserService
         Phone = user.Phone,
         Role = user.RoleEntity?.Name ?? user.Role.ToString(),
         IsActive = user.IsActive,
+        HasPassword = !string.IsNullOrEmpty(user.PasswordHash),
         CreatedAt = user.CreatedAt,
         UpdatedAt = user.UpdatedAt,
         DefaultShifts = user.ShiftAssignments

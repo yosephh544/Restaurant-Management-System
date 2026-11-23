@@ -27,6 +27,7 @@ export interface StaffUser {
   phone?: string;
   role: Role;
   active: boolean;
+  hasPassword: boolean;
   createdAt: string;
   defaultShifts: DefaultShiftSummary[];
 }
@@ -511,8 +512,6 @@ export interface FinancialDailyPoint {
 
 export interface SalesSummary {
   grossSales: number;
-  netRevenue: number;
-  taxCollected: number;
   tipsCollected: number;
   expectedAmount: number;
   collectedAmount: number;

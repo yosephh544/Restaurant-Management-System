@@ -32,31 +32,31 @@ import { Icon, IconName } from '../../shared/icon';
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="chart" /></div>
-          <div class="stat-label">{{ 'Gross sales' | t }}</div>
-          <div class="stat-value">{{ money(metrics().gross) }}</div>
-          <div class="stat-foot">{{ 'Paid today, ETB' | t }}</div>
+          <div class="stat-label">{{ 'Sales today' | t }}</div>
+          <div class="stat-value">{{ money(metrics().sales) }}</div>
+          <div class="stat-foot">{{ 'Food and drinks, no tips' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="check-circle" /></div>
-          <div class="stat-label">{{ 'Collected' | t }}</div>
+          <div class="stat-label">{{ 'Money received' | t }}</div>
           <div class="stat-value">{{ money(metrics().collected) }}</div>
-          <div class="stat-foot">{{ 'Net of refunds' | t }}</div>
+          <div class="stat-foot">{{ 'Paid today, includes tips' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--red-soft); color: var(--red)"><app-icon name="wallet" /></div>
-          <div class="stat-label">{{ 'Outstanding' | t }}</div>
+          <div class="stat-label">{{ 'Not paid yet' | t }}</div>
           <div class="stat-value">{{ money(metrics().outstanding) }}</div>
           <div class="stat-foot">{{ 'Open bills to collect' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--amber-soft); color: var(--amber)"><app-icon name="retract" /></div>
-          <div class="stat-label">{{ 'Refunds' | t }}</div>
+          <div class="stat-label">{{ 'Refunded' | t }}</div>
           <div class="stat-value">{{ money(metrics().refunds) }}</div>
           <div class="stat-foot">{{ 'Returned today' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--brand-soft); color: var(--brand-dark)"><app-icon name="cash" /></div>
-          <div class="stat-label">{{ 'Tips' | t }}</div>
+          <div class="stat-label">{{ 'Tips received' | t }}</div>
           <div class="stat-value">{{ money(metrics().tips) }}</div>
           <div class="stat-foot">{{ 'Credited to waiters' | t }}</div>
         </div>
@@ -66,8 +66,8 @@ import { Icon, IconName } from '../../shared/icon';
         <div class="card">
           <div class="card-head">
             <div>
-              <div class="card-title">{{ 'Sales overview' | t }}</div>
-              <div class="card-sub">{{ 'Settled payments in the selected window' | t }}</div>
+              <div class="card-title">{{ 'Money received' | t }}</div>
+              <div class="card-sub">{{ 'Payments taken in the selected period' | t }}</div>
             </div>
             <div class="seg">
               <button type="button" [class.active]="range() === 'today'" (click)="range.set('today')">{{ 'Today' | t }}</button>
@@ -77,11 +77,11 @@ import { Icon, IconName } from '../../shared/icon';
           <div class="card-pad" style="padding-bottom: 4px">
             <div class="between">
               <div>
-                <div class="eyebrow" style="margin-bottom: 2px">{{ 'Collected' | t }}</div>
+                <div class="eyebrow" style="margin-bottom: 2px">{{ 'Money received' | t }}</div>
                 <div class="stat-value" style="font-size: 26px">{{ money(seriesTotal()) }} <small>{{ 'ETB' | t }}</small></div>
               </div>
               <div class="chart-legend">
-                <span><span class="legend-dot"></span> {{ 'Collected' | t }}</span>
+                <span><span class="legend-dot"></span> {{ 'Money received' | t }}</span>
                 <span class="muted">{{ paymentsCount() }} {{ 'payments' | t }}</span>
               </div>
             </div>
@@ -249,7 +249,7 @@ export class ManagerDashboardPage {
     const collected = paidToday.reduce((sum, p) => sum + p.total, 0);
     return {
       orders: todaysOrders.length,
-      gross: collected,
+      sales: paidToday.reduce((sum, p) => sum + p.base, 0),
       // Refunded payments no longer carry PAID, so they are not subtracted a second time.
       collected,
       refunds: refundedToday.reduce((sum, p) => sum + p.total, 0),

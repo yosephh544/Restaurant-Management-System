@@ -132,6 +132,9 @@ interface UserDraft {
                     <span [class]="'pill ' + (member.active ? 'pill-green' : 'pill-grey')">
                       {{ member.active ? ('Active' | t) : ('Inactive' | t) }}
                     </span>
+                    @if (!member.hasPassword && needsPassword(member.role)) {
+                      <span class="pill pill-amber" style="margin-left: 4px">{{ 'No password' | t }}</span>
+                    }
                   </td>
                   <td class="muted num">{{ member.createdAt.slice(0, 10) }}</td>
                   <td>
@@ -267,8 +270,21 @@ interface UserDraft {
                 </div>
               }
               <div class="field">
-                <label class="label" for="user-password">{{ 'Password' | t }}</label>
-                <input id="user-password" class="input" [(ngModel)]="draft.password" autocomplete="new-password" />
+                @if (editingId() && !passwordUnlocked()) {
+                  <label class="label">{{ 'Password' | t }}</label>
+                  <div class="row" style="gap: 8px; align-items: center">
+                    <span class="tiny muted">{{ 'Kept unchanged unless you set a new one.' | t }}</span>
+                    <button class="btn btn-sm btn-secondary" type="button" (click)="passwordUnlocked.set(true)">{{ 'Change password' | t }}</button>
+                  </div>
+                } @else {
+                  <label class="label" for="user-password">
+                    {{ 'Password' | t }}
+                    @if (editingId()) {
+                      <span class="tiny muted" style="font-weight: 400">— {{ 'leave blank to keep' | t }}</span>
+                    }
+                  </label>
+                  <input id="user-password" class="input" name="new-user-password" [(ngModel)]="draft.password" autocomplete="new-password" />
+                }
               </div>
               <div class="field">
                 <label class="label" for="user-pin">{{ 'Device PIN (optional)' | t }}</label>
@@ -302,6 +318,7 @@ export class UsersPage {
   protected readonly roleFilter = signal<Role | 'ALL'>('ALL');
   protected readonly modalOpen = signal(false);
   protected readonly editingId = signal<string | null>(null);
+  protected readonly passwordUnlocked = signal(false);
   protected readonly error = signal('');
   protected readonly busy = signal(false);
   protected readonly currentUserId = this.auth.user()?.id ?? '';
@@ -373,6 +390,7 @@ export class UsersPage {
   protected openNew(): void {
     this.draft = this.blank();
     this.editingId.set(null);
+    this.passwordUnlocked.set(true);
     this.error.set('');
     this.modalOpen.set(true);
   }
@@ -389,6 +407,9 @@ export class UsersPage {
       shiftIds: member.defaultShifts.map((shift) => shift.id),
     };
     this.editingId.set(member.id);
+    // Never leave a password box mounted for an edit: browsers can autofill it
+    // and silently reset the account's password when the owner saves other changes.
+    this.passwordUnlocked.set(!member.hasPassword);
     this.error.set('');
     this.modalOpen.set(true);
   }
@@ -457,6 +478,11 @@ export class UsersPage {
       this.error.set(translate('The PIN must be 4–6 digits.'));
       return;
     }
+    const existing = this.editingId() ? this.store.users().find((u) => u.id === this.editingId()) : undefined;
+    if (this.needsPassword(this.draft.role) && !password && (!this.editingId() || existing?.hasPassword === false)) {
+      this.error.set(translate('Set a password for this account so the member can sign in.'));
+      return;
+    }
     if (this.draft.role !== 'OWNER' && this.draft.role !== 'MANAGER' && !this.draft.shiftIds.length) {
       this.error.set(translate('Choose at least one default shift for this staff member.'));
       return;
@@ -479,7 +505,17 @@ export class UsersPage {
       return;
     }
     this.modalOpen.set(false);
-    this.toast.show(this.editingId() ? translate('Account updated') : translate('Staff account created'));
+    this.toast.show(
+      this.editingId()
+        ? password
+          ? translate('Account updated — password changed')
+          : translate('Account updated')
+        : translate('Staff account created'),
+    );
+  }
+
+  protected needsPassword(role: Role): boolean {
+    return role === 'OWNER' || role === 'MANAGER' || role === 'CASHIER';
   }
 
   protected async toggle(member: StaffUser): Promise<void> {

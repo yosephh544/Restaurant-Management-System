@@ -39,7 +39,7 @@ import { Icon } from '../../shared/icon';
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="cash" /></div>
-          <div class="stat-label">{{ 'Tips collected' | t }}</div>
+          <div class="stat-label">{{ 'Tips received' | t }}</div>
           <div class="stat-value">{{ money(stats().tips) }} <small>{{ 'ETB' | t }}</small></div>
           <div class="stat-foot">{{ 'Credited to waiters' | t }}</div>
         </div>

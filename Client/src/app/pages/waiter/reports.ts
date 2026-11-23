@@ -37,25 +37,25 @@ type Period = 'today' | 'week' | 'month';
           </div>
           <div class="stat-card">
             <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="chart" /></div>
-            <div class="stat-label">{{ 'Expected' | t }}</div>
+            <div class="stat-label">{{ 'Total ordered' | t }}</div>
             <div class="stat-value">{{ money(data.expectedAmount) }}</div>
-            <div class="stat-foot">{{ 'Value of my opened orders' | t }}</div>
+            <div class="stat-foot">{{ 'Value of orders I opened' | t }}</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="cash" /></div>
-            <div class="stat-label">{{ 'Collected' | t }}</div>
+            <div class="stat-label">{{ 'Paid by my customers' | t }}</div>
             <div class="stat-value">{{ money(data.collectedAmount) }}</div>
-            <div class="stat-foot">{{ 'Paid orders, excluding tips' | t }}</div>
+            <div class="stat-foot">{{ 'Excludes tips' | t }}</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon" style="background: var(--brand-soft); color: var(--brand-dark)"><app-icon name="cash" /></div>
-            <div class="stat-label">{{ 'Tips collected' | t }}</div>
+            <div class="stat-label">{{ 'My tips' | t }}</div>
             <div class="stat-value">{{ money(data.tipsCollected) }}</div>
-            <div class="stat-foot">{{ money(data.tipsPaidOut) }} {{ 'paid out' | t }}</div>
+            <div class="stat-foot">{{ money(data.tipsPaidOut) }} {{ 'paid to me this period' | t }}</div>
           </div>
           <div class="stat-card">
             <div class="stat-icon" style="background: var(--amber-soft); color: var(--amber)"><app-icon name="wallet" /></div>
-            <div class="stat-label">{{ 'Unsettled tips' | t }}</div>
+            <div class="stat-label">{{ 'Tips not paid to me yet' | t }}</div>
             <div class="stat-value">{{ money(data.tipsUnsettled) }}</div>
             <div class="stat-foot">{{ 'Waiting for payout' | t }}</div>
           </div>
@@ -68,14 +68,14 @@ type Period = 'today' | 'week' | 'month';
         </div>
 
         <div class="card card-pad" style="margin-bottom: 18px">
-          <div class="card-title">{{ 'Tips' | t }}</div>
+          <div class="card-title">{{ 'My tips' | t }}</div>
           <div class="card-sub" style="margin-bottom: 12px">
             {{ 'Tips are credited when a customer overpays a Telebirr/CBE transfer.' | t }}
           </div>
           <div class="stack">
-            <div class="between small"><span class="muted">{{ 'Collected' | t }}</span><span class="strong num">{{ money(data.tipsCollected) }} ETB</span></div>
-            <div class="between small"><span class="muted">{{ 'Unsettled' | t }}</span><span class="strong num">{{ money(data.tipsUnsettled) }} ETB</span></div>
-            <div class="between small"><span class="muted">{{ 'Paid out' | t }}</span><span class="strong num">{{ money(data.tipsPaidOut) }} ETB</span></div>
+            <div class="between small"><span class="muted">{{ 'Tips received' | t }}</span><span class="strong num">{{ money(data.tipsCollected) }} ETB</span></div>
+            <div class="between small"><span class="muted">{{ 'Tips not paid out yet' | t }}</span><span class="strong num">{{ money(data.tipsUnsettled) }} ETB</span></div>
+            <div class="between small"><span class="muted">{{ 'Paid to me this period' | t }}</span><span class="strong num">{{ money(data.tipsPaidOut) }} ETB</span></div>
           </div>
         </div>
 
@@ -94,8 +94,8 @@ type Period = 'today' | 'week' | 'month';
                   <tr>
                     <th>{{ 'Date' | t }}</th>
                     <th class="t-right">{{ 'Orders' | t }}</th>
-                    <th class="t-right">{{ 'Expected' | t }}</th>
-                    <th class="t-right">{{ 'Collected' | t }}</th>
+                    <th class="t-right">{{ 'Total ordered' | t }}</th>
+                    <th class="t-right">{{ 'Money received' | t }}</th>
                     <th class="t-right">{{ 'Tips' | t }}</th>
                   </tr>
                 </thead>

@@ -130,6 +130,7 @@ interface UserDto {
   phone?: string | null;
   role: string;
   isActive: boolean;
+  hasPassword?: boolean;
   createdAt: string;
   defaultShifts?: UserDefaultShiftDto[] | null;
 }
@@ -445,7 +446,6 @@ export class Store {
       gross: summary?.grossSales ?? 0,
       collected: summary?.collectedAmount ?? 0,
       tips: summary?.tipsCollected ?? 0,
-      tax: summary?.taxCollected ?? 0,
       cancelled: summary?.cancelledOrders ?? 0,
       outstanding: summary?.outstandingAmount ?? this.openBills().reduce((sum, b) => sum + b.total, 0),
       activeIssues: this.openIssues().length,
@@ -1380,6 +1380,7 @@ export class Store {
       phone: u.phone ?? undefined,
       role: roleFrom(u.role),
       active: u.isActive,
+      hasPassword: u.hasPassword ?? true,
       createdAt: u.createdAt,
       defaultShifts: (u.defaultShifts ?? []).map((shift) => ({
         id: shift.id,

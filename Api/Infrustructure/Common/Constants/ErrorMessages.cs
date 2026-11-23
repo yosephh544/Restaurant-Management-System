@@ -14,7 +14,7 @@ public static class ErrorMessages
 
     // ── User / Auth ───────────────────────────────────────────────────────────
     public const string UserNotFound = "User not found.";
-    public const string InvalidCredentials = "Invalid phone number or password.";
+    public const string InvalidCredentials = "Invalid username or password.";
     public const string InvalidPin = "Invalid PIN. Please try again.";
     public const string UserAlreadyExists = "A user with this phone number already exists.";
     public const string UserDeactivated = "This account has been deactivated. Contact your manager.";

@@ -31,15 +31,15 @@ import { Icon } from '../../shared/icon';
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--red-soft); color: var(--red)"><app-icon name="wallet" /></div>
-          <div class="stat-label">{{ 'Outstanding' | t }}</div>
+          <div class="stat-label">{{ 'Not paid yet' | t }}</div>
           <div class="stat-value">{{ money(outstanding()) }} <small>{{ 'ETB' | t }}</small></div>
           <div class="stat-foot">{{ 'Not yet collected' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="check-circle" /></div>
-          <div class="stat-label">{{ 'Collected today' | t }}</div>
+          <div class="stat-label">{{ 'Money received today' | t }}</div>
           <div class="stat-value">{{ money(stats().collected) }} <small>{{ 'ETB' | t }}</small></div>
-          <div class="stat-foot">{{ stats().paidToday }} {{ 'settled payments' | t }}</div>
+          <div class="stat-foot">{{ stats().paidToday }} {{ 'payments taken' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="cash" /></div>

@@ -126,7 +126,7 @@ import { PaySheet } from '../../shared/pay-sheet';
                     <strong>{{ money(amountPaid()) }}</strong>
                   </div>
                   <div class="amount-cell" [class.due]="outstanding() > 0">
-                    <span>{{ 'Outstanding' | t }}</span>
+                    <span>{{ 'Still to pay' | t }}</span>
                     <strong>{{ money(outstanding()) }}</strong>
                   </div>
                 </div>
