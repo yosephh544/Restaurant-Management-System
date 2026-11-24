@@ -5,13 +5,12 @@ import { assetUrl } from '../../core/api.config';
 import {
   ALCOHOL_TYPE_LABEL,
   FASTING_TYPE_LABEL,
+  MENU_CATEGORY_TYPE_LABEL,
   MenuCategory,
   MenuCategoryType,
   MenuItem,
   MenuItemAlcoholType,
   MenuItemFastingType,
-  MenuSection,
-  SECTION_LABEL,
   money,
 } from '../../core/models';
 import { Store } from '../../core/store';
@@ -22,7 +21,6 @@ interface MenuDraft {
   id?: string;
   type: MenuCategoryType;
   categoryId: string;
-  section: MenuSection;
   name: string;
   nameAm: string;
   description: string;
@@ -64,8 +62,7 @@ interface MenuDraft {
               <option [ngValue]="option.value">{{ option.label | t }}</option>
             }
           </select>
-          <!-- Category management removed: the menu uses the 3 fixed categories
-               (Food / Drinks / Extras). Backend endpoints remain available. -->
+          <button class="btn btn-secondary" type="button" (click)="openCategory()"><app-icon name="plus" /> {{ 'Category' | t }}</button>
           <button class="btn btn-primary" type="button" (click)="openNew()" [disabled]="!store.menuCategories().length">
             <app-icon name="plus" /> {{ 'Add item' | t }} </button>
         </div>
@@ -76,7 +73,7 @@ interface MenuDraft {
           <div class="stat-icon"><app-icon name="utensils" /></div>
           <div class="stat-label">{{ 'Menu items' | t }}</div>
           <div class="stat-value">{{ store.menu().length }}</div>
-          <div class="stat-foot">{{ 'Across' | t }} {{ activeCategoryCount() }} {{ 'categories' | t }}</div>
+          <div class="stat-foot">{{ 'Across' | t }} {{ store.menuCategories().length }} {{ 'categories' | t }}</div>
         </div>
         <div class="stat-card">
           <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="check-circle" /></div>
@@ -147,11 +144,6 @@ interface MenuDraft {
                   <td class="muted">{{ item.category }}</td>
                   <td>
                     <div class="row" style="gap: 4px; flex-wrap: wrap">
-                      @if (item.section !== section.NotApplicable) {
-                        <span class="pill no-dot" [class.pill-blue]="item.section === section.Breakfast" [class.pill-green]="item.section === section.Lunch">
-                          {{ sectionLabel[item.section] | t }}
-                        </span>
-                      }
                       @if (item.fastingType !== fasting.NotApplicable) {
                         <span class="pill no-dot" [class.pill-blue]="item.fastingType === fasting.Fasting" [class.pill-grey]="item.fastingType === fasting.NonFasting">
                           {{ fastingLabel[item.fastingType] | t }}
@@ -162,7 +154,7 @@ interface MenuDraft {
                           {{ alcoholLabel[item.alcoholType] | t }}
                         </span>
                       }
-                      @if (item.section === section.NotApplicable && item.fastingType === fasting.NotApplicable && item.alcoholType === alcohol.NotApplicable) {
+                      @if (item.fastingType === fasting.NotApplicable && item.alcoholType === alcohol.NotApplicable) {
                         <span class="muted">—</span>
                       }
                     </div>
@@ -200,7 +192,7 @@ interface MenuDraft {
               @if (store.menuCategories().length) {
                 {{ 'Add a dish or change the category/classification filters.' | t }}
               } @else {
-                {{ 'Use Add item to create the first dish or drink.' | t }}
+                {{ 'Create a category first, then add menu items to it.' | t }}
               }
             </p>
           </div>
@@ -231,20 +223,24 @@ interface MenuDraft {
               <div class="field">
                 <label class="label" for="item-category">{{ 'Category' | t }}</label>
                 <select id="item-category" class="select" [(ngModel)]="draft.type" (ngModelChange)="onTypeChange()">
-                  @for (option of categoryOptions(); track option.value) {
+                  @for (option of categoryTypes; track option.value) {
                     <option [ngValue]="option.value">{{ option.label | t }}</option>
                   }
                 </select>
               </div>
-              @if (draftHasSection()) {
-                <div class="field">
-                  <label class="label" for="item-section">{{ 'Section' | t }}</label>
-                  <select id="item-section" class="select" [(ngModel)]="draft.section">
-                    <option [ngValue]="section.Breakfast">{{ 'Breakfast' | t }}</option>
-                    <option [ngValue]="section.Lunch">{{ 'Lunch' | t }}</option>
+              <div class="field">
+                <label class="label" for="item-section">{{ 'Section' | t }}</label>
+                @if (draftSections().length) {
+                  <select id="item-section" class="select" [(ngModel)]="draft.categoryId" (ngModelChange)="onSectionChange()">
+                    @for (section of draftSections(); track section.id) {
+                      <option [ngValue]="section.id">{{ section.name }}</option>
+                    }
                   </select>
-                </div>
-              }
+                } @else {
+                  <select class="select" disabled><option>{{ 'No sections yet' | t }}</option></select>
+                  <span class="hint">{{ 'No' | t }} {{ typeLabel() }} {{ 'sections yet. Add one with the Category button first.' | t }}</span>
+                }
+              </div>
               <div class="field">
                 <label class="label" for="item-price">{{ 'Price (ETB)' | t }}</label>
                 <input id="item-price" class="input" type="number" min="0" step="1" [(ngModel)]="draft.price" />
@@ -319,12 +315,60 @@ interface MenuDraft {
       </div>
     }
 
-    <!-- Category modal removed: only the 3 fixed categories are used. Backend
-         category endpoints remain available for future use.
     @if (categoryOpen()) {
-      ...category modal...
+      <div class="modal-backdrop" (click)="categoryOpen.set(false)">
+        <div class="modal" (click)="$event.stopPropagation()">
+          <div class="modal-head">
+            <div>
+              <h3>{{ 'New category' | t }}</h3>
+              <p>{{ 'Group items under Foods, Beverages, or Extras, then nest sections like Breakfast or Cold Drinks.' | t }}</p>
+            </div>
+            <button class="modal-close" type="button" (click)="categoryOpen.set(false)"><app-icon name="x" /></button>
+          </div>
+          <div class="modal-body">
+            <div class="field">
+              <label class="label" for="category-name">{{ 'Name' | t }}</label>
+              <input id="category-name" class="input" [(ngModel)]="categoryName" />
+            </div>
+            <div class="grid grid-2" style="gap: 12px; margin-top: 12px">
+              <div class="field">
+                <label class="label" for="category-type">{{ 'Type' | t }}</label>
+                <select id="category-type" class="select" [(ngModel)]="categoryType" [disabled]="!!categoryParentId">
+                  @for (option of categoryTypeOptions; track option.value) {
+                    <option [ngValue]="option.value">{{ option.label | t }}</option>
+                  }
+                </select>
+                @if (categoryParentId) {
+                  <span class="hint">{{ 'Inherited from the parent category.' | t }}</span>
+                }
+              </div>
+              <div class="field">
+                <label class="label" for="category-parent">{{ 'Parent category' | t }}</label>
+                <select id="category-parent" class="select" [(ngModel)]="categoryParentId" (ngModelChange)="onCategoryParentChange()">
+                  <option [ngValue]="''">{{ 'Top level' | t }}</option>
+                  @for (entry of orderedCategories(); track entry.category.id) {
+                    <option [ngValue]="entry.category.id">{{ entry.depth ? '— ' : '' }}{{ entry.category.name }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+            <div class="field mt-3">
+              <label class="label" for="category-desc">{{ 'Description' | t }}</label>
+              <input id="category-desc" class="input" [(ngModel)]="categoryDescription" [placeholder]="'Optional' | t" />
+            </div>
+            @if (error()) {
+              <div class="auth-error mt-3">{{ error() }}</div>
+            }
+          </div>
+          <div class="modal-foot">
+            <button class="btn btn-ghost" type="button" (click)="categoryOpen.set(false)">{{ 'Cancel' | t }}</button>
+            <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="saveCategory()">
+              {{ busy() ? ('Saving…' | t) : ('Add category' | t) }}
+            </button>
+          </div>
+        </div>
+      </div>
     }
-    -->
   `,
 })
 export class MenuPage {
@@ -335,8 +379,6 @@ export class MenuPage {
   protected readonly assetUrl = assetUrl;
   protected readonly fasting = MenuItemFastingType;
   protected readonly alcohol = MenuItemAlcoholType;
-  protected readonly section = MenuSection;
-  protected readonly sectionLabel = SECTION_LABEL;
   protected readonly fastingLabel = FASTING_TYPE_LABEL;
   protected readonly alcoholLabel = ALCOHOL_TYPE_LABEL;
 
@@ -345,10 +387,11 @@ export class MenuPage {
     { value: MenuCategoryType.Beverage, label: 'Drinks' },
     { value: MenuCategoryType.Extra, label: 'Extras' },
   ];
-  // Only types backed by an active category (the 3 fixed ones) are selectable.
-  protected readonly categoryOptions = computed(() =>
-    this.categoryTypes.filter((option) => this.store.menuCategories().some((c) => c.active && c.type === option.value)),
-  );
+  protected readonly categoryTypeOptions = [
+    { value: MenuCategoryType.Food, label: MENU_CATEGORY_TYPE_LABEL[MenuCategoryType.Food] },
+    { value: MenuCategoryType.Beverage, label: MENU_CATEGORY_TYPE_LABEL[MenuCategoryType.Beverage] },
+    { value: MenuCategoryType.Extra, label: MENU_CATEGORY_TYPE_LABEL[MenuCategoryType.Extra] },
+  ];
   protected readonly fastingOptions = [
     MenuItemFastingType.NotApplicable,
     MenuItemFastingType.Fasting,
@@ -369,9 +412,15 @@ export class MenuPage {
   protected readonly fastingFilter = signal<'all' | MenuItemFastingType>('all');
   protected readonly alcoholFilter = signal<'all' | MenuItemAlcoholType>('all');
   protected readonly modalOpen = signal(false);
+  protected readonly categoryOpen = signal(false);
   protected readonly editingId = signal<string | null>(null);
   protected readonly error = signal('');
   protected readonly busy = signal(false);
+
+  protected categoryName = '';
+  protected categoryDescription = '';
+  protected categoryParentId = '';
+  protected categoryType = MenuCategoryType.Food;
 
   protected draft: MenuDraft = this.blank(MenuCategoryType.Food);
   private originalImageUrl = '';
@@ -379,14 +428,11 @@ export class MenuPage {
   private static readonly MaxImageBytes = 5 * 1024 * 1024;
 
   protected readonly availableCount = computed(() => this.store.menu().filter((m) => m.available).length);
-  protected readonly activeCategoryCount = computed(() => this.store.menuCategories().filter((c) => c.active).length);
 
   protected readonly orderedCategories = computed(() => {
-    const categories = [...this.store.menuCategories()]
-      .filter((category) => category.active)
-      .sort(
-        (a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name),
-      );
+    const categories = [...this.store.menuCategories()].sort(
+      (a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name),
+    );
     const result: Array<{ category: MenuCategory; depth: number }> = [];
     const visited = new Set<string>();
 
@@ -466,7 +512,6 @@ export class MenuPage {
       id: item.id,
       type: category?.type ?? MenuCategoryType.Food,
       categoryId: item.categoryId,
-      section: item.section,
       name: item.name,
       nameAm: item.nameAm ?? '',
       description: item.description ?? '',
@@ -486,8 +531,8 @@ export class MenuPage {
     this.modalOpen.set(true);
   }
 
-  protected draftHasSection(): boolean {
-    return this.draft.type !== MenuCategoryType.Extra;
+  protected draftSections(): MenuCategory[] {
+    return this.sectionsFor(this.draft.type, this.draft.categoryId);
   }
 
   protected stockActionLabel(item: MenuItem): string {
@@ -496,9 +541,16 @@ export class MenuPage {
       : translate('Restock {name}', { name: item.name });
   }
 
+  protected typeLabel(): string {
+    return translate(this.categoryTypes.find((option) => option.value === this.draft.type)?.label ?? '');
+  }
+
   protected onTypeChange(): void {
-    this.draft.categoryId = this.categoryForType(this.draft.type)?.id ?? '';
-    this.draft.section = this.draftHasSection() ? MenuSection.Breakfast : MenuSection.NotApplicable;
+    this.draft.categoryId = this.sectionsFor(this.draft.type)[0]?.id ?? '';
+    this.applyClassificationRules();
+  }
+
+  protected onSectionChange(): void {
     this.applyClassificationRules();
   }
 
@@ -556,27 +608,52 @@ export class MenuPage {
     this.draft.imageUrl = '';
   }
 
-  /* Category management UI removed — the menu uses the 3 fixed categories
-     (Food / Drinks / Extras). Backend category endpoints remain available.
-  protected openCategory(): void { ... }
+  protected openCategory(): void {
+    const active = this.active() === 'all' ? undefined : this.categoryById(this.active());
+    this.categoryName = '';
+    this.categoryDescription = '';
+    this.categoryParentId = active?.id ?? '';
+    this.categoryType = active?.type ?? MenuCategoryType.Food;
+    this.error.set('');
+    this.categoryOpen.set(true);
+  }
 
-  protected onCategoryParentChange(): void { ... }
+  protected onCategoryParentChange(): void {
+    const parent = this.categoryParentId ? this.categoryById(this.categoryParentId) : undefined;
+    if (parent) this.categoryType = parent.type;
+  }
 
-  protected async saveCategory(): Promise<void> { ... }
-  */
+  protected async saveCategory(): Promise<void> {
+    const name = this.categoryName.trim();
+    if (!name) {
+      this.error.set(translate('Give the category a name.'));
+      return;
+    }
+
+    const parent = this.categoryParentId ? this.categoryById(this.categoryParentId) : undefined;
+    this.busy.set(true);
+    const result = await this.store.createCategory({
+      name,
+      description: this.categoryDescription.trim(),
+      parentCategoryId: parent?.id ?? null,
+      type: parent?.type ?? this.categoryType,
+    });
+    this.busy.set(false);
+    if (!result.ok) {
+      this.error.set(result.error);
+      return;
+    }
+    this.categoryOpen.set(false);
+    this.toast.show(translate('Category added'));
+  }
 
   protected async save(): Promise<void> {
     if (!this.draft.name.trim()) {
       this.error.set(translate('Give the item a name.'));
       return;
     }
-    const category = this.categoryById(this.draft.categoryId);
-    if (!category) {
-      this.error.set(translate('Choose a category for the item.'));
-      return;
-    }
-    if (category.type !== MenuCategoryType.Extra && this.draft.section === MenuSection.NotApplicable) {
-      this.error.set(translate('Choose Breakfast or Lunch for food and drink items.'));
+    if (!this.draft.categoryId) {
+      this.error.set(translate('Add a section for {section} first.', { section: this.typeLabel() }));
       return;
     }
     if (!this.draft.price || this.draft.price <= 0) {
@@ -584,11 +661,16 @@ export class MenuPage {
       return;
     }
 
-    if (category.type === MenuCategoryType.Food && this.draft.fastingType === MenuItemFastingType.NotApplicable) {
+    const category = this.categoryById(this.draft.categoryId);
+    if (category?.type === MenuCategoryType.Food && this.draft.fastingType === MenuItemFastingType.NotApplicable) {
       this.error.set(translate('Food items must be classified as fasting or non-fasting.'));
       return;
     }
-    if (this.draft.alcoholType !== MenuItemAlcoholType.NotApplicable && !category.allowsAlcoholClassification) {
+    if (category && category.type !== MenuCategoryType.Food && this.draft.fastingType !== MenuItemFastingType.NotApplicable) {
+      this.error.set(translate('Only food items use a fasting classification. Beverages and extras must use Not applicable.'));
+      return;
+    }
+    if (this.draft.alcoholType !== MenuItemAlcoholType.NotApplicable && !category?.allowsAlcoholClassification) {
       this.error.set(translate('Alcoholic or non-alcoholic classification is only allowed for Cold Drinks.'));
       return;
     }
@@ -605,7 +687,6 @@ export class MenuPage {
       available: this.draft.available,
       fastingType: this.draft.fastingType,
       alcoholType: this.draft.alcoholType,
-      section: this.draft.section,
       preparationTimeMinutes: this.draft.preparationTimeMinutes || undefined,
     });
     if (!result.ok) {
@@ -636,16 +717,19 @@ export class MenuPage {
     return this.store.menuCategories().find((category) => category.id === id);
   }
 
-  private categoryForType(type: MenuCategoryType): MenuCategory | undefined {
-    return this.store.menuCategories().find((category) => category.type === type && category.active);
+  private sectionsFor(type: MenuCategoryType, includeId?: string): MenuCategory[] {
+    const categories = this.store.menuCategories();
+    const parentIds = new Set(categories.map((category) => category.parentCategoryId).filter((id): id is string => !!id));
+    return categories
+      .filter((category) => category.type === type && category.active && (!parentIds.has(category.id) || category.id === includeId))
+      .sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name));
   }
 
   private blank(type: MenuCategoryType, categoryId?: string): MenuDraft {
-    const category = categoryId ? this.categoryById(categoryId) : this.categoryForType(type);
+    const sections = this.sectionsFor(type);
     return {
       type,
-      categoryId: category?.id ?? '',
-      section: type === MenuCategoryType.Extra ? MenuSection.NotApplicable : MenuSection.Breakfast,
+      categoryId: categoryId && sections.some((section) => section.id === categoryId) ? categoryId : sections[0]?.id ?? '',
       name: '',
       nameAm: '',
       description: '',

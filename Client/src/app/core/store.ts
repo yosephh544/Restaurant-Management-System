@@ -19,7 +19,6 @@ import {
   MenuItem,
   MenuItemAlcoholType,
   MenuItemFastingType,
-  MenuSection,
   MyShift,
   Order,
   OrderLine,
@@ -31,7 +30,6 @@ import {
   Payment,
   PaymentStatus,
   PaymentStatusInfo,
-  ReceiptVerification,
   Reports,
   roleFrom,
   SalesSummary,
@@ -84,7 +82,6 @@ export interface MenuItemInput {
   available: boolean;
   fastingType?: MenuItemFastingType;
   alcoholType?: MenuItemAlcoholType;
-  section?: MenuSection;
   displayOrder?: number;
   featured?: boolean;
   preparationTimeMinutes?: number;
@@ -165,7 +162,6 @@ interface OrderItemDto {
   taxRate: number;
   customerNotes?: string | null;
   itemStatus: ItemStatus;
-  createdAt: string;
   servedAt?: string | null;
 }
 
@@ -257,20 +253,6 @@ interface PaymentDto {
   verificationNote?: string | null;
 }
 
-interface ReceiptVerificationDto {
-  configured: boolean;
-  verified: boolean;
-  duplicate: boolean;
-  amount?: number | null;
-  currency?: string | null;
-  payerName?: string | null;
-  bank?: string | null;
-  bankName?: string | null;
-  receiptStatus?: string | null;
-  transactionDate?: string | null;
-  message?: string | null;
-}
-
 interface PaymentStatusDto {
   paymentId: string;
   orderId: string;
@@ -305,7 +287,6 @@ interface MenuItemDto {
   imageUrl?: string | null;
   fastingType: MenuItemFastingType;
   alcoholType: MenuItemAlcoholType;
-  section: MenuSection;
   displayOrder: number;
   isFeatured: boolean;
   preparationTimeMinutes?: number | null;
@@ -342,7 +323,6 @@ interface KitchenItemDto {
   quantity: number;
   customerNotes?: string | null;
   itemStatus: ItemStatus;
-  isAddOn?: boolean | null;
 }
 
 interface KitchenTicketDto {
@@ -600,7 +580,6 @@ export class Store {
           qty: i.quantity,
           notes: i.customerNotes ?? undefined,
           status: i.itemStatus,
-          isAddOn: i.isAddOn ?? false,
         })),
       }))
       .sort((a, b) =>
@@ -927,18 +906,8 @@ export class Store {
   ordersForWaiter(waiterId: string, scope: 'active' | 'all' = 'active'): Order[] {
     const list = this.orders().filter((o) => o.waiterId === waiterId);
     if (scope === 'all') return list;
-    // Served tickets stay in the workspace until the bill is collected.
     return list
-      .filter(
-        (o) =>
-          o.status === 'PENDING' ||
-          o.status === 'PREPARING' ||
-          o.status === 'READY' ||
-          (o.status === 'SERVED' &&
-            o.paymentStatus !== 'PAID' &&
-            o.paymentStatus !== 'REFUNDED' &&
-            o.paymentStatus !== 'TRANSFERRED'),
-      )
+      .filter((o) => o.status === 'PENDING' || o.status === 'PREPARING' || o.status === 'READY')
       .sort((a, b) => (a.queuePosition || 1e9) - (b.queuePosition || 1e9));
   }
 
@@ -1132,29 +1101,6 @@ export class Store {
     });
   }
 
-  async verifyReceipt(request: PaymentRequest): Promise<Result<ReceiptVerification>> {
-    return await this.guard(async () => {
-      const dto = await this.api.post<ReceiptVerificationDto>('/payments/receipt/verify', {
-        method: request.method,
-        receiptUrl: request.receiptUrl || null,
-        transactionNumber: request.transactionNumber || null,
-      });
-      return {
-        configured: dto.configured,
-        verified: dto.verified,
-        duplicate: dto.duplicate,
-        amount: dto.amount ?? undefined,
-        currency: dto.currency ?? undefined,
-        payerName: dto.payerName ?? undefined,
-        bank: dto.bank ?? undefined,
-        bankName: dto.bankName ?? undefined,
-        receiptStatus: dto.receiptStatus ?? undefined,
-        transactionDate: dto.transactionDate ?? undefined,
-        message: dto.message ?? undefined,
-      };
-    });
-  }
-
   async paymentStatus(paymentId: string): Promise<PaymentStatusInfo | null> {
     const result = await this.guard(async () => {
       const dto = await this.api.get<PaymentStatusDto>(`/payments/${paymentId}/status`);
@@ -1228,7 +1174,6 @@ export class Store {
         isAvailable: input.available,
         fastingType: input.fastingType ?? MenuItemFastingType.NotApplicable,
         alcoholType: input.alcoholType ?? MenuItemAlcoholType.NotApplicable,
-        section: input.section ?? MenuSection.NotApplicable,
         displayOrder: input.displayOrder ?? 0,
         isFeatured: input.featured ?? false,
         preparationTimeMinutes: input.preparationTimeMinutes ?? null,
@@ -1481,7 +1426,6 @@ export class Store {
           taxRate: i.taxRate,
           notes: i.customerNotes ?? undefined,
           status: i.itemStatus,
-          createdAt: i.createdAt,
           servedAt: i.servedAt ?? undefined,
           lineTotal: Math.round(i.unitPrice * i.quantity * 100) / 100,
         }),
@@ -1570,7 +1514,6 @@ export class Store {
       imageUrl: i.imageUrl ?? undefined,
       fastingType: i.fastingType,
       alcoholType: i.alcoholType,
-      section: i.section ?? MenuSection.NotApplicable,
       displayOrder: i.displayOrder,
       featured: i.isFeatured,
       preparationTimeMinutes: i.preparationTimeMinutes ?? undefined,

@@ -151,7 +151,6 @@ export interface OrderLine {
   taxRate: number;
   notes?: string;
   status: ItemStatus;
-  createdAt: string;
   servedAt?: string;
   lineTotal: number;
 }
@@ -261,20 +260,6 @@ export function verificationLabel(status: VerificationState | string): string {
   return translate(VERIFICATION_LABEL[status as VerificationState] ?? status);
 }
 
-export interface ReceiptVerification {
-  configured: boolean;
-  verified: boolean;
-  duplicate: boolean;
-  amount?: number;
-  currency?: string;
-  payerName?: string;
-  bank?: string;
-  bankName?: string;
-  receiptStatus?: string;
-  transactionDate?: string;
-  message?: string;
-}
-
 export interface Payment {
   id: string;
   billId?: string;
@@ -370,19 +355,6 @@ export const ALCOHOL_TYPE_LABEL: Record<MenuItemAlcoholType, string> = {
   [MenuItemAlcoholType.Alcoholic]: 'Alcoholic',
 };
 
-/** Mirrors RestaurantManagement.Infrustructure.Enums.Menu.MenuSection. */
-export enum MenuSection {
-  NotApplicable = 0,
-  Breakfast = 1,
-  Lunch = 2,
-}
-
-export const SECTION_LABEL: Record<MenuSection, string> = {
-  [MenuSection.NotApplicable]: 'Extras',
-  [MenuSection.Breakfast]: 'Breakfast',
-  [MenuSection.Lunch]: 'Lunch',
-};
-
 export interface MenuItem {
   id: string;
   categoryId: string;
@@ -396,7 +368,6 @@ export interface MenuItem {
   imageUrl?: string;
   fastingType: MenuItemFastingType;
   alcoholType: MenuItemAlcoholType;
-  section: MenuSection;
   displayOrder: number;
   featured: boolean;
   preparationTimeMinutes?: number;
@@ -433,8 +404,6 @@ export interface KitchenTicketItem {
   qty: number;
   notes?: string;
   status: ItemStatus;
-  /** Line was added to an order already on the board. */
-  isAddOn: boolean;
 }
 
 export interface KitchenTicket {

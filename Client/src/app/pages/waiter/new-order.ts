@@ -2,7 +2,7 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
-import { MenuItem, MenuSection, money, OrderType } from '../../core/models';
+import { MenuItem, money, OrderType } from '../../core/models';
 import { assetUrl } from '../../core/api.config';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
@@ -73,9 +73,9 @@ interface CartLine {
             </div>
 
             <div class="chip-row" style="margin-bottom: 14px">
-              @for (entry of sectionChips; track entry.value) {
-                <button class="chip" type="button" [class.active]="activeSection() === entry.value" (click)="activeSection.set(entry.value)">
-                  {{ entry.label | t }}
+              @for (category of categories(); track category) {
+                <button class="chip" type="button" [class.active]="activeCategory() === category" (click)="activeCategory.set(category)">
+                  {{ category === 'All' ? ('All' | t) : category }}
                 </button>
               }
             </div>
@@ -111,7 +111,7 @@ interface CartLine {
               <div class="empty">
                 <app-icon name="search" />
                 <strong>{{ 'No matching items' | t }}</strong>
-                <p>{{ menu().length ? ('Try another search or section.' | t) : ('The menu is empty. Add items under Manager → Menu.' | t) }}</p>
+                <p>{{ menu().length ? ('Try another search or category.' | t) : ('The menu is empty. Add categories and items under Manager → Menu.' | t) }}</p>
               </div>
             }
           </section>
@@ -222,7 +222,7 @@ export class NewOrderPage implements OnInit {
   protected readonly orderType = signal<OrderType>('DINE_IN');
   protected readonly table = signal('');
   protected readonly query = signal('');
-  protected readonly activeSection = signal<'all' | MenuSection>('all');
+  protected readonly activeCategory = signal('All');
   protected readonly cart = signal<CartLine[]>([]);
   protected readonly notes = signal('');
   protected readonly noteItem = signal<string | null>(null);
@@ -231,18 +231,21 @@ export class NewOrderPage implements OnInit {
 
   protected readonly canManageTables = computed(() => this.store.can('tables.manage'));
 
-  protected readonly sectionChips: Array<{ value: 'all' | MenuSection; label: string }> = [
-    { value: 'all', label: 'All' },
-    { value: MenuSection.Breakfast, label: 'Breakfast' },
-    { value: MenuSection.Lunch, label: 'Lunch' },
-    { value: MenuSection.NotApplicable, label: 'Extras' },
-  ];
+  protected readonly categories = computed(() => {
+    const used = new Set(this.menu().map((item) => item.category));
+    return [
+      'All',
+      ...this.store.menuCategories()
+        .filter((category) => used.has(category.name))
+        .map((category) => category.name),
+    ];
+  });
 
   protected readonly filteredMenu = computed(() => {
     const query = this.query().trim().toLowerCase();
-    const section = this.activeSection();
+    const category = this.activeCategory();
     return this.menu()
-      .filter((item) => section === 'all' || item.section === section)
+      .filter((item) => category === 'All' || item.category === category)
       .filter((item) => !query || `${item.name} ${item.description ?? ''}`.toLowerCase().includes(query))
       .sort((a, b) => Number(b.available) - Number(a.available));
   });
