@@ -21,6 +21,9 @@ public class MenuItemResponse
     /// <summary>Alcohol classification (0 = not applicable, 1 = non-alcoholic, 2 = alcoholic).</summary>
     public MenuItemAlcoholType AlcoholType { get; init; }
 
+    /// <summary>Day-part section (0 = not applicable, 1 = breakfast, 2 = lunch).</summary>
+    public MenuSection Section { get; init; }
+
     public int DisplayOrder { get; init; }
     public bool IsFeatured { get; init; }
     public int? PreparationTimeMinutes { get; init; }

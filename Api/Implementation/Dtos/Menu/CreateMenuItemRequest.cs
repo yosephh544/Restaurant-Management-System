@@ -37,6 +37,10 @@ public class CreateMenuItemRequest
     [EnumDataType(typeof(MenuItemAlcoholType), ErrorMessage = "Choose a valid alcohol classification.")]
     public MenuItemAlcoholType AlcoholType { get; set; } = MenuItemAlcoholType.NotApplicable;
 
+    /// <summary>Day-part section; Breakfast or Lunch for food and drinks, NotApplicable for extras.</summary>
+    [EnumDataType(typeof(MenuSection), ErrorMessage = "Choose a valid section.")]
+    public MenuSection Section { get; set; } = MenuSection.NotApplicable;
+
     /// <summary>Manual ordering within the category.</summary>
     public int DisplayOrder { get; set; } = 0;
 

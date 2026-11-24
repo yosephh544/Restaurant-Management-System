@@ -35,6 +35,10 @@ public class UpdateMenuItemRequest
     [EnumDataType(typeof(MenuItemAlcoholType), ErrorMessage = "Choose a valid alcohol classification.")]
     public MenuItemAlcoholType? AlcoholType { get; set; }
 
+    /// <summary>Day-part section; Breakfast or Lunch for food and drinks, NotApplicable for extras.</summary>
+    [EnumDataType(typeof(MenuSection), ErrorMessage = "Choose a valid section.")]
+    public MenuSection? Section { get; set; }
+
     /// <summary>Manual ordering within the category.</summary>
     public int? DisplayOrder { get; set; }
 

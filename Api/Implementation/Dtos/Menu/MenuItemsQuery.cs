@@ -17,6 +17,9 @@ public class MenuItemsQuery
     /// <summary>0 = not applicable, 1 = non-alcoholic, 2 = alcoholic.</summary>
     public MenuItemAlcoholType? AlcoholType { get; set; }
 
+    /// <summary>0 = not applicable (extras), 1 = breakfast, 2 = lunch.</summary>
+    public MenuSection? Section { get; set; }
+
     public bool? IsAvailable { get; set; }
 
     /// <summary>Case-insensitive match against name, SKU, or description.</summary>

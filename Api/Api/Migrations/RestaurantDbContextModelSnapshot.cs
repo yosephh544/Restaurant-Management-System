@@ -961,6 +961,11 @@ namespace RestaurantManagement.Api.Migrations
                         .HasMaxLength(64)
                         .HasColumnType("nvarchar(64)");
 
+                    b.Property<int>("Section")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int")
+                        .HasDefaultValue(0);
+
                     b.Property<decimal>("TaxRate")
                         .HasPrecision(5, 2)
                         .HasColumnType("decimal(5,2)");
@@ -984,6 +989,8 @@ namespace RestaurantManagement.Api.Migrations
                     b.HasIndex("SKU")
                         .IsUnique()
                         .HasFilter("[SKU] IS NOT NULL");
+
+                    b.HasIndex("Section");
 
                     b.HasIndex("CategoryId", "DisplayOrder");
 
@@ -1158,6 +1165,11 @@ namespace RestaurantManagement.Api.Migrations
 
                     b.Property<string>("CustomerNotes")
                         .HasColumnType("nvarchar(max)");
+
+                    b.Property<bool>("IsAddOn")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bit")
+                        .HasDefaultValue(false);
 
                     b.Property<string>("ItemStatus")
                         .IsRequired()

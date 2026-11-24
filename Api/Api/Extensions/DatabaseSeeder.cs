@@ -110,16 +110,25 @@ public static class DatabaseSeeder
             await db.SaveChangesAsync(ct);
         }
 
-        var ownerRole = roles["Owner"];
-        // Profile edits can change the bootstrap account's name and phone. Its
-        // stable ID must take precedence so startup never inserts it twice.
-        var owner = await db.Users.FindAsync(new object[] { OwnerUserId }, ct)
-            ?? await db.Users.FirstOrDefaultAsync(u => u.Username == "joseph" || u.Phone == "0920496730", ct);
-        if (owner is null)
+        var ownerRole = roles[Roles.Owner];
+
+        // Seed the bootstrap owner only when no owner exists at all. An existing
+        // owner may have been renamed, so identify it by role instead of username -
+        // a second owner insert would violate PK_users and abort startup.
+        var ownerExists = await db.Users.AnyAsync(
+            u => u.RoleId == ownerRole.Id || u.Role == UserRole.Owner, ct);
+
+        if (!ownerExists)
         {
+            // Keep the deterministic id on fresh databases, but never insert over
+            // an orphaned row that already occupies it.
+            var ownerId = await db.Users.AnyAsync(u => u.Id == OwnerUserId, ct)
+                ? Guid.NewGuid()
+                : OwnerUserId;
+
             db.Users.Add(new User
             {
-                Id = OwnerUserId,
+                Id = ownerId,
                 FullName = "Joseph",
                 Username = "joseph",
                 Phone = "0920496730",
@@ -130,18 +139,8 @@ public static class DatabaseSeeder
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             });
+            await db.SaveChangesAsync(ct);
         }
-        else
-        {
-            owner.Role = UserRole.Owner;
-            owner.RoleId = ownerRole.Id;
-            owner.RoleEntity = ownerRole;
-            // Preserve the existing owner's name, username, phone and credentials.
-            owner.IsActive = true;
-            owner.UpdatedAt = DateTime.UtcNow;
-        }
-
-        await db.SaveChangesAsync(ct);
 
         // Existing floor staff predate shift gating. Give them the Morning shift
         // so nobody is locked out; the Owner corrects afternoon staff afterwards.

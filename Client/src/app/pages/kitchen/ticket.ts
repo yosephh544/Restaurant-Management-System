@@ -81,6 +81,9 @@ import { IssueDialog } from '../../shared/issue-dialog';
                       <strong [style.text-decoration]="item.status === 'CANCELLED' ? 'line-through' : 'none'" [style.opacity]="item.status === 'CANCELLED' ? 0.5 : 1">
                         {{ item.name }}
                       </strong>
+                      @if (item.isAddOn && item.status === 'ACTIVE') {
+                        <span class="pill pill-amber no-dot add-on-pill">{{ 'Added' | t }}</span>
+                      }
                       @if (item.nameAm) {
                         <div class="tiny muted" lang="am">{{ item.nameAm }}</div>
                       }

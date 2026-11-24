@@ -143,6 +143,24 @@ public sealed class SettlementTests(ReceiptDatabase database) : IClassFixture<Re
         Assert.Empty(await db.Payments.Where(p => p.BillId == bill).ToListAsync());
     }
 
+    [Fact]
+    public async Task LegacyWebReceiptLinkTakesPrecedenceOverTypedReference()
+    {
+        var bill = await database.Bill();
+        await using var db = database.Open();
+        var paid = await database.Service(db, new Verifier("FT26COMPAT01")).RecordDigitalPaymentAsync(new()
+        {
+            BillId = bill,
+            Method = "CBE",
+            ReceiptUrl = "https://mbreciept.cbe.com.et/v2-FT26COMPAT01",
+            TransactionNumber = "FT26IGNORED01",
+            AmountPaid = 999m
+        });
+        Assert.Equal("FT26COMPAT01", paid.ReceiptReference);
+        Assert.Equal(125m, paid.VerifiedAmount);
+        Assert.Single(await db.Payments.Where(p => p.BillId == bill).ToListAsync());
+    }
+
     [Theory]
     [InlineData("CBE", "missing")]
     [InlineData("CBE", "old")]

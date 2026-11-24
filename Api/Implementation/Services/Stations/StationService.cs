@@ -98,7 +98,8 @@ public class StationService : IStationService
                     MenuItemNameAm = i.MenuItem?.NameAm,
                     Quantity = i.Quantity,
                     CustomerNotes = i.CustomerNotes,
-                    ItemStatus = i.ItemStatus.ToString().ToUpperInvariant()
+                    ItemStatus = i.ItemStatus.ToString().ToUpperInvariant(),
+                    IsAddOn = i.IsAddOn
                 }).ToList()
             };
         }).ToList();

@@ -1,6 +1,6 @@
 import { Component, computed, HostListener, inject, OnDestroy, signal } from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { NavigationEnd, Router, RouterLink, RouterOutlet } from '@angular/router';
 import { filter, map } from 'rxjs';
 import { AuthService, ROLE_HOME } from '../core/auth.service';
 import { I18nService, locale, TranslatePipe } from '../core/i18n';
@@ -32,7 +32,7 @@ interface NavSection {
 
 @Component({
   selector: 'app-shell',
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, Icon, TranslatePipe],
+  imports: [RouterOutlet, RouterLink, Icon, TranslatePipe],
   template: `
     <div class="app-shell">
       @if (mobileOpen()) {
@@ -55,9 +55,7 @@ interface NavSection {
               <a
                 class="nav-item"
                 [routerLink]="item.path"
-                routerLinkActive="active"
                 [class.active]="isSectionActive(item)"
-                [routerLinkActiveOptions]="item.path === '/manager' ? { exact: true } : { exact: false }"
                 (click)="mobileOpen.set(false)"
               >
                 <app-icon [name]="item.icon" />
@@ -336,11 +334,11 @@ export class Shell implements OnDestroy {
       ];
     }
 
-    if (role === 'OWNER') {
+    if (role === 'OWNER' || role === 'MANAGER') {
       return [
         {
           label: t('Workspace'),
-          items: this.ownerSections().map((section) => ({
+          items: this.sections().map((section) => ({
             label: section.label,
             path: section.path,
             icon: section.icon,
@@ -350,24 +348,27 @@ export class Shell implements OnDestroy {
       ];
     }
 
-    const items: NavItem[] = [
-      { label: t('Overview'), path: '/manager', icon: 'home' },
-      { label: t('Payments'), path: '/cashier/payments', icon: 'card' },
-      { label: t('Reports'), path: '/manager/reports', icon: 'chart' },
-      { label: t('Staff'), path: '/manager/staff', icon: 'users' },
-      { label: t('Password resets'), path: '/manager/password-resets', icon: 'lock', count: this.resets.pendingCount() },
-      { label: t('Shifts'), path: '/manager/shifts', icon: 'clock' },
-      { label: t('Kitchen & Bar Issues'), path: '/manager/issues', icon: 'alert', count: issues },
-      { label: t('Audit Log'), path: '/manager/audit', icon: 'clock' },
-      { label: t('Menu'), path: '/manager/menu', icon: 'utensils' },
-    ];
-    return [{ label: t('Workspace'), items }];
+    return [];
   });
 
-  protected readonly ownerSections = computed<NavSection[]>(() => {
+  protected readonly sections = computed<NavSection[]>(() => {
     const t = (key: string) => this.i18n.t(key);
+    const role = this.user()?.role;
+    if (role !== 'OWNER' && role !== 'MANAGER') return [];
+    const isOwner = role === 'OWNER';
     const issues = this.store.openIssues().length;
     const resets = this.resets.pendingCount();
+
+    const team: NavItem[] = [{ label: t('Staff'), path: '/manager/staff', icon: 'users' }];
+    if (isOwner) team.push({ label: t('Users & Roles'), path: '/admin/users', icon: 'shield' });
+    team.push({ label: t('Shifts'), path: '/manager/shifts', icon: 'clock' });
+
+    const settings: NavItem[] = [];
+    if (isOwner) settings.push({ label: t('General'), path: '/admin/settings', icon: 'settings' });
+    settings.push(
+      { label: t('Password resets'), path: '/manager/password-resets', icon: 'lock', count: resets },
+      { label: t('Audit Log'), path: '/manager/audit', icon: 'clock' },
+    );
     return [
       { label: t('Overview'), path: '/manager', icon: 'home' },
       {
@@ -380,27 +381,9 @@ export class Shell implements OnDestroy {
           { label: t('Payments'), path: '/cashier/payments', icon: 'card' },
         ],
       },
-      {
-        label: t('Team'),
-        path: '/manager/staff',
-        icon: 'users',
-        tabs: [
-          { label: t('Staff'), path: '/manager/staff', icon: 'users' },
-          { label: t('Users & Roles'), path: '/admin/users', icon: 'shield' },
-          { label: t('Shifts'), path: '/manager/shifts', icon: 'clock' },
-        ],
-      },
+      { label: t('Team'), path: '/manager/staff', icon: 'users', tabs: team },
       { label: t('Reports'), path: '/manager/reports', icon: 'chart' },
-      {
-        label: t('Settings'),
-        path: '/admin/settings',
-        icon: 'settings',
-        tabs: [
-          { label: t('General'), path: '/admin/settings', icon: 'settings' },
-          { label: t('Password resets'), path: '/manager/password-resets', icon: 'lock', count: resets },
-          { label: t('Audit Log'), path: '/manager/audit', icon: 'clock' },
-        ],
-      },
+      { label: t('Settings'), path: settings[0].path, icon: 'settings', tabs: settings },
     ];
   });
 
@@ -413,8 +396,9 @@ export class Shell implements OnDestroy {
   );
 
   protected readonly activeSection = computed<NavSection | undefined>(() => {
-    if (this.user()?.role !== 'OWNER') return undefined;
-    return this.ownerSections().find((section) => section.tabs?.some((tab) => this.matches(tab.path)));
+    const role = this.user()?.role;
+    if (role !== 'OWNER' && role !== 'MANAGER') return undefined;
+    return this.sections().find((section) => section.tabs?.some((tab) => this.matches(tab.path)));
   });
 
   protected matches(path: string): boolean {
@@ -424,8 +408,9 @@ export class Shell implements OnDestroy {
   }
 
   protected isSectionActive(item: NavItem): boolean {
-    if (this.user()?.role !== 'OWNER') return this.matches(item.path);
-    const section = this.ownerSections().find((entry) => (entry.tabs?.[0]?.path ?? entry.path) === item.path);
+    const role = this.user()?.role;
+    if (role !== 'OWNER' && role !== 'MANAGER') return this.matches(item.path);
+    const section = this.sections().find((entry) => (entry.tabs?.[0]?.path ?? entry.path) === item.path);
     if (!section) return this.matches(item.path);
     return this.matches(section.path) || (section.tabs ?? []).some((tab) => this.matches(tab.path));
   }

@@ -332,6 +332,7 @@ public class RestaurantDbContext : DbContext
             entity.Property(m => m.ImageUrl).HasMaxLength(500);
             entity.Property(m => m.FastingType).HasConversion<int>().HasDefaultValue(MenuItemFastingType.NotApplicable);
             entity.Property(m => m.AlcoholType).HasConversion<int>().HasDefaultValue(MenuItemAlcoholType.NotApplicable);
+            entity.Property(m => m.Section).HasConversion<int>().HasDefaultValue(MenuSection.NotApplicable);
             entity.Property(m => m.DisplayOrder).HasDefaultValue(0);
             entity.Property(m => m.IsFeatured).HasDefaultValue(false);
             entity.Property(m => m.SKU).HasMaxLength(64);
@@ -340,6 +341,7 @@ public class RestaurantDbContext : DbContext
             entity.HasIndex(m => m.SKU).IsUnique().HasFilter("[SKU] IS NOT NULL");
             entity.HasIndex(m => m.FastingType);
             entity.HasIndex(m => m.AlcoholType);
+            entity.HasIndex(m => m.Section);
             entity.HasIndex(m => new { m.CategoryId, m.DisplayOrder });
 
             entity.HasOne(m => m.Category)
@@ -427,6 +429,8 @@ public class RestaurantDbContext : DbContext
                   .HasSentinel(PreparationStation.Kitchen);
 
             entity.HasIndex(oi => oi.PreparationStation);
+
+            entity.Property(oi => oi.IsAddOn).HasDefaultValue(false);
 
             entity.Property(oi => oi.CreatedAt).HasDefaultValueSql("GETUTCDATE()");
 

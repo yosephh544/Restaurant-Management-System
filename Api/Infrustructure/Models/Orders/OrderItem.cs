@@ -31,6 +31,12 @@ public class OrderItem
     /// <summary>Preparation area that owns this line; fixed at order time based on the menu category.</summary>
     public PreparationStation PreparationStation { get; set; } = PreparationStation.Kitchen;
 
+    /// <summary>
+    /// True when the waiter added this line to an order that was already sent to the
+    /// stations. Let the station board flag it until the line is marked ready.
+    /// </summary>
+    public bool IsAddOn { get; set; }
+
     /// <summary>When the station accepted this line (station ticket moved to PREPARING).</summary>
     public DateTime? PreparingAt { get; set; }
 

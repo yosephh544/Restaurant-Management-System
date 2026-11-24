@@ -276,6 +276,45 @@ public class PaymentService : IPaymentService
         });
     }
 
+    public async Task<ReceiptVerificationResponse> VerifyReceiptAsync(
+        ReceiptVerificationRequest request,
+        CancellationToken ct = default)
+    {
+        var bankRequest = new RecordDigitalPaymentRequest
+        {
+            Method = request.Method,
+            ReceiptUrl = request.ReceiptUrl,
+            // Older preview clients may send both; the captured receipt link wins.
+            TransactionNumber = string.IsNullOrWhiteSpace(request.ReceiptUrl) ? request.TransactionNumber : null
+        };
+        var input = BankReceiptInput.Resolve(bankRequest);
+        var settings = await _dbContext.RestaurantSettings.AsNoTracking().FirstOrDefaultAsync(ct);
+        var receipt = await _bankReceiptVerifier.VerifyAsync(bankRequest, settings?.CbeAccountNumber, ct);
+        if (receipt.Bank != input.Bank) throw new ConflictException("The bank returned a receipt for a different payment method.");
+        BankReceiptParser.Validate(receipt, requireStatus: receipt.Bank == "TELEBIRR");
+        ReceiptRecipient.Validate(receipt, settings);
+        var method = receipt.Bank == "CBE" ? PaymentMethod.Cbe : PaymentMethod.Telebirr;
+        var duplicate = await _dbContext.Payments.AsNoTracking().AnyAsync(p => p.Method == method
+            && (p.ReceiptReference == receipt.Reference || p.ReceiptUrl == receipt.ReceiptUrl)
+            && (p.Status == PaymentGatewayStatus.Paid || p.Status == PaymentGatewayStatus.Refunded || p.Status == PaymentGatewayStatus.Transferred), ct);
+
+        return new ReceiptVerificationResponse
+        {
+            Configured = true,
+            Verified = !duplicate,
+            Duplicate = duplicate,
+            Amount = receipt.Amount,
+            Currency = receipt.Currency,
+            PayerName = receipt.PayerName,
+            Bank = receipt.Bank,
+            BankName = receipt.Bank == "CBE" ? "Commercial Bank of Ethiopia" : "Telebirr",
+            ReceiptStatus = receipt.Status,
+            TransactionDate = receipt.TransactionDate,
+            Message = duplicate ? "This bank receipt has already been used for another payment."
+                : "Receipt confirmed against the bank. It will be checked against the bill when payment is recorded."
+        };
+    }
+
     public async Task<PaymentResponse> RecordDigitalPaymentAsync(
         RecordDigitalPaymentRequest request,
         CancellationToken ct = default)
@@ -283,7 +322,19 @@ public class PaymentService : IPaymentService
         var initiatorId = _currentUserService.UserId
             ?? throw new UnauthorizedException("User identity could not be verified from token.");
 
-        var input = BankReceiptInput.Resolve(request);
+        // Legacy web clients may submit a captured link and a manually typed reference.
+        // The link identifies the bank lookup; raw QR submissions retain strict input checks.
+        var bankRequest = new RecordDigitalPaymentRequest
+        {
+            BillId = request.BillId,
+            OrderId = request.OrderId,
+            Method = request.Method,
+            QrData = request.QrData,
+            ReceiptUrl = request.ReceiptUrl,
+            TransactionNumber = string.IsNullOrWhiteSpace(request.QrData) && !string.IsNullOrWhiteSpace(request.ReceiptUrl)
+                ? null : request.TransactionNumber
+        };
+        var input = BankReceiptInput.Resolve(bankRequest);
         Bill bill;
         DiningSession session;
         RestaurantTable? table;
@@ -366,7 +417,7 @@ public class PaymentService : IPaymentService
             || session.Status != DiningSessionStatus.BillRequested || billOrders.Count == 0)
             throw new ConflictException("This bill is not available for payment.");
 
-        var receipt = await _bankReceiptVerifier.VerifyAsync(request, settings?.CbeAccountNumber, ct);
+        var receipt = await _bankReceiptVerifier.VerifyAsync(bankRequest, settings?.CbeAccountNumber, ct);
         if (receipt.Bank != input.Bank) throw new ConflictException("The bank returned a receipt for a different payment method.");
         BankReceiptParser.Validate(receipt, requireStatus: receipt.Bank == "TELEBIRR");
         ReceiptRecipient.Validate(receipt, settings);

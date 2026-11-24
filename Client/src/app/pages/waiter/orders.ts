@@ -32,30 +32,34 @@ import { Icon } from '../../shared/icon';
         </div>
       </div>
 
-      <div class="grid grid-4" style="margin-bottom: 18px">
-        <div class="stat-card">
-          <div class="stat-icon"><app-icon name="receipt" /></div>
-          <div class="stat-label">{{ 'Active tickets' | t }}</div>
-          <div class="stat-value">{{ stats().active }}</div>
-          <div class="stat-foot">{{ 'On the floor now' | t }}</div>
+      <div class="stat-strip">
+        <div class="strip-stat">
+          <span class="strip-icon"><app-icon name="receipt" /></span>
+          <span class="strip-body">
+            <span class="strip-value">{{ stats().active }}</span>
+            <span class="strip-label">{{ 'Active tickets' | t }}</span>
+          </span>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background: var(--green-soft); color: var(--green)"><app-icon name="check-circle" /></div>
-          <div class="stat-label">{{ 'Ready to serve' | t }}</div>
-          <div class="stat-value">{{ stats().ready }}</div>
-          <div class="stat-foot">{{ 'Pick up from the pass' | t }}</div>
+        <div class="strip-stat">
+          <span class="strip-icon green"><app-icon name="check-circle" /></span>
+          <span class="strip-body">
+            <span class="strip-value">{{ stats().ready }}</span>
+            <span class="strip-label">{{ 'Ready to serve' | t }}</span>
+          </span>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background: var(--amber-soft); color: var(--amber)"><app-icon name="wallet" /></div>
-          <div class="stat-label">{{ 'Awaiting payment' | t }}</div>
-          <div class="stat-value">{{ money(stats().unpaid) }} <small>{{ 'ETB' | t }}</small></div>
-          <div class="stat-foot">{{ 'Ready or served, unpaid' | t }}</div>
+        <div class="strip-stat">
+          <span class="strip-icon amber"><app-icon name="wallet" /></span>
+          <span class="strip-body">
+            <span class="strip-value">{{ money(stats().unpaid) }} <small>{{ 'ETB' | t }}</small></span>
+            <span class="strip-label">{{ 'Awaiting payment' | t }}</span>
+          </span>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="cash" /></div>
-          <div class="stat-label">{{ 'My tips today' | t }}</div>
-          <div class="stat-value">{{ money(stats().tips) }} <small>{{ 'ETB' | t }}</small></div>
-          <div class="stat-foot">{{ stats().ordersToday }} {{ 'orders opened today' | t }}</div>
+        <div class="strip-stat">
+          <span class="strip-icon blue"><app-icon name="cash" /></span>
+          <span class="strip-body">
+            <span class="strip-value">{{ money(stats().tips) }} <small>{{ 'ETB' | t }}</small></span>
+            <span class="strip-label">{{ 'My tips today' | t }}</span>
+          </span>
         </div>
       </div>
 
@@ -78,23 +82,20 @@ import { Icon } from '../../shared/icon';
               <a class="list-row" [class.row-active]="order.queuePosition > 0" [routerLink]="['/waiter/orders', order.id]">
                 <div class="queue-stack">
                   @if (order.queuePosition > 0) {
-                    <span [class]="'queue-chip tone-' + tone(order)">{{ 'Q' | t }}{{ order.queuePosition }}</span>
+                    <span class="queue-chip" [class.tone-amber]="order.queuePosition === 1">{{ 'Q' | t }}{{ order.queuePosition }}</span>
                   } @else {
                     <span class="queue-chip tone-grey">{{ 'Done' | t }}</span>
                   }
-                  <span class="tiny muted" style="font-size: 10.5px">#{{ order.number }}</span>
                 </div>
                 <div class="list-main">
                   <strong>
+                    <span class="muted tiny">#{{ order.number }}</span>
                     @if (isTakeaway(order)) {
                       <app-icon name="receipt" style="font-size: 12px" /> {{ 'Takeaway' | t }}
                     } @else {
                       <app-icon name="table" style="font-size: 12px" /> {{ 'Table' | t }} {{ order.table }}
                     }
                     <span class="muted tiny">· {{ countItems(order) }} {{ 'items' | t }}</span>
-                    @if (order.queuePosition > 0 && order.queuePosition === 1) {
-                      <span class="pill pill-amber no-dot" style="margin-left: 6px">{{ 'Next up' | t }}</span>
-                    }
                   </strong>
                   <span>{{ summary(order) }} · {{ ageLabel(order.createdAt) }} {{ 'ago' | t }}</span>
                 </div>

@@ -39,6 +39,16 @@ public class PaymentsController : ApiControllerBase
     }
 
     /// <summary>
+    /// Verifies a transfer receipt with the bank without recording payment, so the
+    /// payment sheet can read the transferred amount from the receipt. No state changes.
+    /// </summary>
+    [HttpPost("receipt/verify")]
+    [Permission(Permissions.PaymentsInitiate)]
+    [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<ReceiptVerificationResponse>), 200)]
+    public async Task<IActionResult> VerifyReceipt([FromBody] ReceiptVerificationRequest request, CancellationToken ct)
+        => OkResponse(await _paymentService.VerifyReceiptAsync(request, ct), "Receipt verification checked.");
+
+    /// <summary>
     /// Records a customer Telebirr/CBE transfer made to the restaurant account.
     /// The receipt is verified with the bank and stored on the order for later review.
     /// </summary>
