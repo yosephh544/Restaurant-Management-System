@@ -24,6 +24,7 @@ public sealed class OrderAdditionsTests
         public string Role => "Waiter";
         public string? Phone => null;
         public bool IsAuthenticated => true;
+        public bool HasPermission(string permission) => false;
     }
 
     private sealed class Numbers : IDailyNumberService

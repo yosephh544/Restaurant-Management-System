@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using RestaurantManagement.Api.Authorization;
 using RestaurantManagement.Api.Controllers.Common;
@@ -67,6 +68,7 @@ public class PaymentsController : ApiControllerBase
     /// </summary>
     [HttpPost("arifpay/webhook")]
     [AllowAnonymous]
+    [EnableRateLimiting("webhook")]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<object>), 200)]
     public async Task<IActionResult> ArifpayWebhook([FromBody] ArifpayWebhookPayload payload, CancellationToken ct)
     {
@@ -132,7 +134,7 @@ public class PaymentsController : ApiControllerBase
 
     /// <summary>Lists the tip ledger for every waiter so managers can settle payouts.</summary>
     [HttpGet("tips")]
-    [Permission(Permissions.TipsView)]
+    [Permission(Permissions.TipsViewAll)]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.PagedResponse<TipLedgerEntryResponse>), 200)]
     public async Task<IActionResult> GetTipLedger([FromQuery] PagedRequest request, CancellationToken ct)
         => PagedOkResponse(await _paymentService.GetTipLedgerAsync(request, ct));

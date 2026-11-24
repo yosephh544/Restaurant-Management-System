@@ -2,7 +2,7 @@ import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular
 import { TranslatePipe } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { ageLabel, Bill, dayKey, money } from '../../core/models';
+import { ageLabel, Bill, dayKey, hasNoTable, money, orderTypeLabel } from '../../core/models';
 import { Store } from '../../core/store';
 import { Icon } from '../../shared/icon';
 
@@ -70,7 +70,7 @@ import { Icon } from '../../shared/icon';
               <a class="list-row" [routerLink]="['/cashier/bills', bill.id]">
                 <div class="ticket-num" style="font-size: 17px; min-width: 68px">{{ bill.number }}</div>
                 <div class="list-main">
-                  <strong>{{ 'Table' | t }} {{ bill.table }}</strong>
+                  <strong>{{ hasNoTable(bill) ? (orderTypeLabel(bill) | t) : (('Table' | t) + ' ' + bill.table) }}</strong>
                   <span>{{ countItems(bill) }} {{ 'items · opened' | t }} {{ ageLabel(bill.createdAt) }} {{ 'ago' | t }}</span>
                 </div>
                 <div class="list-meta">
@@ -101,6 +101,8 @@ export class CashierBillsPage implements OnInit, OnDestroy {
 
   protected readonly money = money;
   protected readonly ageLabel = ageLabel;
+  protected readonly hasNoTable = hasNoTable;
+  protected readonly orderTypeLabel = orderTypeLabel;
   protected readonly filter = signal<'ALL' | 'REQUESTED' | 'PAYMENTINITIATED'>('ALL');
   protected readonly query = signal('');
 

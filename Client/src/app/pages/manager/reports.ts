@@ -226,7 +226,7 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
                     <tr>
                       <td>
                         <strong>#{{ row.orderNumber }}</strong>
-                        <div class="tiny muted">{{ row.tableNumber }} · {{ row.orderType === 'TAKEAWAY' ? ('Takeaway' | t) : ('Dine-in' | t) }}</div>
+                        <div class="tiny muted">{{ row.tableNumber }} · {{ row.orderType === 'TAKEOUT' ? ('Takeout' | t) : row.orderType === 'TAKEAWAY' ? ('Takeaway' | t) : ('Dine-in' | t) }}</div>
                       </td>
                       <td>{{ row.waiterName }}</td>
                       <td><span [class]="'pill pill-' + orderTone(row.orderStatus) + ' no-dot'">{{ orderLabel(row.orderStatus) }}</span></td>

@@ -23,6 +23,7 @@ public sealed class ReceiptRefundTests
         public Guid? UserId => Id;
         public string? Phone => null;
         public bool IsAuthenticated => true;
+        public bool HasPermission(string permission) => false;
     }
 
     private sealed class Verifier(BankReceipt receipt) : IBankReceiptVerifier

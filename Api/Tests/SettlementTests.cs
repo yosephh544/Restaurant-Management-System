@@ -61,6 +61,7 @@ public sealed class ReceiptDatabase : IAsyncLifetime
         public string Role => "Waiter";
         public string? Phone => null;
         public bool IsAuthenticated => true;
+        public bool HasPermission(string permission) => false;
     }
     public PaymentService Service(RestaurantDbContext db, IBankReceiptVerifier verifier) =>
         new(db, new Actor(UserId), verifier, new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?>

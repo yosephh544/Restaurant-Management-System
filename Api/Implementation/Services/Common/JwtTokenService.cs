@@ -20,7 +20,10 @@ public class JwtTokenService : IJwtTokenService
 
     public string GenerateAccessToken(User user)
     {
-        var secret = _configuration["Jwt:Key"] ?? "super_secret_restaurant_management_jwt_key_2026_@!";
+        var secret = _configuration["Jwt:Key"]?.Trim();
+        if (string.IsNullOrWhiteSpace(secret) || secret.Length < 32)
+            throw new InvalidOperationException("Jwt:Key must be configured with at least 32 characters.");
+
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
         var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
@@ -70,36 +73,5 @@ public class JwtTokenService : IJwtTokenService
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(token));
         return Convert.ToHexString(bytes).ToLowerInvariant();
-    }
-
-    public ClaimsPrincipal? GetPrincipalFromExpiredToken(string token)
-    {
-        var secret = _configuration["Jwt:Key"] ?? "super_secret_restaurant_management_jwt_key_2026_@!";
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secret));
-
-        var validationParams = new TokenValidationParameters
-        {
-            ValidateIssuerSigningKey = true,
-            IssuerSigningKey = key,
-            ValidateIssuer = false,
-            ValidateAudience = false,
-            ValidateLifetime = false // deliberately skip expiration check to read expired token
-        };
-
-        var handler = new JwtSecurityTokenHandler();
-        try
-        {
-            var principal = handler.ValidateToken(token, validationParams, out var securityToken);
-            if (securityToken is not JwtSecurityToken jwt ||
-                !jwt.Header.Alg.Equals(SecurityAlgorithms.HmacSha256, StringComparison.InvariantCultureIgnoreCase))
-            {
-                return null;
-            }
-            return principal;
-        }
-        catch
-        {
-            return null;
-        }
     }
 }

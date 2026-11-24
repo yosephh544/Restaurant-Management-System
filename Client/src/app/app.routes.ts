@@ -120,7 +120,7 @@ export const routes: Routes = [
       {
         path: 'cashier',
         canActivate: [roleGuard],
-        data: { roles: ['CASHIER', 'MANAGER', 'OWNER'] },
+        data: { roles: ['CASHIER', 'MANAGER', 'OWNER', 'SUPERADMIN'] },
         children: [
           {
             path: 'bills',
@@ -153,7 +153,7 @@ export const routes: Routes = [
       {
         path: 'manager',
         canActivate: [roleGuard],
-        data: { roles: ['MANAGER', 'OWNER'] },
+        data: { roles: ['MANAGER', 'OWNER', 'SUPERADMIN'] },
         children: [
           {
             path: '',
@@ -200,7 +200,7 @@ export const routes: Routes = [
       {
         path: 'admin',
         canActivate: [roleGuard],
-        data: { roles: ['OWNER'] },
+        data: { roles: ['OWNER', 'SUPERADMIN'] },
         children: [
           {
             path: 'users',

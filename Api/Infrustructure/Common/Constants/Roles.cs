@@ -7,6 +7,8 @@ namespace RestaurantManagement.Infrustructure.Common.Constants;
 /// </summary>
 public static class Roles
 {
+    /// <summary>Platform administrator seeded at first run. Outranks every other role.</summary>
+    public const string SuperAdmin = "SuperAdmin";
     public const string Owner = "Owner";
     public const string Manager = "Manager";
     public const string Cashier = "Cashier";
@@ -15,11 +17,11 @@ public static class Roles
     public const string Bartender = "Bartender";
 
     /// <summary>All roles that can access management-level operations.</summary>
-    public const string ManagerOrAbove = $"{Owner},{Manager}";
+    public const string ManagerOrAbove = $"{SuperAdmin},{Owner},{Manager}";
 
     /// <summary>All roles that interact with orders on the floor.</summary>
-    public const string FloorStaff = $"{Owner},{Manager},{Waiter},{Cashier}";
+    public const string FloorStaff = $"{SuperAdmin},{Owner},{Manager},{Waiter},{Cashier}";
 
     /// <summary>All authenticated roles.</summary>
-    public const string AllStaff = $"{Owner},{Manager},{Cashier},{Waiter},{Kitchen},{Bartender}";
+    public const string AllStaff = $"{SuperAdmin},{Owner},{Manager},{Cashier},{Waiter},{Kitchen},{Bartender}";
 }

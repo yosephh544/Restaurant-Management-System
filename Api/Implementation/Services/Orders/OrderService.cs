@@ -19,6 +19,7 @@ namespace RestaurantManagement.Implementation.Services.Orders;
 public class OrderService : IOrderService
 {
     private const string TakeawayTableNumber = "Takeaway";
+    private const string TakeoutTableNumber = "Takeout";
 
     private readonly RestaurantDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
@@ -80,9 +81,12 @@ public class OrderService : IOrderService
             Id = orderId,
             OrderNumber = orderNumber,
             OrderType = orderType,
-            TableNumber = orderType == OrderType.Takeaway
-                ? TakeawayTableNumber
-                : request.TableNumber?.Trim() ?? string.Empty,
+            TableNumber = orderType switch
+            {
+                OrderType.Takeaway => TakeawayTableNumber,
+                OrderType.Takeout => TakeoutTableNumber,
+                _ => request.TableNumber?.Trim() ?? string.Empty
+            },
             WaiterId = waiterId,
             OrderStatus = OrderStatus.Pending,
             PaymentStatus = PaymentStatus.Unpaid,
@@ -132,9 +136,9 @@ public class OrderService : IOrderService
 
         DiningSession session;
 
-        if (orderType == OrderType.Takeaway)
+        if (orderType is OrderType.Takeaway or OrderType.Takeout)
         {
-            // Each takeaway ticket gets its own session so it can be billed and paid
+            // Each table-less ticket gets its own session so it can be billed and paid
             // independently, without occupying a restaurant table.
             session = new DiningSession
             {
@@ -392,7 +396,12 @@ public class OrderService : IOrderService
         {
             TableNumber = request.TableNumber,
             OrderType = request.OrderType
-                ?? (originalOrder.OrderType == OrderType.Takeaway ? "TAKEAWAY" : "DINE_IN"),
+                ?? (originalOrder.OrderType switch
+                {
+                    OrderType.Takeaway => "TAKEAWAY",
+                    OrderType.Takeout => "TAKEOUT",
+                    _ => "DINE_IN"
+                }),
             CustomerNotes = request.CustomerNotes ?? $"Replacement for {originalOrder.OrderNumber}",
             Items = request.Items
         };
@@ -548,8 +557,16 @@ public class OrderService : IOrderService
     private static OrderType ParseOrderType(string? value) => value?.Trim().ToUpperInvariant() switch
     {
         null or "" or "DINE_IN" or "DINEIN" or "DINE-IN" => OrderType.DineIn,
-        "TAKEAWAY" or "TAKE_OUT" or "TAKEOUT" or "TAKE-AWAY" => OrderType.Takeaway,
-        _ => throw new ValidationException("OrderType", "OrderType must be DINE_IN or TAKEAWAY.")
+        "TAKEAWAY" or "TAKE-AWAY" => OrderType.Takeaway,
+        "TAKEOUT" or "TAKE_OUT" or "TAKE-OUT" => OrderType.Takeout,
+        _ => throw new ValidationException("OrderType", "OrderType must be DINE_IN, TAKEAWAY or TAKEOUT.")
+    };
+
+    private static string ToApiValue(OrderType orderType) => orderType switch
+    {
+        OrderType.Takeaway => "TAKEAWAY",
+        OrderType.Takeout => "TAKEOUT",
+        _ => "DINE_IN"
     };
 
     private async Task<Dictionary<Guid, int>> GetQueuePositionsAsync(CancellationToken ct)
@@ -573,7 +590,7 @@ public class OrderService : IOrderService
         Id = order.Id,
         OrderNumber = order.OrderNumber,
         TableNumber = order.TableNumber,
-        OrderType = order.OrderType == OrderType.Takeaway ? "TAKEAWAY" : "DINE_IN",
+        OrderType = ToApiValue(order.OrderType),
         TakeawayFee = order.TakeawayFee,
         QueuePosition = queuePosition,
         WaiterId = order.WaiterId,

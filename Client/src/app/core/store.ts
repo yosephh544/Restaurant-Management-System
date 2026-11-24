@@ -212,6 +212,7 @@ interface BillDto {
   discountAmount: number;
   tipAmount: number;
   grandTotal: number;
+  pricesIncludeTax: boolean;
   status: BillStatus;
   createdAt: string;
   paidAt?: string | null;
@@ -468,7 +469,7 @@ export class Store {
     if (this.can('kitchen.view')) jobs.push(this.loadKitchen());
     if (this.can('bar.view')) jobs.push(this.loadBar());
     if (this.can('payments.view')) jobs.push(this.loadBills(), this.loadPayments());
-    if (this.can('tips.view')) jobs.push(this.loadTips());
+    if (this.can('tips.view_all')) jobs.push(this.loadTips());
     if (this.can('reports.view')) jobs.push(this.loadAudit());
     if (this.can('users.view')) jobs.push(this.loadUsers());
     if (this.can('shifts.view')) jobs.push(this.loadShifts());
@@ -927,7 +928,7 @@ export class Store {
   ): Promise<Result<Order>> {
     return await this.guard(async () => {
       const created = await this.api.post<OrderDto>('/orders', {
-        tableNumber: orderType === 'TAKEAWAY' ? null : tableNumber,
+        tableNumber: orderType === 'DINE_IN' ? tableNumber : null,
         orderType,
         items: items.map((i) => ({ menuItemId: i.menuItemId, quantity: i.quantity, customerNotes: i.notes })),
         customerNotes: notes || null,
@@ -1446,6 +1447,7 @@ export class Store {
       discount: b.discountAmount,
       tip: b.tipAmount,
       total: b.grandTotal,
+      pricesIncludeTax: b.pricesIncludeTax ?? false,
       status: b.status,
       createdAt: b.createdAt,
       paidAt: b.paidAt ?? undefined,

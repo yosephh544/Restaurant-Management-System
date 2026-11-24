@@ -78,7 +78,7 @@ import { Icon } from '../../shared/icon';
               <div class="between" style="margin-top: 14px">
                 <span>
                   <strong class="small">{{ 'Prices include tax' | t }}</strong>
-                  <span class="hint" style="display: block">{{ 'Menu prices are gross amounts and tax is calculated inside the displayed price.' | t }}</span>
+                  <span class="hint" style="display: block">{{ 'Menu prices already include tax. No tax is added to orders or bills.' | t }}</span>
                 </span>
                 <button class="switch" type="button" [class.on]="form.pricesIncludeTax" (click)="form.pricesIncludeTax = !form.pricesIncludeTax"><span></span></button>
               </div>

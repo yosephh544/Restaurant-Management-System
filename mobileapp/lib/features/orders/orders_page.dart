@@ -367,6 +367,7 @@ class OrderCard extends StatelessWidget {
             number: order.orderNumber,
             table: order.table,
             takeaway: order.takeaway,
+            takeout: order.takeout,
             queuePosition: order.queuePosition,
             status: order.status,
             subtitle: showWaiter ? order.waiterName : null),

@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { ageLabel, Bill, BillStatus, billIsOpen, clock, isTakeaway, methodLabel as paymentMethodLabel, money, orderStatusLabel, Payment } from '../../core/models';
+import { ageLabel, Bill, BillStatus, billIsOpen, clock, hasNoTable, isTakeaway, methodLabel as paymentMethodLabel, money, orderStatusLabel, orderTypeLabel, Payment } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { ConfirmDialog } from '../../shared/confirm-dialog';
@@ -32,8 +32,8 @@ import { PaySheet } from '../../shared/pay-sheet';
               }
             </div>
             <p class="page-sub">
-              @if (isTakeaway(b)) {
-                {{ 'Takeaway' | t }}
+              @if (hasNoTable(b)) {
+                {{ orderTypeLabel(b) | t }}
               } @else {
                 {{ 'Table' | t }} {{ b.table }}
               }
@@ -67,7 +67,11 @@ import { PaySheet } from '../../shared/pay-sheet';
                   <div class="bill-line">
                     <div>
                       <strong>{{ item.description }}</strong>
-                      <div class="tiny muted">{{ money(item.unitPrice) }} {{ 'ETB · tax' | t }} {{ item.taxRate }}%</div>
+                      @if (b.pricesIncludeTax) {
+                        <div class="tiny muted">{{ money(item.unitPrice) }} {{ 'ETB' | t }}</div>
+                      } @else {
+                        <div class="tiny muted">{{ money(item.unitPrice) }} {{ 'ETB · tax' | t }} {{ item.taxRate }}%</div>
+                      }
                     </div>
                     <span class="qty-tag">×{{ item.qty }}</span>
                     <span class="amt">{{ money(item.lineTotal) }}</span>
@@ -77,7 +81,9 @@ import { PaySheet } from '../../shared/pay-sheet';
 
               <div class="bill-totals">
                 <div class="bill-total-row"><span>{{ 'Subtotal' | t }}</span><span class="num">{{ money(b.subtotal) }} ETB</span></div>
-                <div class="bill-total-row"><span>{{ 'Tax' | t }}</span><span class="num">{{ money(b.tax) }} ETB</span></div>
+                @if (!b.pricesIncludeTax || b.tax > 0) {
+                  <div class="bill-total-row"><span>{{ 'Tax' | t }}</span><span class="num">{{ money(b.tax) }} ETB</span></div>
+                }
                 @if (b.discount > 0) {
                   <div class="bill-total-row"><span>{{ 'Discount' | t }}</span><span class="num">−{{ money(b.discount) }} ETB</span></div>
                 }
@@ -228,7 +234,7 @@ import { PaySheet } from '../../shared/pay-sheet';
               <div class="card-title" style="margin-bottom: 8px">{{ 'Bill details' | t }}</div>
               <div class="stack">
                 <div class="between small"><span class="muted">{{ 'Bill' | t }}</span><span class="strong">{{ b.number }}</span></div>
-                <div class="between small"><span class="muted">{{ 'Table' | t }}</span><span class="strong">{{ b.table }}</span></div>
+                <div class="between small"><span class="muted">{{ hasNoTable(b) ? ('Type' | t) : ('Table' | t) }}</span><span class="strong">{{ hasNoTable(b) ? (orderTypeLabel(b) | t) : b.table }}</span></div>
                 <div class="between small"><span class="muted">{{ 'Opened' | t }}</span><span class="strong">{{ clock(b.createdAt) }}</span></div>
                 <div class="between small"><span class="muted">{{ 'Paid' | t }}</span><span class="strong">{{ clock(b.paidAt) }}</span></div>
               </div>
@@ -343,6 +349,8 @@ export class BillDetailPage implements OnInit {
   protected readonly clock = clock;
   protected readonly ageLabel = ageLabel;
   protected readonly isTakeaway = isTakeaway;
+  protected readonly hasNoTable = hasNoTable;
+  protected readonly orderTypeLabel = orderTypeLabel;
   protected readonly orderStatusLabel = orderStatusLabel;
 
   protected readonly loading = signal(true);

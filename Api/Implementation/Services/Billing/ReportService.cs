@@ -279,7 +279,12 @@ public class ReportService : IReportService
                 OrderId = o.Id,
                 OrderNumber = o.OrderNumber,
                 TableNumber = o.TableNumber,
-                OrderType = o.OrderType == OrderType.Takeaway ? "TAKEAWAY" : "DINE_IN",
+                OrderType = o.OrderType switch
+                {
+                    OrderType.Takeaway => "TAKEAWAY",
+                    OrderType.Takeout => "TAKEOUT",
+                    _ => "DINE_IN"
+                },
                 OrderStatus = o.OrderStatus.ToString().ToUpperInvariant(),
                 PaymentStatus = o.PaymentStatus.ToString().ToUpperInvariant(),
                 WaiterId = o.WaiterId,

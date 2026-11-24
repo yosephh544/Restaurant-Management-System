@@ -184,7 +184,7 @@ class RestaurantApi {
           (active != null &&
               (!active.payable || !active.orderIds.contains(order.id)))) {
         throw const ApiException(
-            'The takeaway order is no longer eligible for payment.');
+            'This order is no longer eligible for payment.');
       }
       return BillPreview(null, active, [current]);
     }

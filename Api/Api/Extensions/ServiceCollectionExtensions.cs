@@ -40,9 +40,14 @@ public static class ServiceCollectionExtensions
         this IServiceCollection services,
         IConfiguration configuration)
     {
+        var connectionString = configuration.GetConnectionString("DefaultConnection");
+        if (string.IsNullOrWhiteSpace(connectionString))
+            throw new InvalidOperationException(
+                "ConnectionStrings:DefaultConnection is not configured. Set it with user-secrets, environment variables, or appsettings.Development.json.");
+
         services.AddDbContext<RestaurantDbContext>(options =>
             options.UseSqlServer(
-                configuration.GetConnectionString("DefaultConnection"),
+                connectionString,
                 sql => sql.MigrationsAssembly("RestaurantManagement.Api")
             )
         );
@@ -66,7 +71,7 @@ public static class ServiceCollectionExtensions
         })
         .AddJwtBearer(options =>
         {
-            options.RequireHttpsMetadata = false; // set to true in production
+            options.RequireHttpsMetadata = configuration.GetValue<bool>("Jwt:RequireHttpsMetadata");
             options.SaveToken = true;
             options.TokenValidationParameters = new TokenValidationParameters
             {

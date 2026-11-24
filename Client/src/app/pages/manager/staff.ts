@@ -118,7 +118,7 @@ import { Icon } from '../../shared/icon';
                         [class.btn-danger]="member.active"
                         [class.btn-secondary]="!member.active"
                         type="button"
-                        [disabled]="member.role === 'OWNER' || member.id === currentUserId"
+                        [disabled]="member.role === 'OWNER' || member.role === 'SUPERADMIN' || member.id === currentUserId"
                         (click)="toggle(member)"
                       >
                         {{ member.active ? ('Deactivate' | t) : ('Activate' | t) }}
@@ -153,7 +153,7 @@ export class StaffPage {
   protected readonly filter = signal<'ALL' | 'FLOOR' | 'INACTIVE'>('ALL');
 
   protected readonly currentUserId = this.auth.user()?.id ?? '';
-  protected readonly isOwner = computed(() => this.auth.user()?.role === 'OWNER');
+  protected readonly isOwner = computed(() => this.auth.user()?.role === 'OWNER' || this.auth.user()?.role === 'SUPERADMIN');
 
   protected readonly stats = computed(() => {
     const today = dayKey(new Date().toISOString());
@@ -203,7 +203,7 @@ export class StaffPage {
   }
 
   protected async toggle(member: StaffUser): Promise<void> {
-    if (member.role === 'OWNER' || member.id === this.currentUserId) {
+    if (member.role === 'OWNER' || member.role === 'SUPERADMIN' || member.id === this.currentUserId) {
       this.toast.show(translate('This account cannot be deactivated'), 'error');
       return;
     }

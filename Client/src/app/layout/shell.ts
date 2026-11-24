@@ -336,7 +336,7 @@ export class Shell implements OnDestroy {
       ];
     }
 
-    if (role === 'OWNER') {
+    if (role === 'OWNER' || role === 'SUPERADMIN') {
       return [
         {
           label: t('Workspace'),
@@ -413,7 +413,8 @@ export class Shell implements OnDestroy {
   );
 
   protected readonly activeSection = computed<NavSection | undefined>(() => {
-    if (this.user()?.role !== 'OWNER') return undefined;
+    const role = this.user()?.role;
+    if (role !== 'OWNER' && role !== 'SUPERADMIN') return undefined;
     return this.ownerSections().find((section) => section.tabs?.some((tab) => this.matches(tab.path)));
   });
 
@@ -424,7 +425,8 @@ export class Shell implements OnDestroy {
   }
 
   protected isSectionActive(item: NavItem): boolean {
-    if (this.user()?.role !== 'OWNER') return this.matches(item.path);
+    const role = this.user()?.role;
+    if (role !== 'OWNER' && role !== 'SUPERADMIN') return this.matches(item.path);
     const section = this.ownerSections().find((entry) => (entry.tabs?.[0]?.path ?? entry.path) === item.path);
     if (!section) return this.matches(item.path);
     return this.matches(section.path) || (section.tabs ?? []).some((tab) => this.matches(tab.path));

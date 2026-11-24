@@ -23,13 +23,11 @@ public class UserService : IUserService
         _currentUserService = currentUserService;
     }
 
-    private bool IsOwner => string.Equals(_currentUserService.Role, Roles.Owner, StringComparison.OrdinalIgnoreCase);
-
-    private static bool IsOwnerAccount(User user) =>
-        string.Equals(user.RoleEntity?.Name, Roles.Owner, StringComparison.OrdinalIgnoreCase);
+    private string? ActorRole => _currentUserService.Role;
 
     // Password-based roles cannot use the floor PIN, so they need a password to sign in.
     private static bool UsesPassword(string roleName) =>
+        string.Equals(roleName, Roles.SuperAdmin, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(roleName, Roles.Manager, StringComparison.OrdinalIgnoreCase) ||
         string.Equals(roleName, Roles.Cashier, StringComparison.OrdinalIgnoreCase);
@@ -46,8 +44,8 @@ public class UserService : IUserService
 
         var roleName = request.Role.Trim();
 
-        if (string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase) && !IsOwner)
-            throw new ForbiddenException("Only an Owner can create another Owner account.");
+        if (!RoleHierarchy.CanAssign(ActorRole, roleName))
+            throw new ForbiddenException($"You cannot create a {roleName} account.");
 
         var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == roleName && r.IsActive, ct)
             ?? throw new ValidationException("Role", "Role does not exist or is inactive.");
@@ -122,8 +120,9 @@ public class UserService : IUserService
             .FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException("User", userId);
 
-        if (IsOwnerAccount(user) && !IsOwner)
-            throw new ForbiddenException("Only an Owner can modify an Owner account.");
+        var targetRoleName = user.RoleEntity?.Name ?? user.Role.ToString();
+        if (!RoleHierarchy.CanManage(ActorRole, targetRoleName))
+            throw new ForbiddenException("You cannot modify an account at or above your own role.");
 
         if (!string.IsNullOrWhiteSpace(request.FullName)) user.FullName = request.FullName.Trim();
         if (!string.IsNullOrWhiteSpace(request.Username))
@@ -145,8 +144,8 @@ public class UserService : IUserService
         {
             var roleName = request.Role.Trim();
 
-            if (string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase) && !IsOwner)
-                throw new ForbiddenException("Only an Owner can assign the Owner role.");
+            if (!RoleHierarchy.CanAssign(ActorRole, roleName))
+                throw new ForbiddenException($"You cannot assign the {roleName} role.");
 
             var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == roleName && r.IsActive, ct)
                 ?? throw new ValidationException("Role", "Role does not exist or is inactive.");
@@ -155,8 +154,9 @@ public class UserService : IUserService
             user.Role = ParseLegacyRole(roleName);
         }
 
+        var roleChanged = !string.Equals(targetRoleName, user.RoleEntity?.Name, StringComparison.OrdinalIgnoreCase);
         var finalRoleName = user.RoleEntity?.Name ?? user.Role.ToString();
-        var requestedShiftIds = string.Equals(finalRoleName, Roles.Owner, StringComparison.OrdinalIgnoreCase)
+        var requestedShiftIds = IsUnscheduledRole(finalRoleName)
             ? new List<Guid>()
             : request.ShiftIds ?? user.ShiftAssignments.Select(a => a.ShiftId).ToList();
 
@@ -175,14 +175,27 @@ public class UserService : IUserService
         foreach (var shift in defaultShifts.Where(shift => !existingIds.Contains(shift.Id)))
             user.ShiftAssignments.Add(new UserShift { UserId = user.Id, ShiftId = shift.Id, Shift = shift });
 
-        if (!string.IsNullOrWhiteSpace(request.Pin)) user.PinHash = BCrypt.Net.BCrypt.HashPassword(request.Pin);
-        if (!string.IsNullOrWhiteSpace(request.Password)) user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+        var credentialsChanged = false;
+        if (!string.IsNullOrWhiteSpace(request.Pin))
+        {
+            user.PinHash = BCrypt.Net.BCrypt.HashPassword(request.Pin);
+            credentialsChanged = true;
+        }
+        if (!string.IsNullOrWhiteSpace(request.Password))
+        {
+            user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.Password);
+            credentialsChanged = true;
+        }
 
         if (UsesPassword(finalRoleName) && string.IsNullOrEmpty(user.PasswordHash))
             throw new ValidationException("Password", "This account has no password yet. Set one so the member can sign in.");
 
         user.UpdatedAt = DateTime.UtcNow;
         await _dbContext.SaveChangesAsync(ct);
+
+        if (credentialsChanged || roleChanged)
+            await RevokeRefreshTokensAsync(user.Id, "Account was updated by an administrator", ct);
+
         return MapToResponse(user);
     }
 
@@ -194,8 +207,8 @@ public class UserService : IUserService
             .FirstOrDefaultAsync(u => u.Id == userId, ct)
             ?? throw new NotFoundException("User", userId);
 
-        if (IsOwnerAccount(user) && !IsOwner)
-            throw new ForbiddenException("Only an Owner can change an Owner account's status.");
+        if (!RoleHierarchy.CanManage(ActorRole, user.RoleEntity?.Name ?? user.Role.ToString()))
+            throw new ForbiddenException("You cannot change the status of an account at or above your own role.");
 
         if (!request.IsActive && userId == _currentUserService.UserId)
             throw new ForbiddenException("You cannot deactivate your own account.");
@@ -224,10 +237,10 @@ public class UserService : IUserService
     {
         var ids = shiftIds.Distinct().ToList();
 
-        if (string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase))
+        if (IsUnscheduledRole(roleName))
         {
             if (ids.Count > 0)
-                throw new ValidationException("ShiftIds", "Owners are not scheduled for shifts.");
+                throw new ValidationException("ShiftIds", "This role is not scheduled for shifts.");
             return new List<Shift>();
         }
 
@@ -252,6 +265,28 @@ public class UserService : IUserService
             .OrderBy(s => s.StartMinutes)
             .ThenBy(s => s.Name)
             .ToList();
+    }
+
+    private static bool IsUnscheduledRole(string roleName) =>
+        string.Equals(roleName, Roles.SuperAdmin, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase);
+
+    private async Task RevokeRefreshTokensAsync(Guid userId, string reason, CancellationToken ct)
+    {
+        var tokens = await _dbContext.RefreshTokens
+            .Where(t => t.UserId == userId && !t.IsRevoked)
+            .ToListAsync(ct);
+        if (tokens.Count == 0)
+            return;
+
+        var now = DateTime.UtcNow;
+        foreach (var token in tokens)
+        {
+            token.IsRevoked = true;
+            token.RevokedAt = now;
+            token.RevokedReason = reason;
+        }
+        await _dbContext.SaveChangesAsync(ct);
     }
 
     private static UserResponse MapToResponse(User user) => new()

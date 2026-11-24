@@ -564,7 +564,7 @@ export class ShiftsPage implements OnInit {
 
     return this.store
       .users()
-      .filter((user) => user.active && user.role !== 'OWNER' && !alreadyOnShift.has(user.id))
+      .filter((user) => user.active && user.role !== 'OWNER' && user.role !== 'SUPERADMIN' && !alreadyOnShift.has(user.id))
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((user) => ({ id: user.id, name: user.name, role: translate(ROLE_LABEL[user.role]) }));
   });
@@ -581,7 +581,7 @@ export class ShiftsPage implements OnInit {
     const onShift = new Set(column.staff.map((member) => member.userId));
     const incoming = this.store
       .users()
-      .filter((user) => user.active && user.role !== 'OWNER' && !onShift.has(user.id))
+      .filter((user) => user.active && user.role !== 'OWNER' && user.role !== 'SUPERADMIN' && !onShift.has(user.id))
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((user) => ({ id: user.id, name: user.name, role: translate(ROLE_LABEL[user.role]) }));
 

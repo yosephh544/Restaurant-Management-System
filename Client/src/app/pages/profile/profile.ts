@@ -55,6 +55,20 @@ import { Icon } from '../../shared/icon';
                 <label class="label" for="profile-phone">{{ 'Phone (optional)' | t }}</label>
                 <input id="profile-phone" class="input" name="phone" [(ngModel)]="phone" inputmode="tel" autocomplete="tel" />
               </div>
+              @if (needsConfirmPassword()) {
+                <div class="field" style="grid-column: 1 / -1">
+                  <label class="label" for="profile-current-password">{{ 'Current password' | t }}</label>
+                  <input
+                    id="profile-current-password"
+                    class="input"
+                    name="identityCurrentPassword"
+                    type="password"
+                    [(ngModel)]="identityCurrentPassword"
+                    autocomplete="current-password"
+                  />
+                  <span class="hint">{{ 'Required to confirm a username change.' | t }}</span>
+                </div>
+              }
             </div>
             <p class="tiny muted mt-3">
               {{ 'You sign in with your username. Use 3–30 letters, numbers, dots, dashes or underscores.' | t }}
@@ -159,6 +173,20 @@ import { Icon } from '../../shared/icon';
           </p>
 
           <form (ngSubmit)="changePin()">
+            @if (!profile()?.hasPin) {
+              <div class="field">
+                <label class="label" for="pin-password">{{ 'Current password' | t }}</label>
+                <input
+                  id="pin-password"
+                  class="input"
+                  name="pinPassword"
+                  type="password"
+                  [(ngModel)]="pinPassword"
+                  autocomplete="current-password"
+                />
+                <span class="hint">{{ 'Confirm with your password to set the first PIN.' | t }}</span>
+              </div>
+            }
             @if (profile()?.hasPin) {
               <div class="field">
                 <label class="label" for="current-pin">{{ 'Current PIN' | t }}</label>
@@ -256,6 +284,8 @@ export class ProfilePage {
   protected username = '';
   protected phone = '';
   protected currentPassword = '';
+  protected identityCurrentPassword = '';
+  protected pinPassword = '';
   protected newPassword = '';
   protected confirmPassword = '';
   protected currentPin = '';
@@ -287,6 +317,11 @@ export class ProfilePage {
     }
   }
 
+  protected needsConfirmPassword(): boolean {
+    const profile = this.profile();
+    return !!profile && this.username.trim().toLowerCase() !== profile.username.toLowerCase();
+  }
+
   protected async saveIdentity(): Promise<void> {
     this.identityError.set('');
     const name = this.fullName.trim();
@@ -306,9 +341,19 @@ export class ProfilePage {
       return;
     }
 
+    if (this.needsConfirmPassword() && !this.identityCurrentPassword) {
+      this.identityError.set(translate('Enter your current password to change your username.'));
+      return;
+    }
+
     this.identityBusy.set(true);
     try {
-      const updated = await this.auth.updateMyProfile({ fullName: name, username, phone });
+      const updated = await this.auth.updateMyProfile({
+        fullName: name,
+        username,
+        phone,
+        currentPassword: this.identityCurrentPassword || undefined,
+      });
       this.apply(updated);
       this.toast.show(translate('Profile updated'));
     } catch (error) {
@@ -358,6 +403,10 @@ export class ProfilePage {
     this.pinError.set('');
     const hasPin = this.profile()?.hasPin;
 
+    if (!hasPin && !this.pinPassword) {
+      this.pinError.set(translate('Enter your current password to set a PIN.'));
+      return;
+    }
     if (hasPin && !this.currentPin) {
       this.pinError.set(translate('Enter your current PIN.'));
       return;
@@ -379,6 +428,7 @@ export class ProfilePage {
     try {
       const updated = await this.auth.updateMyProfile({
         currentPin: hasPin ? this.currentPin : undefined,
+        currentPassword: hasPin ? undefined : this.pinPassword,
         newPin: this.newPin,
       });
       this.currentPin = '';

@@ -68,7 +68,7 @@ interface UserDraft {
           <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="shield" /></div>
           <div class="stat-label">{{ 'Roles in use' | t }}</div>
           <div class="stat-value">{{ rolesInUse() }}</div>
-          <div class="stat-foot">{{ 'Owner always has full access' | t }}</div>
+          <div class="stat-foot">{{ 'Super Admin always has full access' | t }}</div>
         </div>
       </div>
 
@@ -112,7 +112,7 @@ interface UserDraft {
                   </td>
                   <td><span class="pill pill-grey no-dot">{{ roleLabel(member.role) }}</span></td>
                   <td>
-                    @if (member.role === 'OWNER') {
+                    @if (isAdminRole(member.role)) {
                       <span class="muted">—</span>
                     } @else if (member.defaultShifts.length) {
                       <div class="shift-pills">
@@ -139,13 +139,13 @@ interface UserDraft {
                   <td class="muted num">{{ member.createdAt.slice(0, 10) }}</td>
                   <td>
                     <div class="row" style="gap: 4px; justify-content: flex-end">
-                      <button class="btn btn-sm btn-ghost" type="button" (click)="openEdit(member)"><app-icon name="edit" /> {{ 'Edit' | t }}</button>
+                      <button class="btn btn-sm btn-ghost" type="button" [disabled]="!canManage(member)" (click)="openEdit(member)"><app-icon name="edit" /> {{ 'Edit' | t }}</button>
                       <button
                         class="btn btn-sm"
                         [class.btn-danger]="member.active"
                         [class.btn-secondary]="!member.active"
                         type="button"
-                        [disabled]="member.role === 'OWNER' || member.id === currentUserId"
+                        [disabled]="!canManage(member)"
                         (click)="toggle(member)"
                       >
                         {{ member.active ? ('Deactivate' | t) : ('Activate' | t) }}
@@ -239,7 +239,7 @@ interface UserDraft {
                   }
                 </select>
               </div>
-              @if (draft.role !== 'OWNER') {
+              @if (!isAdminRole(draft.role)) {
                 <div class="field" style="grid-column: 1 / -1">
                   <label class="label"> {{ 'Default shifts' | t }} {{ draft.role === 'MANAGER' ? ('(optional)' | t) : '' }} </label>
                   <div class="shift-picker">
@@ -343,9 +343,28 @@ export class UsersPage {
   protected readonly currentUserId = this.auth.user()?.id ?? '';
   protected readonly activeShifts = computed(() => this.store.shifts().filter((shift) => shift.isActive));
 
-  protected readonly roleOptions: Role[] = ['OWNER', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN', 'BARTENDER'];
+  private readonly roleRank: Record<Role, number> = {
+    SUPERADMIN: 0,
+    OWNER: 1,
+    MANAGER: 2,
+    CASHIER: 3,
+    WAITER: 4,
+    KITCHEN: 4,
+    BARTENDER: 4,
+  };
+
+  protected readonly roleOptions: Role[] =
+    this.auth.user()?.role === 'SUPERADMIN'
+      ? ['SUPERADMIN', 'OWNER', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN', 'BARTENDER']
+      : ['OWNER', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN', 'BARTENDER'];
 
   protected readonly roleCards: RoleCard[] = [
+    {
+      role: 'SUPERADMIN',
+      icon: 'shield',
+      blurb: 'Platform control',
+      can: ['Everything owners can do', 'Manage owner and staff accounts', 'Performance, reporting and settings'],
+    },
     {
       role: 'OWNER',
       icon: 'shield',
@@ -449,7 +468,7 @@ export class UsersPage {
       ...this.draft,
       role,
       shiftIds:
-        role === 'OWNER'
+        this.isAdminRole(role)
           ? []
           : this.draft.shiftIds.length || role === 'MANAGER'
             ? this.draft.shiftIds
@@ -502,7 +521,7 @@ export class UsersPage {
       this.error.set(translate('Set a password for this account so the member can sign in.'));
       return;
     }
-    if (this.draft.role !== 'OWNER' && this.draft.role !== 'MANAGER' && !this.draft.shiftIds.length) {
+    if (!this.isAdminRole(this.draft.role) && this.draft.role !== 'MANAGER' && !this.draft.shiftIds.length) {
       this.error.set(translate('Choose at least one default shift for this staff member.'));
       return;
     }
@@ -516,7 +535,7 @@ export class UsersPage {
       role: this.draft.role,
       password: password || undefined,
       pin: pin || undefined,
-      shiftIds: this.draft.role === 'OWNER' ? [] : this.draft.shiftIds,
+      shiftIds: this.isAdminRole(this.draft.role) ? [] : this.draft.shiftIds,
     });
     this.busy.set(false);
     if (!result.ok) {
@@ -534,11 +553,21 @@ export class UsersPage {
   }
 
   protected needsPassword(role: Role): boolean {
-    return role === 'OWNER' || role === 'MANAGER' || role === 'CASHIER';
+    return this.isAdminRole(role) || role === 'MANAGER' || role === 'CASHIER';
+  }
+
+  protected isAdminRole(role: Role): boolean {
+    return role === 'SUPERADMIN' || role === 'OWNER';
+  }
+
+  protected canManage(member: StaffUser): boolean {
+    const actor = this.auth.user()?.role;
+    if (!actor || member.id === this.currentUserId) return false;
+    return this.roleRank[actor] < this.roleRank[member.role];
   }
 
   protected async toggle(member: StaffUser): Promise<void> {
-    if (member.role === 'OWNER' || member.id === this.currentUserId) {
+    if (!this.canManage(member)) {
       this.toast.show(translate('This account cannot be deactivated'), 'error');
       return;
     }

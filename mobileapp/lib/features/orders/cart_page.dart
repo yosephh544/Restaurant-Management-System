@@ -31,7 +31,8 @@ class _CartPageState extends ConsumerState<CartPage> {
   Json? _otherDraft;
   String _search = '';
   String _orderType = 'DINE_IN';
-  bool get _takeaway => _orderType == 'TAKEAWAY';
+  bool get _takeaway => _orderType != 'DINE_IN';
+  bool get _takeout => _orderType == 'TAKEOUT';
   String? _categoryId;
   bool _reviewing = false;
   bool _refreshing = false;
@@ -122,13 +123,12 @@ class _CartPageState extends ConsumerState<CartPage> {
               'This order cannot be changed in its current state.');
         }
         _table.text = _original!.table;
-        _orderType = _original!.takeaway ? 'TAKEAWAY' : 'DINE_IN';
+        _orderType = code(_original!.orderType);
       }
       if (draft != null) {
         _table.text = draft['table'] as String? ?? _table.text;
         if (draft['orderType'] != null) {
-          _orderType =
-              draft['orderType'] == 'TAKEAWAY' ? 'TAKEAWAY' : 'DINE_IN';
+          _orderType = code(draft['orderType'] as String);
         }
         _note.text = draft['note'] as String? ?? '';
         _uncertain = draft['uncertain'] == true;
@@ -369,7 +369,9 @@ class _CartPageState extends ConsumerState<CartPage> {
         'items': _lines.map((l) => l.toRequest()).toList(),
         if (widget.orderId == null || widget.replacement) ...{
           'orderType': _orderType,
-          'tableNumber': _takeaway ? 'Takeaway' : _table.text.trim(),
+          'tableNumber': _takeaway
+              ? (_takeout ? 'Takeout' : 'Takeaway')
+              : _table.text.trim(),
           'customerNotes': _note.text.trim().isEmpty ? null : _note.text.trim()
         },
         if (widget.replacement) ...{
@@ -467,6 +469,9 @@ class _CartPageState extends ConsumerState<CartPage> {
                                 DropdownMenuItem(
                                     value: 'TAKEAWAY',
                                     child: AppText('Takeaway')),
+                                DropdownMenuItem(
+                                    value: 'TAKEOUT',
+                                    child: AppText('Takeout')),
                               ],
                               onChanged: _busy
                                   ? null
@@ -504,7 +509,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                                         : null)),
                           if (!_takeaway && _tables.isEmpty)
                             const Notice(
-                                'No tables available. Choose takeaway or ask your manager to add tables.'),
+                                'No active tables are available. Ask your manager to configure tables or choose Takeaway or Takeout.'),
                           const SizedBox(height: 12),
                           TextFormField(
                               controller: _note,

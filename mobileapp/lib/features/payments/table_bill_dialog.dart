@@ -99,11 +99,12 @@ class _TableBillDialogState extends State<_TableBillDialog> {
                                       CrossAxisAlignment.stretch,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    if (!widget.order.takeaway) ...[
-                                      const AppText(
-                                          'All orders on this table are included.'),
-                                      const SizedBox(height: 16),
-                                    ],
+                                    AppText(widget.order.takeout
+                                        ? 'Payment covers this takeout order.'
+                                        : widget.order.takeaway
+                                            ? 'Payment covers this takeaway order, including packaging.'
+                                            : 'Payment covers all orders on this table bill.'),
+                                    const SizedBox(height: 16),
                                     for (final order in preview.orders)
                                       Padding(
                                           padding:
@@ -155,9 +156,11 @@ class _TableBillDialogState extends State<_TableBillDialog> {
                                               ? null
                                               : () => _reopen(
                                                   preview.bill!, refresh),
-                                          child: AppText(widget.order.takeaway
-                                              ? 'Reopen takeaway order'
-                                              : 'Reopen table for more orders')),
+                                          child: AppText(widget.order.takeout
+                                              ? 'Reopen takeout order'
+                                              : widget.order.takeaway
+                                                  ? 'Reopen takeaway order'
+                                                  : 'Reopen table for more orders')),
                                     ],
                                   ]))))),
           actions: [

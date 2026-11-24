@@ -37,7 +37,7 @@ interface CartLine {
         <div class="card empty" style="padding: 56px 20px">
           <app-icon name="table" />
           <strong>{{ 'No tables configured' | t }}</strong>
-          <p>{{ 'Choose takeaway above, or ask an owner or manager to add tables under Admin → Settings.' | t }}</p>
+          <p>{{ 'Choose takeaway or takeout above, or ask an owner or manager to add tables under Admin → Settings.' | t }}</p>
           @if (canManageTables()) {
             <a class="btn btn-primary btn-sm mt-3" routerLink="/admin/settings">{{ 'Add tables' | t }}</a>
           }
@@ -53,6 +53,9 @@ interface CartLine {
                 <button class="chip" type="button" [class.active]="orderType() === 'TAKEAWAY'" (click)="orderType.set('TAKEAWAY')">
                   <app-icon name="receipt" /> {{ 'Takeaway' | t }}
                 </button>
+                <button class="chip" type="button" [class.active]="orderType() === 'TAKEOUT'" (click)="orderType.set('TAKEOUT')">
+                  <app-icon name="bag" /> {{ 'Takeout' | t }}
+                </button>
               </div>
               @if (orderType() === 'DINE_IN') {
                 <div class="table-select" style="margin: 0">
@@ -63,8 +66,10 @@ interface CartLine {
                     }
                   </select>
                 </div>
-              } @else {
+              } @else if (orderType() === 'TAKEAWAY') {
                 <span class="pill pill-blue no-dot">{{ 'Takeaway · fee' | t }} {{ money(store.settings().takeawayFee) }} ETB</span>
+              } @else {
+                <span class="pill pill-blue no-dot"><app-icon name="bag" style="font-size: 12px" /> {{ 'Takeout · no table, no fee' | t }}</span>
               }
               <div class="search">
                 <app-icon name="search" />
@@ -166,7 +171,9 @@ interface CartLine {
 
             <div class="sum-totals">
               <div class="sum-row"><span>{{ 'Subtotal' | t }}</span><span class="num">{{ money(subtotal()) }} ETB</span></div>
-              <div class="sum-row"><span>{{ 'Tax' | t }}</span><span class="num">{{ money(tax()) }} ETB</span></div>
+              @if (!store.settings().pricesIncludeTax) {
+                <div class="sum-row"><span>{{ 'Tax' | t }}</span><span class="num">{{ money(tax()) }} ETB</span></div>
+              }
               @if (orderType() === 'TAKEAWAY') {
                 <div class="sum-row"><span>{{ 'Takeaway packaging fee' | t }}</span><span class="num">{{ money(store.settings().takeawayFee) }} ETB</span></div>
               }
@@ -250,39 +257,18 @@ export class NewOrderPage implements OnInit {
       .sort((a, b) => Number(b.available) - Number(a.available));
   });
 
-  protected readonly subtotal = computed(() => {
-    const gross = this.cart().reduce((sum, l) => sum + l.price * l.qty, 0);
-    if (this.store.settings().pricesIncludeTax) {
-      const tax = this.cart().reduce((sum, l) => {
-        const lineGross = l.price * l.qty;
-        const net = l.taxRate >= -100
-          ? lineGross / (1 + l.taxRate / 100)
-          : lineGross;
-        return sum + (lineGross - net);
-      }, 0);
-      return Math.round((gross - tax) * 100) / 100;
-    }
-    return Math.round(gross * 100) / 100;
-  });
+  // Inclusive prices are the final price: no tax is added or shown.
+  protected readonly subtotal = computed(() =>
+    Math.round(this.cart().reduce((sum, l) => sum + l.price * l.qty, 0) * 100) / 100,
+  );
 
   protected readonly tax = computed(() => {
-    if (this.store.settings().pricesIncludeTax) {
-      return Math.round(this.cart().reduce((sum, l) => {
-        const lineGross = l.price * l.qty;
-        const net = l.taxRate >= -100
-          ? lineGross / (1 + l.taxRate / 100)
-          : lineGross;
-        return sum + (lineGross - net);
-      }, 0) * 100) / 100;
-    }
+    if (this.store.settings().pricesIncludeTax) return 0;
     return Math.round(this.cart().reduce((sum, l) => sum + (l.price * l.qty * l.taxRate) / 100, 0) * 100) / 100;
   });
 
   protected readonly total = computed(() => {
     const fee = this.orderType() === 'TAKEAWAY' ? this.store.settings().takeawayFee : 0;
-    if (this.store.settings().pricesIncludeTax) {
-      return Math.round((this.cart().reduce((sum, l) => sum + l.price * l.qty, 0) + fee) * 100) / 100;
-    }
     return Math.round((this.subtotal() + this.tax() + fee) * 100) / 100;
   });
 
@@ -344,11 +330,11 @@ export class NewOrderPage implements OnInit {
   }
 
   protected async send(): Promise<void> {
-    const takeaway = this.orderType() === 'TAKEAWAY';
-    if ((!takeaway && !this.table()) || !this.cart().length || this.busy()) return;
+    const tableless = this.orderType() !== 'DINE_IN';
+    if ((!tableless && !this.table()) || !this.cart().length || this.busy()) return;
     this.busy.set(true);
     const result = await this.store.createOrder(
-      takeaway ? null : this.table(),
+      tableless ? null : this.table(),
       this.cart().map((l) => ({ menuItemId: l.itemId, quantity: l.qty, notes: l.notes || undefined })),
       this.notes().trim(),
       this.orderType(),

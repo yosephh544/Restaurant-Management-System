@@ -82,7 +82,12 @@ public class StationService : IStationService
                 OrderId = o.Id,
                 OrderNumber = o.OrderNumber,
                 TableNumber = o.TableNumber,
-                OrderType = o.OrderType == OrderType.Takeaway ? "TAKEAWAY" : "DINE_IN",
+                OrderType = o.OrderType switch
+                {
+                    OrderType.Takeaway => "TAKEAWAY",
+                    OrderType.Takeout => "TAKEOUT",
+                    _ => "DINE_IN"
+                },
                 QueuePosition = queuePositions.GetValueOrDefault(o.Id),
                 WaiterName = o.Waiter?.FullName ?? "Unknown",
                 Station = station.ToString().ToUpperInvariant(),

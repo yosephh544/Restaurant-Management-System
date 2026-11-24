@@ -27,6 +27,7 @@ public class BillResponse
     public decimal DiscountAmount { get; init; }
     public decimal TipAmount { get; init; }
     public decimal GrandTotal { get; init; }
+    public bool PricesIncludeTax { get; init; }
     public string Status { get; init; } = default!;
     public DateTime CreatedAt { get; init; }
     public DateTime? PaidAt { get; init; }

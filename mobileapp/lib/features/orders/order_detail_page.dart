@@ -234,6 +234,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                       number: order.orderNumber,
                       table: order.table,
                       takeaway: order.takeaway,
+                      takeout: order.takeout,
                       queuePosition: order.queuePosition,
                       status: order.status,
                       subtitle: order.waiterName),

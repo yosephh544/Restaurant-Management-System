@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { locale, TranslatePipe, translate } from '../../core/i18n';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { isTakeaway, KitchenTicket } from '../../core/models';
+import { hasNoTable, isTakeaway, KitchenTicket, orderTypeLabel } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -65,8 +65,8 @@ import { IssueDialog } from '../../shared/issue-dialog';
                   <span class="queue-chip">{{ 'Q' | t }}{{ ticket.queuePosition }}</span>
                 }
                 <a class="ticket-num" [routerLink]="[stationPath, ticket.id]">#{{ ticket.number }}</a>
-                @if (isTakeaway(ticket)) {
-                  <span class="ticket-table"><app-icon name="receipt" style="font-size: 11px" /> {{ 'Takeaway' | t }}</span>
+                @if (hasNoTable(ticket)) {
+                  <span class="ticket-table"><app-icon [name]="isTakeaway(ticket) ? 'receipt' : 'bag'" style="font-size: 11px" /> {{ orderTypeLabel(ticket) | t }}</span>
                 } @else {
                   <span class="ticket-table">{{ 'Table' | t }} {{ ticket.table }}</span>
                 }
@@ -158,8 +158,8 @@ import { IssueDialog } from '../../shared/issue-dialog';
                 <span class="ticket-num" style="font-size: 16px">#{{ ticket.number }}</span>
                 <div class="list-main">
                   <strong>
-                    @if (isTakeaway(ticket)) {
-                      <app-icon name="receipt" style="font-size: 12px" /> {{ 'Takeaway' | t }}
+                    @if (hasNoTable(ticket)) {
+                      <app-icon [name]="isTakeaway(ticket) ? 'receipt' : 'bag'" style="font-size: 12px" /> {{ orderTypeLabel(ticket) | t }}
                     } @else {
                       {{ 'Table' | t }} {{ ticket.table }}
                     }
@@ -189,6 +189,8 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
   protected readonly isBar = this.route.snapshot.data['station'] === 'BAR';
   protected readonly stationPath = this.isBar ? '/bar' : '/kitchen';
   protected readonly isTakeaway = isTakeaway;
+  protected readonly hasNoTable = hasNoTable;
+  protected readonly orderTypeLabel = orderTypeLabel;
 
   protected readonly station = computed(() => {
     const branch = this.store.settings().branch;

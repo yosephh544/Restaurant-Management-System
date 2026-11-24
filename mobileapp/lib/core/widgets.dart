@@ -351,6 +351,7 @@ class OrderHeading extends StatelessWidget {
   final String number, table, status;
   final String? subtitle;
   final bool takeaway;
+  final bool takeout;
   final int queuePosition;
   const OrderHeading(
       {required this.number,
@@ -358,6 +359,7 @@ class OrderHeading extends StatelessWidget {
       required this.status,
       this.subtitle,
       this.takeaway = false,
+      this.takeout = false,
       this.queuePosition = 0,
       super.key});
   @override
@@ -371,7 +373,12 @@ class OrderHeading extends StatelessWidget {
           style: const TextStyle(
               color: muted, fontSize: 11, fontWeight: FontWeight.w700)),
       const SizedBox(height: 4),
-      AppText(takeaway ? 'Takeaway' : 'Table $table',
+      AppText(
+          takeout
+              ? 'Takeout'
+              : takeaway
+                  ? 'Takeaway'
+                  : 'Table $table',
           style: Theme.of(context)
               .textTheme
               .titleLarge

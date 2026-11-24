@@ -35,11 +35,16 @@ public static class Permissions
     public const string PaymentsView = "payments.view";
     public const string PaymentsRetract = "payments.retract";
     public const string TipsView = "tips.view";
+    public const string TipsViewAll = "tips.view_all";
 
     public const string ReportsView = "reports.view";
+
+    public const string SettingsView = "settings.view";
+    public const string SettingsManage = "settings.manage";
 
     public const string TablesView = "tables.view";
     public const string TablesManage = "tables.manage";
     public const string BillsGenerate = "bills.generate";
+    public const string BillsDiscount = "bills.discount";
     public const string BillsReopen = "bills.reopen";
 }

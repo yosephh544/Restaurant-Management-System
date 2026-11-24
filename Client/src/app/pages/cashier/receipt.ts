@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnInit } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { clock, money } from '../../core/models';
+import { clock, hasNoTable, money, orderTypeLabel } from '../../core/models';
 import { Store } from '../../core/store';
 import { Icon } from '../../shared/icon';
 
@@ -30,7 +30,7 @@ import { Icon } from '../../shared/icon';
 
             <div class="receipt-meta">
               <span>
-                <strong>{{ 'Bill' | t }} {{ b.number }}</strong><br /> {{ 'Table' | t }} {{ b.table }}
+                <strong>{{ 'Bill' | t }} {{ b.number }}</strong><br /> {{ hasNoTable(b) ? (orderTypeLabel(b) | t) : (('Table' | t) + ' ' + b.table) }}
               </span>
               <span style="text-align: right">
                 {{ clock(p.settledAt) }}<br />
@@ -49,7 +49,9 @@ import { Icon } from '../../shared/icon';
 
             <div class="receipt-totals">
               <div class="bill-total-row"><span>{{ 'Subtotal' | t }}</span><span class="num">{{ money(b.subtotal) }}</span></div>
-              <div class="bill-total-row"><span>{{ 'Tax' | t }}</span><span class="num">{{ money(b.tax) }}</span></div>
+              @if (!b.pricesIncludeTax || b.tax > 0) {
+                <div class="bill-total-row"><span>{{ 'Tax' | t }}</span><span class="num">{{ money(b.tax) }}</span></div>
+              }
               @if (b.discount > 0) {
                 <div class="bill-total-row"><span>{{ 'Discount' | t }}</span><span class="num">−{{ money(b.discount) }}</span></div>
               }
@@ -109,6 +111,8 @@ export class ReceiptPage implements OnInit {
   protected readonly id = this.route.snapshot.paramMap.get('id') ?? '';
   protected readonly money = money;
   protected readonly clock = clock;
+  protected readonly hasNoTable = hasNoTable;
+  protected readonly orderTypeLabel = orderTypeLabel;
   protected readonly settings = this.store.settings;
 
   protected readonly bill = computed(() => this.store.bill(this.id));

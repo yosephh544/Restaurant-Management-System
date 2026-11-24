@@ -5,11 +5,13 @@ import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import {
   ageLabel,
   clock,
+  hasNoTable,
   isTakeaway,
   issueLabel,
   METHOD_LABEL,
   money,
   orderStatusLabel,
+  orderTypeLabel,
   OrderStatus,
   paymentStatusLabel,
   statusTone,
@@ -40,8 +42,8 @@ import { PaySheet } from '../../shared/pay-sheet';
               }
             </div>
             <p class="page-sub">
-              @if (isTakeaway(o)) {
-                <app-icon name="receipt" style="font-size: 12px" /> {{ 'Takeaway' | t }}
+              @if (hasNoTable(o)) {
+                <app-icon [name]="isTakeaway(o) ? 'receipt' : 'bag'" style="font-size: 12px" /> {{ orderTypeLabel(o) | t }}
               } @else {
                 {{ 'Table' | t }} {{ o.table }}
               }
@@ -145,7 +147,10 @@ import { PaySheet } from '../../shared/pay-sheet';
                         <div class="tiny muted" lang="am">{{ line.nameAm }}</div>
                       }
                       <div class="tiny muted">
-                        {{ money(line.unitPrice) }} ETB {{ 'each' | t }} · {{ 'tax' | t }} {{ line.taxRate }}%
+                        {{ money(line.unitPrice) }} ETB {{ 'each' | t }}
+                        @if (!o.pricesIncludeTax) {
+                          · {{ 'tax' | t }} {{ line.taxRate }}%
+                        }
                         @if (line.status === 'CANCELLED') {
                           · <span style="color: var(--red)">{{ 'cancelled' | t }}</span>
                         } @else if (line.status === 'SERVED') {
@@ -174,7 +179,9 @@ import { PaySheet } from '../../shared/pay-sheet';
               </div>
               <div class="bill-totals">
                 <div class="bill-total-row"><span>{{ 'Subtotal' | t }}</span><span class="num">{{ money(subtotal()) }} ETB</span></div>
-                <div class="bill-total-row"><span>{{ 'Tax' | t }}</span><span class="num">{{ money(tax()) }} ETB</span></div>
+                @if (!o.pricesIncludeTax || tax() > 0) {
+                  <div class="bill-total-row"><span>{{ 'Tax' | t }}</span><span class="num">{{ money(tax()) }} ETB</span></div>
+                }
                 @if (o.takeawayFee > 0) {
                   <div class="bill-total-row"><span>{{ 'Takeaway packaging fee' | t }}</span><span class="num">{{ money(o.takeawayFee) }} ETB</span></div>
                 }
@@ -261,8 +268,8 @@ import { PaySheet } from '../../shared/pay-sheet';
             <div class="card card-pad">
               <div class="card-title" style="margin-bottom: 10px">{{ 'Ticket details' | t }}</div>
               <div class="stack">
-                <div class="between small"><span class="muted">{{ 'Type' | t }}</span><span class="strong">{{ isTakeaway(o) ? ('Takeaway' | t) : ('Dine-in' | t) }}</span></div>
-                @if (!isTakeaway(o)) {
+                <div class="between small"><span class="muted">{{ 'Type' | t }}</span><span class="strong">{{ orderTypeLabel(o) | t }}</span></div>
+                @if (!hasNoTable(o)) {
                   <div class="between small"><span class="muted">{{ 'Table' | t }}</span><span class="strong">{{ o.table }}</span></div>
                 }
                 <div class="between small"><span class="muted">{{ 'Waiter' | t }}</span><span class="strong">{{ o.waiterName }}</span></div>
@@ -302,7 +309,7 @@ import { PaySheet } from '../../shared/pay-sheet';
             <div class="modal-head">
               <div>
                 <h3>{{ 'Add items' | t }}</h3>
-                <p>{{ 'Order #' | t }}{{ o.number }} · {{ isTakeaway(o) ? ('Takeaway' | t) : (('Table' | t) + ' ' + o.table) }}</p>
+                <p>{{ 'Order #' | t }}{{ o.number }} · {{ hasNoTable(o) ? (orderTypeLabel(o) | t) : (('Table' | t) + ' ' + o.table) }}</p>
               </div>
               <button class="modal-close" type="button" (click)="showAdd.set(false)"><app-icon name="x" /></button>
             </div>
@@ -373,6 +380,8 @@ export class OrderDetailPage implements OnInit {
 
   protected readonly order = computed(() => this.store.order(this.id));
   protected readonly isTakeaway = isTakeaway;
+  protected readonly hasNoTable = hasNoTable;
+  protected readonly orderTypeLabel = orderTypeLabel;
 
   protected readonly payment = computed(() => {
     const order = this.order();

@@ -4,6 +4,6 @@ namespace RestaurantManagement.Implementation.Interfaces.Configuration;
 
 public interface ISettingsService
 {
-    Task<RestaurantSettingsDto> GetAsync(CancellationToken ct = default);
+    Task<RestaurantSettingsDto> GetAsync(bool includeSensitive = false, CancellationToken ct = default);
     Task<RestaurantSettingsDto> UpdateAsync(UpdateRestaurantSettingsRequest request, CancellationToken ct = default);
 }

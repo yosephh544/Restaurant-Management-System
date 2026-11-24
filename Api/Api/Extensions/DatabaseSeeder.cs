@@ -1,4 +1,7 @@
+using System.Security.Cryptography;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using RestaurantManagement.Infrustructure.Common.Constants;
 using RestaurantManagement.Infrustructure.Data;
 using RestaurantManagement.Infrustructure.Enums.Identity;
@@ -9,12 +12,14 @@ namespace RestaurantManagement.Api.Extensions;
 
 public static class DatabaseSeeder
 {
-    private static readonly Guid OwnerUserId = Guid.Parse("b4b4f0d8-0d10-4a9c-9e77-0fcd6cda1001");
+    private static readonly Guid BootstrapAdminId = Guid.Parse("b4b4f0d8-0d10-4a9c-9e77-0fcd6cda1001");
 
-    public static async Task SeedOwnerAsync(IServiceProvider services, CancellationToken ct = default)
+    public static async Task SeedAsync(IServiceProvider services, CancellationToken ct = default)
     {
         await using var scope = services.CreateAsyncScope();
         var db = scope.ServiceProvider.GetRequiredService<RestaurantDbContext>();
+        var configuration = scope.ServiceProvider.GetRequiredService<IConfiguration>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DatabaseSeeder");
         await db.Database.MigrateAsync(ct);
 
         var permissionNames = typeof(Permissions).GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
@@ -33,7 +38,7 @@ public static class DatabaseSeeder
 
         var permissions = await db.Permissions.ToDictionaryAsync(p => p.Name, p => p.Id, ct);
 
-        foreach (var roleName in new[] { "Owner", "Manager", "Cashier", "Waiter", "Kitchen", Roles.Bartender })
+        foreach (var roleName in new[] { Roles.SuperAdmin, "Owner", "Manager", "Cashier", "Waiter", "Kitchen", Roles.Bartender })
         {
             if (!await db.Roles.AnyAsync(r => r.Name == roleName, ct))
                 db.Roles.Add(new Role { Id = Guid.NewGuid(), Name = roleName, Description = $"{roleName} role", IsActive = true });
@@ -42,9 +47,10 @@ public static class DatabaseSeeder
 
         var roles = await db.Roles.ToDictionaryAsync(r => r.Name, r => r, ct);
 
-        // Owner is always kept in sync with every permission. Other roles get any
-        // baseline grants they are missing (so existing databases pick up new
-        // capabilities); extra grants made through the roles API are preserved.
+        // SuperAdmin and Owner are always kept in sync with every permission. Other
+        // roles get any baseline grants they are missing (so existing databases pick
+        // up new capabilities); extra grants made through the roles API are preserved.
+        AssignRolePermissions(roles[Roles.SuperAdmin], permissionNames, permissions, db);
         AssignRolePermissions(roles["Owner"], permissionNames, permissions, db);
 
         await EnsureRolePermissionsAsync(roles["Manager"], new[]
@@ -55,9 +61,12 @@ public static class DatabaseSeeder
             Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems, Permissions.OrdersReorder, Permissions.OrdersServe,
             Permissions.KitchenView, Permissions.KitchenUpdate, Permissions.KitchenCancel,
             Permissions.BarView,
-            Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract, Permissions.TipsView,
+            Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.PaymentsRetract,
+            Permissions.TipsView, Permissions.TipsViewAll,
             Permissions.ReportsView,
-            Permissions.TablesView, Permissions.TablesManage, Permissions.BillsGenerate, Permissions.BillsReopen
+            Permissions.TablesView, Permissions.TablesManage, Permissions.BillsGenerate, Permissions.BillsReopen,
+            Permissions.BillsDiscount,
+            Permissions.SettingsView, Permissions.SettingsManage
         }, permissions, db, ct);
 
         await EnsureRolePermissionsAsync(roles["Cashier"], new[]
@@ -110,40 +119,79 @@ public static class DatabaseSeeder
             await db.SaveChangesAsync(ct);
         }
 
-        var ownerRole = roles[Roles.Owner];
+        var superAdminRole = roles[Roles.SuperAdmin];
 
-        // Seed the bootstrap owner only when no owner exists at all. An existing
-        // owner may have been renamed, so identify it by role instead of username -
-        // a second owner insert would violate PK_users and abort startup.
-        var ownerExists = await db.Users.AnyAsync(
-            u => u.RoleId == ownerRole.Id || u.Role == UserRole.Owner, ct);
+        // Guarantee one administrator. Existing installations only have an Owner,
+        // so that account is promoted in place and its password keeps working.
+        var superAdminExists = await db.Users.AnyAsync(
+            u => u.RoleId == superAdminRole.Id || u.Role == UserRole.SuperAdmin, ct);
 
-        if (!ownerExists)
+        if (!superAdminExists)
         {
-            // Keep the deterministic id on fresh databases, but never insert over
-            // an orphaned row that already occupies it.
-            var ownerId = await db.Users.AnyAsync(u => u.Id == OwnerUserId, ct)
-                ? Guid.NewGuid()
-                : OwnerUserId;
+            var configuredPassword = configuration["SuperAdmin:BootstrapPassword"]?.Trim();
+            var legacyOwner = await db.Users.FirstOrDefaultAsync(
+                u => u.RoleId == roles[Roles.Owner].Id || u.Role == UserRole.Owner, ct);
 
-            db.Users.Add(new User
+            if (legacyOwner is not null && string.IsNullOrWhiteSpace(configuredPassword))
             {
-                Id = ownerId,
-                FullName = "Joseph",
-                Username = "joseph",
-                Phone = "0920496730",
-                Role = UserRole.Owner,
-                RoleId = ownerRole.Id,
-                RoleEntity = ownerRole,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword("P@ssw0rd"),
-                IsActive = true,
-                CreatedAt = DateTime.UtcNow
-            });
-            await db.SaveChangesAsync(ct);
+                legacyOwner.Role = UserRole.SuperAdmin;
+                legacyOwner.RoleId = superAdminRole.Id;
+                legacyOwner.UpdatedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(ct);
+                logger.LogInformation("Promoted legacy owner {Username} to SuperAdmin.", legacyOwner.Username);
+            }
+            else
+            {
+                var username = (configuration["SuperAdmin:Username"] ?? "superadmin").Trim().ToLowerInvariant();
+                var account = await db.Users.FirstOrDefaultAsync(u => u.Username == username, ct);
+                var generatedPassword = string.IsNullOrWhiteSpace(configuredPassword)
+                    ? Convert.ToBase64String(RandomNumberGenerator.GetBytes(18))
+                    : null;
+
+                if (account is null)
+                {
+                    // Keep the historical deterministic id on fresh databases, but
+                    // never insert over an orphaned row that already occupies it.
+                    var adminId = await db.Users.AnyAsync(u => u.Id == BootstrapAdminId, ct)
+                        ? Guid.NewGuid()
+                        : BootstrapAdminId;
+
+                    account = new User
+                    {
+                        Id = adminId,
+                        FullName = "Super Admin",
+                        Username = username,
+                        Role = UserRole.SuperAdmin,
+                        RoleId = superAdminRole.Id,
+                        RoleEntity = superAdminRole,
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    db.Users.Add(account);
+                }
+                else
+                {
+                    account.Role = UserRole.SuperAdmin;
+                    account.RoleId = superAdminRole.Id;
+                    account.RoleEntity = superAdminRole;
+                    account.IsActive = true;
+                    account.UpdatedAt = DateTime.UtcNow;
+                }
+
+                account.PasswordHash = BCrypt.Net.BCrypt.HashPassword(configuredPassword ?? generatedPassword!);
+                await db.SaveChangesAsync(ct);
+
+                if (generatedPassword is not null)
+                    logger.LogWarning(
+                        "Created bootstrap SuperAdmin {Username} with temporary password {Password}. Sign in and change it immediately.",
+                        username, generatedPassword);
+                else
+                    logger.LogInformation("Bootstrapped SuperAdmin {Username} from configuration.", username);
+            }
         }
 
         // Existing floor staff predate shift gating. Give them the Morning shift
-        // so nobody is locked out; the Owner corrects afternoon staff afterwards.
+        // so nobody is locked out; administrators correct afternoon staff afterwards.
         var unassigned = await db.Users
             .Include(u => u.RoleEntity)
             .Where(u => !db.UserShifts.Any(us => us.UserId == u.Id))
@@ -153,7 +201,7 @@ public static class DatabaseSeeder
         {
             var roleName = user.RoleEntity?.Name ?? user.Role.ToString();
             if (string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase) ||
-                string.Equals(roleName, Roles.Manager, StringComparison.OrdinalIgnoreCase))
+                string.Equals(roleName, Roles.SuperAdmin, StringComparison.OrdinalIgnoreCase))
                 continue;
 
             db.UserShifts.Add(new UserShift { UserId = user.Id, ShiftId = morningShift.Id });

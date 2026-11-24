@@ -5,6 +5,7 @@ import { RESPONSE_ENCRYPTION_KEY } from './api.config';
 import { ApiProfile, EncryptedApiProfile, SessionService } from './session.service';
 
 export const ROLE_HOME: Record<Role, string> = {
+  SUPERADMIN: '/manager',
   OWNER: '/manager',
   MANAGER: '/manager',
   CASHIER: '/cashier/bills',

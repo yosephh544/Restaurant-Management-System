@@ -18,11 +18,13 @@ public class SettingsController : ApiControllerBase
     public SettingsController(ISettingsService settingsService) => _settingsService = settingsService;
 
     [HttpGet]
+    [Permission(Permissions.MenuView)]
     public async Task<IActionResult> Get(CancellationToken ct)
-        => OkResponse(await _settingsService.GetAsync(ct));
+        => OkResponse(await _settingsService.GetAsync(
+            includeSensitive: User.HasClaim("permission", Permissions.SettingsView), ct));
 
     [HttpPut]
-    [Permission(Permissions.RolesManage)]
+    [Permission(Permissions.SettingsManage)]
     public async Task<IActionResult> Update([FromBody] UpdateRestaurantSettingsRequest request, CancellationToken ct)
         => OkResponse(await _settingsService.UpdateAsync(request, ct), "Settings updated successfully.");
 }

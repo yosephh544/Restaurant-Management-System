@@ -21,6 +21,7 @@ public sealed class ReceiptPreviewTests
         public string Role => "Waiter";
         public string? Phone => null;
         public bool IsAuthenticated => true;
+        public bool HasPermission(string permission) => false;
     }
 
     private sealed class Verifier(BankReceipt receipt) : IBankReceiptVerifier

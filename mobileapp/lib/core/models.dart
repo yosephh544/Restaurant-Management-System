@@ -291,8 +291,14 @@ class RestaurantOrder {
           .map((v) => OrderLine.fromJson(jsonObject(v)))
           .toList());
   bool get paid => code(paymentStatus) == 'PAID';
-  bool get takeaway => code(orderType) == 'TAKEAWAY';
-  String get locationLabel => takeaway ? 'Takeaway' : 'Table $table';
+  bool get takeout => code(orderType) == 'TAKEOUT';
+  /// Table-less ticket (takeaway or takeout) that is billed and paid by order.
+  bool get takeaway => code(orderType) != 'DINE_IN';
+  String get locationLabel => takeout
+      ? 'Takeout'
+      : takeaway
+          ? 'Takeaway'
+          : 'Table $table';
   double get charge => subtotal + tax + takeawayFee;
   bool get refundable =>
       served || cancelled || code(paymentStatus) == 'REFUNDPENDING';

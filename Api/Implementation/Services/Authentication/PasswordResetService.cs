@@ -92,6 +92,11 @@ public class PasswordResetService : IPasswordResetService
             .Take(100)
             .ToListAsync(ct);
 
+        var actorRole = _currentUserService.Role;
+        rows = rows
+            .Where(r => RoleHierarchy.CanManage(actorRole, r.User.RoleEntity?.Name ?? r.User.Role.ToString()))
+            .ToList();
+
         return rows.Select(r => new PasswordResetRequestResponse
         {
             Id = r.Id,
@@ -123,10 +128,9 @@ public class PasswordResetService : IPasswordResetService
         if (!request.User.IsActive)
             throw new ValidationException("Status", "The staff account is deactivated. Activate it first.");
 
-        var isOwner = string.Equals(_currentUserService.Role, Roles.Owner, StringComparison.OrdinalIgnoreCase);
-        var targetIsOwner = string.Equals(request.User.RoleEntity?.Name, Roles.Owner, StringComparison.OrdinalIgnoreCase);
-        if (targetIsOwner && !isOwner)
-            throw new ForbiddenException("Only an Owner can approve a reset for an Owner account.");
+        var targetRoleName = request.User.RoleEntity?.Name ?? request.User.Role.ToString();
+        if (!RoleHierarchy.CanManage(_currentUserService.Role, targetRoleName))
+            throw new ForbiddenException("You cannot approve a reset for an account at or above your own role.");
 
         var code = GenerateCode();
         var now = DateTime.UtcNow;

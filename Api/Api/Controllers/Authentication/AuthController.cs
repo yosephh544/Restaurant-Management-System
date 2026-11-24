@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.AspNetCore.Mvc;
 using RestaurantManagement.Api.Authorization;
 using RestaurantManagement.Api.Controllers.Common;
@@ -26,6 +27,7 @@ public class AuthController : ApiControllerBase
     /// </summary>
     [HttpPost("login")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<AuthResponse>), 200)]
     public async Task<IActionResult> Login([FromBody] LoginRequest request, CancellationToken ct)
     {
@@ -38,6 +40,7 @@ public class AuthController : ApiControllerBase
     /// </summary>
     [HttpPost("pin-login")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<AuthResponse>), 200)]
     public async Task<IActionResult> PinLogin([FromBody] PinLoginRequest request, CancellationToken ct)
     {
@@ -50,6 +53,7 @@ public class AuthController : ApiControllerBase
     /// </summary>
     [HttpPost("refresh")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<AuthResponse>), 200)]
     public async Task<IActionResult> Refresh([FromBody] RefreshTokenRequest request, CancellationToken ct)
     {
@@ -111,6 +115,7 @@ public class AuthController : ApiControllerBase
     /// </summary>
     [HttpPost("forgot-password")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<object>), 200)]
     public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request, CancellationToken ct)
     {
@@ -163,6 +168,7 @@ public class AuthController : ApiControllerBase
     /// </summary>
     [HttpPost("password-reset/redeem")]
     [AllowAnonymous]
+    [EnableRateLimiting("auth")]
     [ProducesResponseType(typeof(Infrustructure.Common.Responses.ApiResponse<PasswordResetRedeemedResponse>), 200)]
     public async Task<IActionResult> RedeemPasswordReset([FromBody] RedeemPasswordResetRequest request, CancellationToken ct)
     {

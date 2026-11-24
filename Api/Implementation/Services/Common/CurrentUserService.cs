@@ -46,4 +46,10 @@ public class CurrentUserService : ICurrentUserService
     }
 
     public bool IsAuthenticated => _httpContextAccessor.HttpContext?.User?.Identity?.IsAuthenticated ?? false;
+
+    public bool HasPermission(string permission)
+    {
+        var user = _httpContextAccessor.HttpContext?.User;
+        return user is not null && user.HasClaim("permission", permission);
+    }
 }

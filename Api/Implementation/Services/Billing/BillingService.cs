@@ -1,7 +1,9 @@
+using System.Data;
 using Microsoft.EntityFrameworkCore;
 using RestaurantManagement.Implementation.Dtos.Billing;
 using RestaurantManagement.Implementation.Interfaces.Billing;
 using RestaurantManagement.Implementation.Interfaces.Common;
+using RestaurantManagement.Infrustructure.Common.Constants;
 using RestaurantManagement.Infrustructure.Common.Exceptions;
 using RestaurantManagement.Infrustructure.Common.Extensions;
 using RestaurantManagement.Infrustructure.Data;
@@ -64,6 +66,7 @@ public class BillingService : IBillingService
     public async Task<BillResponse> GenerateBillAsync(GenerateBillRequest request, CancellationToken ct = default)
     {
         var waiterId = _currentUser.UserId ?? throw new UnauthorizedException("User identity could not be verified.");
+        var isWaiter = string.Equals(_currentUser.Role, Roles.Waiter, StringComparison.OrdinalIgnoreCase);
 
         DiningSession session;
         RestaurantTable? table = null;
@@ -73,6 +76,9 @@ public class BillingService : IBillingService
             var order = await _db.Orders
                 .FirstOrDefaultAsync(o => o.Id == request.OrderId.Value, ct)
                 ?? throw new NotFoundException("Order", request.OrderId.Value);
+
+            if (isWaiter && order.WaiterId != waiterId)
+                throw new ForbiddenException("You can only bill your own orders.");
 
             // Orders created before dining sessions were introduced have no session.
             // Adopt them so their bill can still be generated.
@@ -96,11 +102,17 @@ public class BillingService : IBillingService
                 .Include(s => s.Orders).ThenInclude(o => o.OrderItems).ThenInclude(i => i.MenuItem)
                 .FirstOrDefaultAsync(s => s.TableId == table.Id && s.Status == DiningSessionStatus.Active, ct)
                 ?? throw new ConflictException("There is no active dining session for this table.");
+
+            if (isWaiter && session.WaiterId != waiterId)
+                throw new ForbiddenException("You can only bill tables you are serving.");
         }
         else
         {
-            throw new ValidationException("TableId", "A table or takeaway order is required to generate a bill.");
+            throw new ValidationException("TableId", "A table, takeaway or takeout order is required to generate a bill.");
         }
+
+        // Serialisable so two tills cannot create duplicate open bills for one session.
+        await using var transaction = await _db.Database.BeginTransactionAsync(IsolationLevel.Serializable, ct);
 
         // Generating twice must not create a duplicate ticket: return the open bill.
         var openBillId = await _db.Bills.AsNoTracking()
@@ -111,9 +123,10 @@ public class BillingService : IBillingService
             .FirstOrDefaultAsync(ct);
 
         if (openBillId != Guid.Empty)
+        {
+            await transaction.CommitAsync(ct);
             return await GetBillAsync(openBillId, ct);
-
-        await using var transaction = await _db.Database.BeginTransactionAsync(ct);
+        }
 
         var unpaidOrders = session.Orders
             .Where(o => o.PaymentStatus == PaymentStatus.Unpaid || o.PaymentStatus == PaymentStatus.Retracted)
@@ -123,7 +136,12 @@ public class BillingService : IBillingService
         if (unpaidOrders.Count == 0)
             throw new ConflictException(session.TableId.HasValue
                 ? "The active dining session has no billable orders."
-                : "The takeaway order has no billable items.");
+                : "This takeaway or takeout order has no billable items.");
+
+        // The tax mode in force when the guest settles governs the bill, not the snapshot
+        // taken when the order was originally placed.
+        var settings = await _db.RestaurantSettings.AsNoTracking().FirstOrDefaultAsync(ct);
+        var pricesIncludeTax = settings?.PricesIncludeTax ?? unpaidOrders[0].PricesIncludeTax;
 
         var billItems = new List<BillItem>();
         decimal subtotal = 0;
@@ -131,16 +149,21 @@ public class BillingService : IBillingService
 
         foreach (var order in unpaidOrders)
         {
+            decimal orderSubtotal = 0;
+            decimal orderTax = 0;
+
             foreach (var item in order.OrderItems.Where(i => i.ItemStatus != OrderItemStatus.Cancelled))
             {
                 var (lineSubtotal, lineTax, lineTotal) = TaxPricing.Split(
                     item.UnitPrice,
                     item.Quantity,
                     item.TaxRate,
-                    order.PricesIncludeTax);
+                    pricesIncludeTax);
 
                 subtotal += lineSubtotal;
                 taxTotal += lineTax;
+                orderSubtotal += lineSubtotal;
+                orderTax += lineTax;
 
                 billItems.Add(new BillItem
                 {
@@ -176,11 +199,22 @@ public class BillingService : IBillingService
                     LineTotal = fee
                 });
             }
+
+            // Keep the order aligned with the bill so order detail and reports agree.
+            order.PricesIncludeTax = pricesIncludeTax;
+            order.Subtotal = Math.Round(orderSubtotal, 2);
+            order.TaxTotal = Math.Round(orderTax, 2);
+            order.GrandTotal = Math.Round(orderSubtotal + orderTax + order.TakeawayFee, 2);
+            order.PaymentStatus = PaymentStatus.PaymentInitiated;
+            order.UpdatedAt = DateTime.UtcNow;
         }
 
         subtotal = Math.Round(subtotal, 2);
         taxTotal = Math.Round(taxTotal, 2);
         var discount = Math.Round(request.DiscountAmount, 2);
+
+        if (discount > 0 && !_currentUser.HasPermission(Permissions.BillsDiscount))
+            throw new ForbiddenException("Only a manager can apply a discount to a bill.");
 
         if (discount > subtotal + taxTotal)
             throw new ValidationException("DiscountAmount", "Discount cannot exceed the bill amount.");
@@ -209,12 +243,6 @@ public class BillingService : IBillingService
 
         foreach (var item in billItems)
             item.BillId = bill.Id;
-
-        foreach (var order in unpaidOrders)
-        {
-            order.PaymentStatus = PaymentStatus.PaymentInitiated;
-            order.UpdatedAt = DateTime.UtcNow;
-        }
 
         session.Status = DiningSessionStatus.BillRequested;
         session.BillRequestedAt = DateTime.UtcNow;
@@ -435,37 +463,54 @@ public class BillingService : IBillingService
         ClosedAt = session.ClosedAt
     };
 
-    private static BillResponse MapBill(Bill bill) => new()
+    private static BillResponse MapBill(Bill bill)
     {
-        Id = bill.Id,
-        DiningSessionId = bill.DiningSessionId,
-        TableId = bill.DiningSession.TableId,
-        TableNumber = bill.DiningSession.Table?.Number
-            ?? bill.DiningSession.Orders.Select(o => o.TableNumber).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n))
-            ?? "Takeaway",
-        // A session without a table is a takeaway/takeout ticket, including adopted legacy rows.
-        OrderType = bill.DiningSession.TableId.HasValue ? "DINE_IN" : "TAKEAWAY",
-        BillNumber = bill.BillNumber,
-        Subtotal = bill.Subtotal,
-        TaxTotal = bill.TaxTotal,
-        DiscountAmount = bill.DiscountAmount,
-        TipAmount = bill.TipAmount,
-        GrandTotal = bill.GrandTotal,
-        Status = bill.Status.ToString().ToUpperInvariant(),
-        CreatedAt = bill.CreatedAt,
-        PaidAt = bill.PaidAt,
-        Items = bill.Items.Select(i => new BillItemResponse
+        var orderType = ResolveSessionOrderType(bill.DiningSession);
+        return new BillResponse
         {
-            Id = i.Id,
-            OrderId = i.OrderId,
-            OrderItemId = i.OrderItemId,
-            Description = i.Description,
-            Quantity = i.Quantity,
-            UnitPrice = i.UnitPrice,
-            TaxRate = i.TaxRate,
-            LineSubtotal = i.LineSubtotal,
-            LineTax = i.LineTax,
-            LineTotal = i.LineTotal
-        }).ToList()
-    };
+            Id = bill.Id,
+            DiningSessionId = bill.DiningSessionId,
+            TableId = bill.DiningSession.TableId,
+            TableNumber = bill.DiningSession.Table?.Number
+                ?? bill.DiningSession.Orders.Select(o => o.TableNumber).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n))
+                ?? (orderType == "TAKEOUT" ? "Takeout" : "Takeaway"),
+            // Table-less sessions are takeaway/takeout tickets, including adopted legacy rows.
+            OrderType = orderType,
+            BillNumber = bill.BillNumber,
+            Subtotal = bill.Subtotal,
+            TaxTotal = bill.TaxTotal,
+            DiscountAmount = bill.DiscountAmount,
+            TipAmount = bill.TipAmount,
+            GrandTotal = bill.GrandTotal,
+            PricesIncludeTax = bill.DiningSession.Orders.Select(o => (bool?)o.PricesIncludeTax).FirstOrDefault() ?? false,
+            Status = bill.Status.ToString().ToUpperInvariant(),
+            CreatedAt = bill.CreatedAt,
+            PaidAt = bill.PaidAt,
+            Items = bill.Items.Select(i => new BillItemResponse
+            {
+                Id = i.Id,
+                OrderId = i.OrderId,
+                OrderItemId = i.OrderItemId,
+                Description = i.Description,
+                Quantity = i.Quantity,
+                UnitPrice = i.UnitPrice,
+                TaxRate = i.TaxRate,
+                LineSubtotal = i.LineSubtotal,
+                LineTax = i.LineTax,
+                LineTotal = i.LineTotal
+            }).ToList()
+        };
+    }
+
+    private static string ResolveSessionOrderType(DiningSession session)
+    {
+        if (session.TableId.HasValue)
+            return "DINE_IN";
+
+        return session.Orders.Select(o => o.OrderType).FirstOrDefault() switch
+        {
+            OrderType.Takeout => "TAKEOUT",
+            _ => "TAKEAWAY"
+        };
+    }
 }

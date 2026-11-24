@@ -1,8 +1,9 @@
 import { locale, translate } from './i18n';
 
-export type Role = 'OWNER' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'BARTENDER';
+export type Role = 'SUPERADMIN' | 'OWNER' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'BARTENDER';
 
 export const ROLE_LABEL: Record<Role, string> = {
+  SUPERADMIN: 'Super Admin',
   OWNER: 'Owner',
   MANAGER: 'Manager',
   CASHIER: 'Cashier',
@@ -139,7 +140,7 @@ export type PaymentStatus =
   | 'REFUNDPENDING'
   | 'REFUNDED';
 export type ItemStatus = 'ACTIVE' | 'PREPARED' | 'CANCELLED' | 'SERVED';
-export type OrderType = 'DINE_IN' | 'TAKEAWAY';
+export type OrderType = 'DINE_IN' | 'TAKEAWAY' | 'TAKEOUT';
 
 export interface OrderLine {
   id: string;
@@ -214,6 +215,7 @@ export interface Bill {
   discount: number;
   tip: number;
   total: number;
+  pricesIncludeTax: boolean;
   status: BillStatus;
   createdAt: string;
   paidAt?: string;
@@ -768,4 +770,16 @@ export function billIsOpen(bill: Bill | undefined | null): boolean {
 
 export function isTakeaway(order: Order | KitchenTicket | Bill | null | undefined): boolean {
   return order?.orderType === 'TAKEAWAY';
+}
+
+export function isTakeout(order: Order | KitchenTicket | Bill | null | undefined): boolean {
+  return order?.orderType === 'TAKEOUT';
+}
+
+export function hasNoTable(order: Order | KitchenTicket | Bill | null | undefined): boolean {
+  return !!order && order.orderType !== 'DINE_IN';
+}
+
+export function orderTypeLabel(order: Order | KitchenTicket | Bill | null | undefined): string {
+  return isTakeout(order) ? 'Takeout' : isTakeaway(order) ? 'Takeaway' : 'Dine-in';
 }

@@ -90,8 +90,15 @@ class OrderAlert {
           audience == AlertAudience.bar ? 'New bar order' : 'New kitchen order',
         OrderAlertKind.itemsAdded => 'Items added to order',
       };
-  String get body => '${shortOrderNumber(number)} · '
-      '${code(table) == 'TAKEAWAY' ? 'Takeaway' : 'Table $table'}';
+  String get body {
+    final location = table.trim().toLowerCase();
+    final label = switch (location) {
+      'takeaway' => 'Takeaway',
+      'takeout' => 'Takeout',
+      _ => 'Table $table',
+    };
+    return '${shortOrderNumber(number)} · $label';
+  }
   String get route => kind == OrderAlertKind.ready
       ? '/orders/${Uri.encodeComponent(orderId)}'
       : '/queue/orders/${Uri.encodeComponent(orderId)}';

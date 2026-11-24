@@ -43,8 +43,14 @@ class TableBill {
   bool get payable =>
       const ['REQUESTED', 'PAYMENTINITIATED'].contains(code(status));
   double get base => subtotal + tax - discount;
-  bool get takeaway => code(orderType) == 'TAKEAWAY';
-  String get locationLabel => takeaway ? 'Takeaway' : 'Table $table';
+  bool get takeout => code(orderType) == 'TAKEOUT';
+  /// Table-less bill (takeaway or takeout) that is paid by order.
+  bool get takeaway => code(orderType) != 'DINE_IN';
+  String get locationLabel => takeout
+      ? 'Takeout'
+      : takeaway
+          ? 'Takeaway'
+          : 'Table $table';
   double get takeawayFee => items
       .where((item) =>
           item['orderItemId'] == null &&

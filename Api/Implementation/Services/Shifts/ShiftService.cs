@@ -282,7 +282,7 @@ public class ShiftService : IShiftService
             {
                 ShiftRequired = true,
                 CanSignInNow = false,
-                Message = "No shift is assigned to your account. Ask the owner to assign your shift."
+                Message = "No shift is assigned to your account. Ask your manager to assign your shift."
             };
         }
 
@@ -471,7 +471,8 @@ public class ShiftService : IShiftService
     {
         var roleName = user.RoleEntity?.Name ?? user.Role.ToString();
 
-        if (string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(roleName, Roles.Owner, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(roleName, Roles.SuperAdmin, StringComparison.OrdinalIgnoreCase))
             return;
 
         var hasAssignments = await _dbContext.UserShifts.AnyAsync(us => us.UserId == user.Id, ct);
@@ -481,7 +482,7 @@ public class ShiftService : IShiftService
 
         if (!hasAssignments)
             throw new ForbiddenException(
-                "No shift is assigned to your account. Ask the owner to assign your shift.");
+                "No shift is assigned to your account. Ask your manager to assign your shift.");
 
         var today = EatToday();
         var assignments = await LoadEffectiveAssignmentsAsync(user, new[] { today, today.AddDays(-1) }, ct);

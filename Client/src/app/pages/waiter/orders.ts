@@ -6,10 +6,12 @@ import { AuthService } from '../../core/auth.service';
 import {
   ageLabel,
   dayKey,
+  hasNoTable,
   isTakeaway,
   money,
   Order,
   orderStatusLabel,
+  orderTypeLabel,
   paymentStatusLabel,
   statusTone,
 } from '../../core/models';
@@ -86,8 +88,8 @@ import { Icon } from '../../shared/icon';
                 </div>
                 <div class="list-main">
                   <strong>
-                    @if (isTakeaway(order)) {
-                      <app-icon name="receipt" style="font-size: 12px" /> {{ 'Takeaway' | t }}
+                    @if (hasNoTable(order)) {
+                      <app-icon [name]="isTakeaway(order) ? 'receipt' : 'bag'" style="font-size: 12px" /> {{ orderTypeLabel(order) | t }}
                     } @else {
                       <app-icon name="table" style="font-size: 12px" /> {{ 'Table' | t }} {{ order.table }}
                     }
@@ -132,6 +134,8 @@ export class WaiterOrdersPage implements OnInit {
   protected readonly orderStatusLabel = orderStatusLabel;
   protected readonly paymentStatusLabel = paymentStatusLabel;
   protected readonly isTakeaway = isTakeaway;
+  protected readonly hasNoTable = hasNoTable;
+  protected readonly orderTypeLabel = orderTypeLabel;
   protected readonly scope = signal<'active' | 'all'>('active');
   protected readonly query = signal('');
 

@@ -7,5 +7,6 @@ public enum UserRole
     Cashier,
     Manager,
     Owner,
-    Bartender
+    Bartender,
+    SuperAdmin
 }

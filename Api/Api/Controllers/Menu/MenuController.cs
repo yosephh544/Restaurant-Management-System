@@ -146,6 +146,9 @@ public class MenuController : ApiControllerBase
         if (!AllowedImageTypes.TryGetValue(file.ContentType ?? string.Empty, out var extension))
             throw new ValidationException("file", "Use a JPG, PNG, WEBP or GIF image.");
 
+        if (!await HasValidImageSignatureAsync(file, extension, ct))
+            throw new ValidationException("file", "The file content does not match a supported image type.");
+
         var existing = await _menuService.GetMenuItemByIdAsync(itemId, ct);
 
         var folder = Path.Combine(WebRootPath, UploadFolder);
@@ -177,6 +180,26 @@ public class MenuController : ApiControllerBase
     }
 
     private string WebRootPath => _environment.WebRootPath ?? Path.Combine(_environment.ContentRootPath, "wwwroot");
+
+    private static async Task<bool> HasValidImageSignatureAsync(IFormFile file, string extension, CancellationToken ct)
+    {
+        var buffer = new byte[12];
+        await using var stream = file.OpenReadStream();
+        var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), ct);
+        if (read < 4)
+            return false;
+
+        return extension switch
+        {
+            ".jpg" => buffer[0] == 0xFF && buffer[1] == 0xD8 && buffer[2] == 0xFF,
+            ".png" => buffer[0] == 0x89 && buffer[1] == 0x50 && buffer[2] == 0x4E && buffer[3] == 0x47,
+            ".gif" => buffer[0] == 'G' && buffer[1] == 'I' && buffer[2] == 'F' && buffer[3] == '8',
+            ".webp" => read >= 12 &&
+                       buffer[0] == 'R' && buffer[1] == 'I' && buffer[2] == 'F' && buffer[3] == 'F' &&
+                       buffer[8] == 'W' && buffer[9] == 'E' && buffer[10] == 'B' && buffer[11] == 'P',
+            _ => false
+        };
+    }
 
     private void DeleteUploadedImage(string? imageUrl)
     {

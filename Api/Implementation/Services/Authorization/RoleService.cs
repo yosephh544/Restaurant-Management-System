@@ -47,6 +47,9 @@ public class RoleService : IRoleService
         if (string.Equals(role.Name, Roles.Owner, StringComparison.OrdinalIgnoreCase))
             throw new ForbiddenException("The Owner role always has every permission and cannot be modified.");
 
+        if (string.Equals(role.Name, Roles.SuperAdmin, StringComparison.OrdinalIgnoreCase))
+            throw new ForbiddenException("The SuperAdmin role always has every permission and cannot be modified.");
+
         var requestedNames = request.Permissions
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -60,7 +63,7 @@ public class RoleService : IRoleService
         if (unknown.Count > 0)
             throw new ValidationException("Permissions", $"Unknown permissions: {string.Join(", ", unknown)}.");
 
-        var desiredIds = permissionIds.Values.ToHashSet();
+        var desiredIds = requestedNames.Select(name => permissionIds[name]).ToHashSet();
         var existing = role.RolePermissions.ToList();
 
         foreach (var stale in existing.Where(rp => !desiredIds.Contains(rp.PermissionId)))

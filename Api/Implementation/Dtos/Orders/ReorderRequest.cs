@@ -11,7 +11,7 @@ public class ReorderRequest
     [MaxLength(20)]
     public string TableNumber { get; set; } = default!;
 
-    /// <summary>DINE_IN (default) or TAKEAWAY; defaults to the cancelled order's type when omitted.</summary>
+    /// <summary>DINE_IN, TAKEAWAY or TAKEOUT; defaults to the cancelled order's type when omitted.</summary>
     public string? OrderType { get; set; }
 
     [Required(ErrorMessage = "Order must contain at least one item.")]
