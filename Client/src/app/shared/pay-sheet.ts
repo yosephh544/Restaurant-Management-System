@@ -76,7 +76,7 @@ import { Icon } from './icon';
                   <app-icon [name]="p.verification === 'VERIFIED' ? 'check-circle' : 'alert-circle'" />
                   <div style="flex: 1">
                     <strong>
-                      {{ p.verification === 'VERIFIED' ? ('Verified with check.et' | t) : ('Saved without verification' | t) }}
+                      {{ p.verification === 'VERIFIED' ? ('Verified with the bank' | t) : ('Saved without verification' | t) }}
                     </strong>
                     <p>
                       @if (p.verification === 'VERIFIED') {
@@ -324,7 +324,7 @@ import { Icon } from './icon';
               }
 
               <p class="tiny muted mt-3">
-                {{ 'The receipt is verified with check.et and stored on this order for later review.' | t }}
+                {{ 'The receipt is verified with the bank and stored on this order for later review.' | t }}
               </p>
             }
 

@@ -23,6 +23,11 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   String _search = '';
   Timer? _debounce;
   String? _servingId;
+  double? _dailyTips;
+  DateTime? _tipsDay;
+  String? _tipsWaiterId;
+  bool _tipsLoading = false;
+  bool _tipsError = false;
   @override
   void dispose() {
     _debounce?.cancel();
@@ -40,6 +45,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
         staff.waiter || (excludePaid && code(_payment ?? '') == 'PAID')
             ? null
             : _payment;
+    if (staff.waiter) unawaited(_loadDailyTips(staff, day));
     return ref.read(restaurantApiProvider).orders(
         page: _page,
         waiterId: staff.waiter ? staff.id : null,
@@ -48,6 +54,43 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
         search: staff.waiter ? '' : _search,
         excludePaid: excludePaid,
         todayOnly: true);
+  }
+
+  Future<void> _loadDailyTips(Staff staff, DateTime day) async {
+    if (_tipsLoading) return;
+    _tipsLoading = true;
+    try {
+      final total = await ref.read(restaurantApiProvider).dailyTips(at: day);
+      if (mounted &&
+          ref.read(sessionProvider).session?.staff.id == staff.id &&
+          DateUtils.dateOnly(DateTime.now()) == day) {
+        setState(() {
+          _dailyTips = total;
+          _tipsError = false;
+          _tipsDay = day;
+          _tipsWaiterId = staff.id;
+        });
+      }
+    } catch (_) {
+      if (mounted && ref.read(sessionProvider).session?.staff.id == staff.id) {
+        setState(() {
+          _tipsError = true;
+          if (_tipsDay != day || _tipsWaiterId != staff.id) _dailyTips = null;
+          _tipsDay = day;
+          _tipsWaiterId = staff.id;
+        });
+      }
+    } finally {
+      _tipsLoading = false;
+    }
+  }
+
+  String _tipsLabel(Staff staff) {
+    final current = _tipsWaiterId == staff.id &&
+        _tipsDay == DateUtils.dateOnly(DateTime.now());
+    if (!current) return 'Today’s tips: …';
+    if (_dailyTips == null) return 'Today’s tips unavailable';
+    return 'Today’s tips: ${money(_dailyTips!)}${_tipsError ? ' · refresh failed' : ''}';
   }
 
   Future<void> _serve(RestaurantOrder order, VoidCallback refresh) async {
@@ -75,8 +118,9 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
   @override
   Widget build(BuildContext context) {
     final staff = ref.watch(sessionProvider).session?.staff;
-    if (staff == null || !staff.can(P.ordersView))
+    if (staff == null || !staff.can(P.ordersView)) {
       return const SizedBox.shrink();
+    }
     final excludePaid = staff.waiter || staff.cashier;
     final paymentFilter =
         staff.waiter || (excludePaid && code(_payment ?? '') == 'PAID')
@@ -85,8 +129,9 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
     final filters =
         Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       TextField(
-          decoration: const InputDecoration(
-              hintText: 'Search orders', prefixIcon: Icon(Icons.search)),
+          decoration: InputDecoration(
+              hintText: context.t('Search orders'),
+              prefixIcon: Icon(Icons.search)),
           onChanged: (v) {
             _debounce?.cancel();
             _debounce = Timer(const Duration(milliseconds: 350), () {
@@ -101,10 +146,11 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
       const SizedBox(height: 12),
       ExpansionTile(
           leading: const Icon(Icons.tune, size: 20),
-          title: const Text('More filters',
+          title: const AppText('More filters',
               style: TextStyle(fontWeight: FontWeight.w700)),
-          subtitle:
-              paymentFilter == null ? null : Text(statusLabel(paymentFilter)),
+          subtitle: paymentFilter == null
+              ? null
+              : AppText(statusLabel(paymentFilter)),
           tilePadding: const EdgeInsets.symmetric(horizontal: 12),
           backgroundColor: Colors.white,
           collapsedBackgroundColor: Colors.white,
@@ -119,13 +165,13 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
             LayoutBuilder(builder: (context, constraints) {
               final fields = [
                 DropdownButtonFormField<String>(
-                    value: _status,
+                    initialValue: _status,
                     isExpanded: true,
                     decoration:
-                        const InputDecoration(labelText: 'Order status'),
+                        InputDecoration(labelText: context.t('Order status')),
                     items: [
                       const DropdownMenuItem(
-                          value: null, child: Text('All orders')),
+                          value: null, child: AppText('All orders')),
                       for (final s in [
                         'Pending',
                         'Preparing',
@@ -133,20 +179,21 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                         'Served',
                         'CancelledByKitchen'
                       ])
-                        DropdownMenuItem(value: s, child: Text(statusLabel(s)))
+                        DropdownMenuItem(
+                            value: s, child: AppText(statusLabel(s)))
                     ],
                     onChanged: (v) => setState(() {
                           _status = v;
                           _page = 1;
                         })),
                 DropdownButtonFormField<String>(
-                    value: paymentFilter,
+                    initialValue: paymentFilter,
                     isExpanded: true,
                     decoration:
-                        const InputDecoration(labelText: 'Payment status'),
+                        InputDecoration(labelText: context.t('Payment status')),
                     items: [
                       const DropdownMenuItem(
-                          value: null, child: Text('All payments')),
+                          value: null, child: AppText('All payments')),
                       for (final s in [
                         'Unpaid',
                         'PaymentInitiated',
@@ -158,7 +205,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                       ])
                         if (!excludePaid || s != 'Paid')
                           DropdownMenuItem(
-                              value: s, child: Text(statusLabel(s)))
+                              value: s, child: AppText(statusLabel(s)))
                     ],
                     onChanged: (v) => setState(() {
                           _payment = v;
@@ -187,10 +234,14 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
           headerBuilder: (refreshControl) =>
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 RefreshHeading(
-                    eyebrow:
-                        '${DateFormat('EEEE').format(DateTime.now())} service',
-                    title: staff.waiter ? 'Your orders' : 'Orders & payments',
-                    refreshControl: refreshControl),
+                    eyebrow: DateFormat('EEEE', context.languageCode)
+                        .format(DateTime.now()),
+                    title: staff.waiter ? 'Your orders' : 'Orders',
+                    refreshControl: refreshControl,
+                    eyebrowTrailing: staff.waiter
+                        ? AppText(_tipsLabel(staff),
+                            style: const TextStyle(color: muted, fontSize: 12))
+                        : null),
                 if (!staff.waiter) ...[filters, const SizedBox(height: 16)],
                 SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
@@ -206,7 +257,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                         Padding(
                             padding: const EdgeInsets.only(right: 8),
                             child: ChoiceChip(
-                                label: Text(filter.$2),
+                                label: AppText(filter.$2),
                                 selected: _status == filter.$1,
                                 labelStyle: TextStyle(
                                     color: _status == filter.$1
@@ -255,13 +306,12 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                     ]),
                     const SizedBox(height: 20),
                   ],
-                  SectionHeading(staff.waiter ? 'Your tables' : 'Tables'),
                   if (orders.isEmpty)
                     EmptyState(
                         'No orders',
-                        staff.waiter
-                            ? 'New orders will appear here when you send them to the kitchen.'
-                            : 'New orders will appear here. Try another search or filter.',
+                        _status != null || _search.isNotEmpty
+                            ? 'Try another search or filter.'
+                            : '',
                         icon: Icons.receipt_long_outlined),
                   for (final order in orders)
                     Padding(
@@ -274,7 +324,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                                     onPressed: _servingId == null
                                         ? () => _serve(order, refresh)
                                         : null,
-                                    child: Text(_servingId == order.id
+                                    child: AppText(_servingId == order.id
                                         ? 'Updating…'
                                         : 'Mark served'))
                                 : staff.canTakePayment(order) &&
@@ -282,7 +332,7 @@ class _OrdersPageState extends ConsumerState<OrdersPage> {
                                     ? OutlinedButton(
                                         onPressed: () =>
                                             startPayment(context, ref, order),
-                                        child: const Text('Take payment'))
+                                        child: const AppText('Take payment'))
                                     : null,
                             onTap: () => context.go('/orders/${order.id}'))),
                   PageButtons(
@@ -330,24 +380,25 @@ class OrderCard extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child:
                   Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('${item.quantity}×',
+                AppText('${item.quantity}×',
                     style: const TextStyle(fontWeight: FontWeight.w700)),
                 const SizedBox(width: 8),
                 Expanded(
-                    child: Text(item.name,
+                    child: AppText(context.menuName(item.name, item.nameAm),
+                        translate: false,
                         style: TextStyle(
                             color: muted,
                             decoration: item.cancelled
                                 ? TextDecoration.lineThrough
                                 : null))),
                 if (item.cancelled)
-                  const Text('Cancelled',
+                  const AppText('Cancelled',
                       style: TextStyle(color: red, fontSize: 11)),
               ])),
         if (order.items.length > 3)
           Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Text('+${order.items.length - 3} more dishes',
+              child: AppText('+${order.items.length - 3} more dishes',
                   style: const TextStyle(color: muted, fontSize: 11))),
         OrderCardFooter(
             created: order.created,
@@ -394,27 +445,24 @@ class OrderCardFooter extends StatelessWidget {
         Row(children: [
           Expanded(
               child: Wrap(spacing: 12, runSpacing: 6, children: [
-            Text(
+            AppText(
                 inQueue
                     ? '${DateTime.now().toUtc().difference(created).inMinutes.clamp(0, 9999)} min in queue'
-                    : DateFormat.Hm().format(created.toLocal()),
+                    : DateUtils.isSameDay(created.toLocal(), DateTime.now())
+                        ? DateFormat.Hm(context.languageCode)
+                            .format(created.toLocal())
+                        : DateFormat('MMM d, HH:mm', context.languageCode)
+                            .format(created.toLocal()),
                 style: const TextStyle(color: muted, fontSize: 12)),
-            Text('$itemCount items',
+            AppText('$itemCount items',
                 style: const TextStyle(color: muted, fontSize: 12)),
             if (amount != null)
-              Text(money(amount!),
+              AppText(money(amount!),
                   style: const TextStyle(fontWeight: FontWeight.w700)),
           ])),
           const SizedBox(width: 12),
-          const Row(mainAxisSize: MainAxisSize.min, children: [
-            Text('View order',
-                style: TextStyle(
-                    color: forestDark,
-                    fontWeight: FontWeight.w700,
-                    fontSize: 14)),
-            SizedBox(width: 8),
-            Icon(Icons.arrow_forward, color: forest, size: 18),
-          ]),
+          Icon(Icons.arrow_forward,
+              color: forest, size: 18, semanticLabel: context.t('View order')),
         ]),
         const SizedBox(height: 4),
       ]);

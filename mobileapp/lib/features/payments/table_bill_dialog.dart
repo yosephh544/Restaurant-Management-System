@@ -84,7 +84,7 @@ class _TableBillDialogState extends State<_TableBillDialog> {
   Widget build(BuildContext context) => PopScope(
       canPop: !_busy,
       child: AlertDialog(
-          title: Text('${widget.order.locationLabel} bill'),
+          title: AppText('${widget.order.locationLabel} bill'),
           content: SizedBox(
               width: 460,
               child: PullToRefresh(
@@ -99,29 +99,30 @@ class _TableBillDialogState extends State<_TableBillDialog> {
                                       CrossAxisAlignment.stretch,
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
-                                    Text(widget.order.takeaway
-                                        ? 'Payment covers this takeaway order, including packaging.'
-                                        : 'Payment covers all orders on this table bill.'),
-                                    const SizedBox(height: 16),
+                                    if (!widget.order.takeaway) ...[
+                                      const AppText(
+                                          'All orders on this table are included.'),
+                                      const SizedBox(height: 16),
+                                    ],
                                     for (final order in preview.orders)
                                       Padding(
                                           padding:
                                               const EdgeInsets.only(bottom: 8),
-                                          child: Text(
-                                              '${order.orderNumber} · ${statusLabel(order.status)} · ${money(order.charge)}')),
+                                          child: AppText(
+                                              '${shortOrderNumber(order.orderNumber)} · ${statusLabel(order.status)} · ${money(order.charge)}')),
                                     const Divider(),
-                                    Text(
+                                    AppText(
                                         'Subtotal: ${money(preview.subtotal)}'),
-                                    Text('Tax: ${money(preview.tax)}'),
+                                    AppText('Tax: ${money(preview.tax)}'),
                                     if (preview.takeawayFee > 0)
-                                      Text(
+                                      AppText(
                                           'Packaging included: ${money(preview.takeawayFee)}'),
-                                    if (preview.bill != null) ...[
-                                      Text(
+                                    if ((preview.bill?.discount ?? 0) > 0) ...[
+                                      AppText(
                                           'Discount: ${money(preview.bill!.discount)}'),
                                     ],
                                     const SizedBox(height: 8),
-                                    Text('Total: ${money(preview.total)}',
+                                    AppText('Total: ${money(preview.total)}',
                                         style: const TextStyle(
                                             fontWeight: FontWeight.bold)),
                                     if (_error != null)
@@ -137,7 +138,7 @@ class _TableBillDialogState extends State<_TableBillDialog> {
                                               ? null
                                               : () =>
                                                   _continue(preview, refresh),
-                                          child: Text(_busy
+                                          child: AppText(_busy
                                               ? 'Loading…'
                                               : preview.bill == null
                                                   ? 'Generate bill'
@@ -154,7 +155,7 @@ class _TableBillDialogState extends State<_TableBillDialog> {
                                               ? null
                                               : () => _reopen(
                                                   preview.bill!, refresh),
-                                          child: Text(widget.order.takeaway
+                                          child: AppText(widget.order.takeaway
                                               ? 'Reopen takeaway order'
                                               : 'Reopen table for more orders')),
                                     ],
@@ -162,6 +163,6 @@ class _TableBillDialogState extends State<_TableBillDialog> {
           actions: [
             TextButton(
                 onPressed: _busy ? null : () => Navigator.pop(context),
-                child: const Text('Close'))
+                child: const AppText('Close'))
           ]));
 }

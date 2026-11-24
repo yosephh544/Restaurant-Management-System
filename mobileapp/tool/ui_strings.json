@@ -1,0 +1,2956 @@
+[
+  {
+    "key": "{p1} · {p2} – {p3} EAT",
+    "am": "",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "{p1} · {p2} orders",
+    "am": "{p1} · {p2} ትዕዛዞች",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "{p1} bill",
+    "am": "የ{p1} ሂሳብ",
+    "files": [
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "{p1} items",
+    "am": "{p1} ምግቦች",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "{p1} items selected",
+    "am": "{p1} ምግቦች ተመርጠዋል",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "{p1} logo",
+    "am": "",
+    "files": [
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "{p1} min in queue",
+    "am": "በተራ ላይ {p1} ደቂቃ",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "{p1} new order alerts",
+    "am": "{p1} አዲስ የትዕዛዝ ማሳወቂያዎች",
+    "files": [
+      "lib/main.dart"
+    ]
+  },
+  {
+    "key": "{p1} orders",
+    "am": "{p1} ትዕዛዞች",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "+{p1} more dishes",
+    "am": "+{p1} ተጨማሪ ምግቦች",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "A new payment replaces any pending payment for this table bill.",
+    "am": "አዲስ ክፍያ በዚህ ሂሳብ ላይ ያለውን ያልተጠናቀቀ ክፍያ ይተካል።",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "A table number is required for dine-in orders.",
+    "am": "እዚህ ለመመገብ ጠረጴዛ ይምረጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Accept",
+    "am": "ተቀበል",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "Accept cash",
+    "am": "ጥሬ ገንዘብ ተቀበል",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Account not supported",
+    "am": "ይህ መለያ አይደገፍም",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Add {p1}",
+    "am": "{p1} ጨምር",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Add at least one item.",
+    "am": "ቢያንስ አንድ ምግብ ያክሉ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Add dishes",
+    "am": "ምግቦች ጨምር",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Add items",
+    "am": "ምግቦች ጨምር",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/core/router.dart",
+      "lib/features/orders/cart_page.dart",
+      "lib/features/orders/cart_page.dart",
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Add quick sign-in account",
+    "am": "የፈጣን መግቢያ መለያ ጨምር",
+    "files": [
+      "lib/features/authentication/auth_pages.dart",
+      "lib/features/authentication/quick_login_dialog.dart"
+    ]
+  },
+  {
+    "key": "Add this quick sign-in account first.",
+    "am": "መጀመሪያ ይህን የፈጣን መግቢያ መለያ ያክሉ።",
+    "files": [
+      "lib/core/session.dart"
+    ]
+  },
+  {
+    "key": "Add to {p1}",
+    "am": "ወደ {p1} ጨምር",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Add to the table",
+    "am": "ምግቦች ጨምር",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "All",
+    "am": "ሁሉም",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "All Items",
+    "am": "ሁሉም ምግቦች",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "All orders",
+    "am": "ሁሉም ትዕዛዞች",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "All orders on this table are included.",
+    "am": "ሁሉም የዚህ ጠረጴዛ ትዕዛዞች ተካትተዋል።",
+    "files": [
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "All payment records",
+    "am": "ሁሉም የክፍያ መዝገቦች",
+    "files": [
+      "lib/features/orders/history_page.dart"
+    ]
+  },
+  {
+    "key": "All payments",
+    "am": "ሁሉም ክፍያዎች",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Amount due",
+    "am": "የሚከፈል መጠን",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "An order changed during payment verification. Refresh the bill.",
+    "am": "ትዕዛዙ ተቀይሯል። ከመክፈልዎ በፊት ሂሳቡን ያድሱ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "An order must contain at least one item.",
+    "am": "ቢያንስ አንድ ምግብ ያክሉ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Ask a waiter or cashier with bill access to generate this table bill.",
+    "am": "የሂሳብ ፈቃድ ያለው አስተናጋጅ ወይም ገንዘብ ተቀባይ ሂሳቡን እንዲፈጥር ይጠይቁ።",
+    "files": [
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "Ask the cashier to reopen the bill before adding items.",
+    "am": "ምግቦችን ከመጨመርዎ በፊት ገንዘብ ተቀባዩ ሂሳቡን እንደገና እንዲከፍተው ይጠይቁ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Authorization",
+    "am": "",
+    "files": [
+      "lib/core/api.dart",
+      "lib/core/session.dart",
+      "lib/core/session.dart"
+    ]
+  },
+  {
+    "key": "Back",
+    "am": "ተመለስ",
+    "files": [
+      "lib/core/router.dart"
+    ]
+  },
+  {
+    "key": "Back to dishes",
+    "am": "ወደ ምግቦች ተመለስ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Bank",
+    "am": "ባንክ",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Bar",
+    "am": "ባር",
+    "files": [
+      "lib/core/router.dart",
+      "lib/features/kitchen/queue_page.dart"
+    ]
+  },
+  {
+    "key": "Bearer {p1}",
+    "am": "",
+    "files": [
+      "lib/core/api.dart",
+      "lib/core/session.dart",
+      "lib/core/session.dart"
+    ]
+  },
+  {
+    "key": "Camera unavailable. Allow camera access in phone settings, or go back and paste the receipt link.",
+    "am": "ካሜራው አይሰራም። በስልክ ቅንብሮች ፈቃድ ይስጡ ወይም ተመልሰው የደረሰኙን አገናኝ ይለጥፉ።",
+    "files": [
+      "lib/features/payments/receipt_scanner.dart"
+    ]
+  },
+  {
+    "key": "Cancel",
+    "am": "ሰርዝ",
+    "files": [
+      "lib/core/widgets.dart",
+      "lib/features/authentication/auth_pages.dart",
+      "lib/features/authentication/quick_login_dialog.dart",
+      "lib/features/orders/cart_page.dart",
+      "lib/features/payments/payment_pages.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Cancel item",
+    "am": "ምግብ ሰርዝ",
+    "files": [
+      "lib/features/orders/order_detail_page.dart",
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Cancel item?",
+    "am": "ምግቡን ይሰርዙ?",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Cancel order",
+    "am": "ትዕዛዝ ሰርዝ",
+    "files": [
+      "lib/features/orders/order_detail_page.dart",
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Cancel order?",
+    "am": "ትዕዛዙን ይሰርዙ?",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Cancel payment",
+    "am": "ክፍያ ሰርዝ",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Cancel test payment",
+    "am": "የሙከራ ክፍያ ሰርዝ",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Cancel test payment?",
+    "am": "የሙከራ ክፍያውን ይሰርዙ?",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Cancel this pending test payment?",
+    "am": "ይህን ያልተጠናቀቀ የሙከራ ክፍያ ይሰርዙ?",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Cancellation permission is required.",
+    "am": "የስረዛ ፈቃድ ያስፈልጋል።",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Cancelled",
+    "am": "ተሰርዟል",
+    "files": [
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Cannot add items to a kitchen-cancelled order.",
+    "am": "ይህ ትዕዛዝ ተሰርዟል። ምትክ ትዕዛዝ ይፍጠሩ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Cannot confirm the restaurant as the receiver. Check the receipt account.",
+    "am": "ተቀባዩ ሬስቶራንቱ መሆኑን ማረጋገጥ አልተቻለም። የደረሰኙን ሂሳብ ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Cannot load your account. Ask your manager to check the app settings.",
+    "am": "መለያዎ አልተጫነም። አስተዳዳሪዎ የመተግበሪያውን ቅንብሮች እንዲያረጋግጥ ይጠይቁ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Cannot reach the restaurant server. Check the connection and try again.",
+    "am": "ከአገልጋዩ ጋር መገናኘት አልተቻለም። ግንኙነትዎን ያረጋግጡ እና እንደገና ይሞክሩ።",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "Cannot read the server response. Check the server address.",
+    "am": "የአገልጋዩን ምላሽ ማንበብ አልተቻለም። አድራሻውን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Cash payment",
+    "am": "የጥሬ ገንዘብ ክፍያ",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Cash received",
+    "am": "የተቀበሉት ጥሬ ገንዘብ",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Cash received (ETB)",
+    "am": "የተቀበሉት ጥሬ ገንዘብ (ብር)",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Cash received must cover the amount due.",
+    "am": "የተቀበሉት ጥሬ ገንዘብ ከሂሳቡ ያነሰ መሆን የለበትም።",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "CBE could not find this older receipt using that account suffix. Scan or paste the full receipt link from the customer's transaction, or use the current CBE receipt link.",
+    "am": "CBE ይህን ደረሰኝ አላገኘውም። ሙሉ አገናኙን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "CBE could not find this receipt. Check its full link.",
+    "am": "CBE ይህን ደረሰኝ አላገኘውም። ሙሉ አገናኙን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "CBE could not verify this receipt. Use a current receipt link from the CBE app.",
+    "am": "የባንክ ደረሰኝ አገልግሎት አይገኝም። ሂሳቡ አልተከፈለም።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Change",
+    "am": "መልስ",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Change: {p1}",
+    "am": "መልስ፦ {p1}",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Changing servers signs you out and clears unsent orders and saved payments.",
+    "am": "አገልጋዩን ሲቀይሩ ከመለያዎ ይወጣሉ። ያልተላኩ ትዕዛዞች እና በመሳሪያው የተቀመጡ ክፍያዎች ይጠፋሉ።",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Check Orders before sending this order again.",
+    "am": "ትዕዛዙን እንደገና ከመላክዎ በፊት የትዕዛዝ ዝርዝሩን ያረጋግጡ።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Check payment history before trying again.",
+    "am": "እንደገና ከመሞከርዎ በፊት የክፍያ ታሪኩን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Check the order before trying another payment.",
+    "am": "እንደገና ከመሞከርዎ በፊት የክፍያ ታሪኩን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Check the server connection.",
+    "am": "የአገልጋዩን ግንኙነት ያረጋግጡ።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Check your username and PIN.",
+    "am": "የተጠቃሚ ስምዎን እና ፒንዎን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Check your username and sign-in credentials.",
+    "am": "የተጠቃሚ ስምዎን እና ፒንዎን ያረጋግጡ።",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "Checking CBE receipt…",
+    "am": "የCBE ደረሰኝ በማረጋገጥ ላይ…",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Checking CBE… Verifying payment…",
+    "am": "የCBE ደረሰኝ በማረጋገጥ ላይ…",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Checking Telebirr receipt…",
+    "am": "የቴሌብር ደረሰኝ በማረጋገጥ ላይ…",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Checking Telebirr… Verifying payment…",
+    "am": "የቴሌብር ደረሰኝ በማረጋገጥ ላይ…",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Choose a reason.",
+    "am": "ምክንያት ይምረጡ።",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Choose a table for dine-in.",
+    "am": "እዚህ ለመመገብ ጠረጴዛ ይምረጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Choose a table.",
+    "am": "ጠረጴዛ ይምረጡ።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Choose a waiter, kitchen, bartender or cashier account.",
+    "am": "የአስተናጋጅ፣ የኩሽና፣ የባር ወይም የገንዘብ ተቀባይ መለያ ይምረጡ።",
+    "files": [
+      "lib/core/session.dart"
+    ]
+  },
+  {
+    "key": "Choose an active table before sending the order.",
+    "am": "ትዕዛዙን ከመላክዎ በፊት ንቁ ጠረጴዛ ይምረጡ።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Clear search",
+    "am": "ፍለጋውን አጽዳ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Close",
+    "am": "ዝጋ",
+    "files": [
+      "lib/features/notifications/notifications_sheet.dart",
+      "lib/features/payments/payment_pages.dart",
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "Close and reopen the bill to check its status.",
+    "am": "ሁኔታውን ለማረጋገጥ ሂሳቡን ዝጉ እና እንደገና ይክፈቱ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Close and reopen this bill to check whether it was generated before trying again.",
+    "am": "ሁኔታውን ለማረጋገጥ ሂሳቡን ዝጉ እና እንደገና ይክፈቱ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "Confirm",
+    "am": "አረጋግጥ",
+    "files": [
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "Confirm this order was not already created.",
+    "am": "ይህ ትዕዛዝ አስቀድሞ እንዳልተላከ ያረጋግጡ።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Confirmed directly against the bank receipt dated ",
+    "am": "",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Continue to payment",
+    "am": "ወደ ክፍያ ቀጥል",
+    "files": [
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "Could not forget the quick sign-in account.",
+    "am": "የፈጣን መግቢያ መለያው አልተወገደም።",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Could not load the quick sign-in account.",
+    "am": "የፈጣን መግቢያ መለያው አልተጫነም።",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Could not read your staff profile. Check that the app profile key matches the restaurant server.",
+    "am": "መለያዎ አልተጫነም። አስተዳዳሪዎ የመተግበሪያውን ቅንብሮች እንዲያረጋግጥ ይጠይቁ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/core/profile.dart"
+    ]
+  },
+  {
+    "key": "Create replacement order",
+    "am": "ምትክ ትዕዛዝ ፍጠር",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Decrease {p1} quantity",
+    "am": "የ{p1} ብዛት ቀንስ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Decrease quantity",
+    "am": "ብዛት ቀንስ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Dine in",
+    "am": "እዚህ ለመመገብ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Discard",
+    "am": "አስወግድ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Discard order?",
+    "am": "ትዕዛዙን ያስወግዱ?",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Discount: {p1}",
+    "am": "ቅናሽ፦ {p1}",
+    "files": [
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "Dishes",
+    "am": "ምግቦች",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "EEE d MMM, HH:mm",
+    "am": "",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Enable",
+    "am": "አብራ",
+    "files": [
+      "lib/features/notifications/notifications_sheet.dart"
+    ]
+  },
+  {
+    "key": "English",
+    "am": "እንግሊዝኛ",
+    "files": [
+      "lib/core/language.dart"
+    ]
+  },
+  {
+    "key": "Enter 0–{p1} with at most two decimal places.",
+    "am": "ከ0 እስከ {p1} ያስገቡ። ከነጥብ በኋላ ቢበዛ ሁለት አሃዞች ይጠቀሙ።",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Enter a 4–6 digit PIN.",
+    "am": "ከ4 እስከ 6 አሃዝ ያለውን ፒን ያስገቡ።",
+    "files": [
+      "lib/core/session.dart",
+      "lib/features/authentication/auth_pages.dart",
+      "lib/features/authentication/quick_login_dialog.dart"
+    ]
+  },
+  {
+    "key": "Enter a server URL ending in /api/v1, for example http://192.168.1.2:5012/api/v1.",
+    "am": "በ /api/v1 የሚያበቃ የአገልጋይ አድራሻ ያስገቡ። ለምሳሌ፦ http://192.168.1.2:5012/api/v1",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "Enter receipt manually",
+    "am": "ደረሰኝ በእጅ አስገባ",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Enter the test account username.",
+    "am": "የሙከራ መለያውን የተጠቃሚ ስም ያስገቡ።",
+    "files": [
+      "lib/features/authentication/quick_login_dialog.dart"
+    ]
+  },
+  {
+    "key": "Enter your username and PIN.",
+    "am": "የተጠቃሚ ስምዎን እና ፒንዎን ያስገቡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Enter your username.",
+    "am": "የተጠቃሚ ስምዎን ያስገቡ።",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Equipment issue",
+    "am": "የመሳሪያ ችግር",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Estimated total",
+    "am": "ግምታዊ ድምር",
+    "files": [
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "ETB {p1}",
+    "am": "{p1} ብር",
+    "files": [
+      "lib/core/models.dart"
+    ]
+  },
+  {
+    "key": "Every order on the table must be ready. Waiters must serve all their orders before payment.",
+    "am": "ሁሉም የጠረጴዛው ትዕዛዞች ዝግጁ መሆን አለባቸው። አስተናጋጆች ከክፍያ በፊት ትዕዛዞቻቸውን ሁሉ ማቅረብ አለባቸው።",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "Extra payment is recorded as a tip.",
+    "am": "ተጨማሪው ክፍያ እንደ ቲፕ ይመዘገባል።",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Generate bill",
+    "am": "ሂሳብ ፍጠር",
+    "files": [
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "Hide",
+    "am": "ደብቅ",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "History",
+    "am": "ታሪክ",
+    "files": [
+      "lib/core/router.dart"
+    ]
+  },
+  {
+    "key": "Home",
+    "am": "መነሻ",
+    "files": [
+      "lib/core/router.dart"
+    ]
+  },
+  {
+    "key": "I checked",
+    "am": "አረጋግጫለሁ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "In queue",
+    "am": "በተራ ላይ",
+    "files": [
+      "lib/features/kitchen/queue_page.dart"
+    ]
+  },
+  {
+    "key": "Incorrect PIN. Try again.",
+    "am": "ፒኑ ትክክል አይደለም። እንደገና ይሞክሩ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Increase quantity",
+    "am": "ብዛት ጨምር",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Invalid PIN. Please try again.",
+    "am": "ፒኑ ትክክል አይደለም። እንደገና ይሞክሩ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Invalid profile",
+    "am": "",
+    "files": [
+      "lib/core/profile.dart"
+    ]
+  },
+  {
+    "key": "Invalid username or password.",
+    "am": "የተጠቃሚ ስምዎን እና ፒንዎን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Items added to order",
+    "am": "በትዕዛዙ ላይ ምግቦች ተጨምረዋል",
+    "files": [
+      "lib/core/order_alerts.dart"
+    ]
+  },
+  {
+    "key": "Items cannot be added after payment starts.",
+    "am": "ክፍያ ከተጀመረ በኋላ ምግቦችን መጨመር አይቻልም።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Items cannot be added after the table bill has been generated.",
+    "am": "ምግቦችን ከመጨመርዎ በፊት ገንዘብ ተቀባዩ ሂሳቡን እንደገና እንዲከፍተው ይጠይቁ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Items cannot be added once payment has been initiated or settled.",
+    "am": "ክፍያ ከተጀመረ በኋላ ምግቦችን መጨመር አይቻልም።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Keep item",
+    "am": "ምግቡን አቆይ",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Keep order",
+    "am": "ትዕዛዙን አቆይ",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Keep the app open for alerts.",
+    "am": "ማሳወቂያዎችን ለማግኘት መተግበሪያውን ክፍት ያቆዩ።",
+    "files": [
+      "lib/features/notifications/notifications_sheet.dart"
+    ]
+  },
+  {
+    "key": "Kitchen",
+    "am": "ኩሽና",
+    "files": [
+      "lib/features/kitchen/queue_page.dart"
+    ]
+  },
+  {
+    "key": "Kitchen cancelled",
+    "am": "በኩሽና ተሰርዟል",
+    "files": [
+      "lib/core/models.dart"
+    ]
+  },
+  {
+    "key": "Language",
+    "am": "ቋንቋ",
+    "files": [
+      "lib/core/language.dart",
+      "lib/core/language.dart"
+    ]
+  },
+  {
+    "key": "Last updated {p1}. {p2}",
+    "am": "ለመጨረሻ ጊዜ የታደሰው {p1}። {p2}",
+    "files": [
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "Loading quick sign-in…",
+    "am": "ፈጣን መግቢያ በመጫን ላይ…",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Majete Corner",
+    "am": "Majete Corner",
+    "files": [
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "Mark all read",
+    "am": "ሁሉንም እንደተነበቡ አድርግ",
+    "files": [
+      "lib/features/notifications/notifications_sheet.dart"
+    ]
+  },
+  {
+    "key": "Mark served",
+    "am": "እንደ ተቀረበ ምልክት አድርግ",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Menu item",
+    "am": "ምግብ",
+    "files": [
+      "lib/core/models.dart"
+    ]
+  },
+  {
+    "key": "MMM d, HH:mm",
+    "am": "",
+    "files": [
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "More filters",
+    "am": "ተጨማሪ ማጣሪያዎች",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "New bar order",
+    "am": "አዲስ የባር ትዕዛዝ",
+    "files": [
+      "lib/core/order_alerts.dart"
+    ]
+  },
+  {
+    "key": "New kitchen order",
+    "am": "አዲስ የኩሽና ትዕዛዝ",
+    "files": [
+      "lib/core/order_alerts.dart"
+    ]
+  },
+  {
+    "key": "New order",
+    "am": "አዲስ ትዕዛዝ",
+    "files": [
+      "lib/core/router.dart",
+      "lib/core/router.dart",
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "New preparation tickets and orders ready for service.",
+    "am": "አዲስ የዝግጅት ትዕዛዞች እና ለማቅረብ ዝግጁ የሆኑ ትዕዛዞች።",
+    "files": [
+      "lib/core/local_order_notifications.dart",
+      "lib/core/local_order_notifications.dart"
+    ]
+  },
+  {
+    "key": "Next page",
+    "am": "ቀጣዩ ገጽ",
+    "files": [
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "No dishes found",
+    "am": "ምግቦች አልተገኙም",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "No items selected",
+    "am": "ምግቦች አልተመረጡም",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "No matching orders",
+    "am": "ተዛማጅ ትዕዛዞች የሉም",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "No notifications",
+    "am": "ማሳወቂያዎች የሉም",
+    "files": [
+      "lib/features/notifications/notifications_sheet.dart"
+    ]
+  },
+  {
+    "key": "No orders",
+    "am": "ትዕዛዞች የሉም",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "No paid orders",
+    "am": "የተከፈሉ ትዕዛዞች የሉም",
+    "files": [
+      "lib/features/orders/history_page.dart"
+    ]
+  },
+  {
+    "key": "No payments",
+    "am": "ክፍያዎች የሉም",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "No pending orders",
+    "am": "የሚጠብቁ ትዕዛዞች የሉም",
+    "files": [
+      "lib/features/kitchen/queue_page.dart"
+    ]
+  },
+  {
+    "key": "No response received. Check the order before trying again.",
+    "am": "ምላሽ አልደረሰም። እንደገና ከመሞከርዎ በፊት ትዕዛዙን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "No tables available. Choose takeaway or ask your manager to add tables.",
+    "am": "ጠረጴዛ የለም። ይዞ ለመሄድ ይምረጡ ወይም አስተዳዳሪዎ ጠረጴዛዎችን እንዲጨምር ይጠይቁ።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Not submitted",
+    "am": "አልተላከም",
+    "files": [
+      "lib/core/models.dart"
+    ]
+  },
+  {
+    "key": "Notes",
+    "am": "ማስታወሻ",
+    "files": [
+      "lib/features/orders/cart_page.dart",
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Notes (optional)",
+    "am": "ማስታወሻ (አማራጭ)",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Notifications",
+    "am": "ማሳወቂያዎች",
+    "files": [
+      "lib/core/router.dart",
+      "lib/features/notifications/notifications_sheet.dart"
+    ]
+  },
+  {
+    "key": "older CBE receipt",
+    "am": "",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "on this page",
+    "am": "በዚህ ገጽ",
+    "files": [
+      "lib/features/kitchen/queue_page.dart",
+      "lib/features/kitchen/queue_page.dart",
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Only a settled payment on a served, cancelled, or refund-pending order can be refunded.",
+    "am": "ይህን ክፍያ አሁን መመለስ አይቻልም። የትዕዛዙን ዝርዝር ያድሱ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Only an individual order payment can be transferred.",
+    "am": "ወደ ሌላ ትዕዛዝ ማዛወር የሚቻለው የነጠላ ትዕዛዝ ክፍያ ብቻ ነው።",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Only the assigned waiter can change this order.",
+    "am": "ይህን ትዕዛዝ መቀየር የሚችለው የተመደበው አስተናጋጅ ብቻ ነው።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Only the assigned waiter can mark a ready order served.",
+    "am": "ዝግጁ ትዕዛዝን የቀረበ ብሎ ማስመዝገብ የሚችለው የተመደበው አስተናጋጅ ብቻ ነው።",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Only the assigned waiter can serve a ready item.",
+    "am": "ዝግጁ ምግብን ማቅረብ የሚችለው የተመደበው አስተናጋጅ ብቻ ነው።",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Order",
+    "am": "ትዕዛዝ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Order alerts",
+    "am": "የትዕዛዝ ማሳወቂያዎች",
+    "files": [
+      "lib/core/local_order_notifications.dart",
+      "lib/core/local_order_notifications.dart"
+    ]
+  },
+  {
+    "key": "Order details",
+    "am": "የትዕዛዝ ዝርዝር",
+    "files": [
+      "lib/core/router.dart"
+    ]
+  },
+  {
+    "key": "Order items",
+    "am": "የትዕዛዝ ምግቦች",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Order permission is required.",
+    "am": "የትዕዛዝ ፈቃድ ያስፈልጋል።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Order ready",
+    "am": "ትዕዛዙ ዝግጁ ነው",
+    "files": [
+      "lib/core/order_alerts.dart"
+    ]
+  },
+  {
+    "key": "Order status",
+    "am": "የትዕዛዝ ሁኔታ",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Order total",
+    "am": "የትዕዛዝ ጠቅላላ",
+    "files": [
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "Order type",
+    "am": "የትዕዛዝ አይነት",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Orders",
+    "am": "ትዕዛዞች",
+    "files": [
+      "lib/core/router.dart",
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Other",
+    "am": "ሌላ",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Out of stock",
+    "am": "ከክምችት ውጪ",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Packaging included: {p1}",
+    "am": "የማሸጊያ ክፍያ ተካትቷል፦ {p1}",
+    "files": [
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "Page not found",
+    "am": "ገጹ አልተገኘም",
+    "files": [
+      "lib/core/router.dart"
+    ]
+  },
+  {
+    "key": "Paid",
+    "am": "ተከፍሏል",
+    "files": [
+      "lib/features/orders/history_page.dart",
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Paid orders",
+    "am": "የተከፈሉ ትዕዛዞች",
+    "files": [
+      "lib/features/orders/history_page.dart"
+    ]
+  },
+  {
+    "key": "Paid out",
+    "am": "የተከፈለ",
+    "files": [
+      "lib/core/models.dart"
+    ]
+  },
+  {
+    "key": "Pay {p1}",
+    "am": "ለ{p1} ክፈል",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Payer",
+    "am": "ከፋይ",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Payment amount",
+    "am": "የክፍያ መጠን",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Payment details",
+    "am": "የክፍያ ዝርዝር",
+    "files": [
+      "lib/core/router.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Payment details · {p1}",
+    "am": "የክፍያ ዝርዝር · {p1}",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Payment history",
+    "am": "የክፍያ ታሪክ",
+    "files": [
+      "lib/features/orders/history_page.dart"
+    ]
+  },
+  {
+    "key": "Payment is not confirmed. Check payment history before trying again.",
+    "am": "ክፍያው አልተረጋገጠም። እንደገና ከመሞከርዎ በፊት የክፍያ ታሪኩን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Payment pending",
+    "am": "ክፍያ በመጠባበቅ",
+    "files": [
+      "lib/core/models.dart"
+    ]
+  },
+  {
+    "key": "Payment records",
+    "am": "የክፍያ መዝገቦች",
+    "files": [
+      "lib/core/router.dart"
+    ]
+  },
+  {
+    "key": "Payment status",
+    "am": "የክፍያ ሁኔታ",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Payment time",
+    "am": "የክፍያ ጊዜ",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Payments",
+    "am": "ክፍያዎች",
+    "files": [
+      "lib/core/router.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Pending",
+    "am": "በመጠባበቅ ላይ",
+    "files": [
+      "lib/features/kitchen/queue_page.dart",
+      "lib/features/kitchen/queue_page.dart",
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Phone notifications are off.",
+    "am": "የስልክ ማሳወቂያዎች ጠፍተዋል።",
+    "files": [
+      "lib/features/notifications/notifications_sheet.dart"
+    ]
+  },
+  {
+    "key": "Phone request",
+    "am": "የስልክ ጥያቄ",
+    "files": [
+      "lib/core/models.dart"
+    ]
+  },
+  {
+    "key": "PIN",
+    "am": "ፒን",
+    "files": [
+      "lib/features/authentication/auth_pages.dart",
+      "lib/features/authentication/quick_login_dialog.dart"
+    ]
+  },
+  {
+    "key": "Please wait…",
+    "am": "እባክዎ ይጠብቁ…",
+    "files": [
+      "lib/features/payments/payment_pages.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Point the camera at the QR on the customer’s transaction receipt.",
+    "am": "ካሜራውን በደንበኛው ደረሰኝ ላይ ወዳለው QR ያነጣጥሩ።",
+    "files": [
+      "lib/features/payments/receipt_scanner.dart"
+    ]
+  },
+  {
+    "key": "Preferences must be initialized.",
+    "am": "",
+    "files": [
+      "lib/core/session.dart"
+    ]
+  },
+  {
+    "key": "Preparation delay",
+    "am": "የዝግጅት መዘግየት",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Preparation permission is required.",
+    "am": "የዝግጅት ፈቃድ ያስፈልጋል።",
+    "files": [
+      "lib/features/kitchen/queue_page.dart",
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Preparing",
+    "am": "በዝግጅት ላይ",
+    "files": [
+      "lib/features/kitchen/queue_page.dart",
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Previous page",
+    "am": "ያለፈው ገጽ",
+    "files": [
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "Profile",
+    "am": "መገለጫ",
+    "files": [
+      "lib/core/router.dart",
+      "lib/core/router.dart",
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Provide one receipt QR, receipt link, or transaction reference.",
+    "am": "ደረሰኝ ይቃኙ ወይም አገናኙን ወይም ቁጥሩን ያስገቡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "QR code",
+    "am": "QR ኮድ",
+    "files": [
+      "lib/core/models.dart"
+    ]
+  },
+  {
+    "key": "Queue",
+    "am": "ተራ",
+    "files": [
+      "lib/core/router.dart"
+    ]
+  },
+  {
+    "key": "Queue {p1}",
+    "am": "ተራ {p1}",
+    "files": [
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "Quick sign-in",
+    "am": "ፈጣን መግቢያ",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Quick sign-in is available only for development.",
+    "am": "ፈጣን መግቢያ ለሙከራ ብቻ ነው።",
+    "files": [
+      "lib/core/session.dart",
+      "lib/core/session.dart"
+    ]
+  },
+  {
+    "key": "Ready",
+    "am": "ዝግጁ",
+    "files": [
+      "lib/core/models.dart",
+      "lib/core/order_alerts.dart",
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Ready all",
+    "am": "ሁሉንም ዝግጁ አድርግ",
+    "files": [
+      "lib/features/kitchen/queue_page.dart",
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Ready item",
+    "am": "ዝግጁ አድርግ",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Reason",
+    "am": "ምክንያት",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Reason details (optional)",
+    "am": "የምክንያት ዝርዝር (አማራጭ)",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Receipt link",
+    "am": "የደረሰኝ አገናኝ",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Receipt link or CBE FT reference",
+    "am": "የደረሰኝ አገናኝ ወይም የCBE FT ቁጥር",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Receipt not found. Check the reference or use the full receipt link.",
+    "am": "ደረሰኙ አልተገኘም። ቁጥሩን ያረጋግጡ ወይም ሙሉ አገናኙን ይጠቀሙ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Receipt unverified. Check it before releasing tips.",
+    "am": "ደረሰኙ አልተረጋገጠም። ቲፕ ከመክፈልዎ በፊት ያረጋግጡት።",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Receipt verified",
+    "am": "ደረሰኙ ተረጋግጧል",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Receipt: {p1}",
+    "am": "ደረሰኝ፦ {p1}",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "receiving account",
+    "am": "",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Record a test refund? No money will be returned.",
+    "am": "የሙከራ ተመላሽ ክፍያ ይመዝገብ? ገንዘብ አይመለስም።",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Record refund",
+    "am": "ተመላሽ ክፍያ መዝግብ",
+    "files": [
+      "lib/features/payments/payment_pages.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Record refund?",
+    "am": "ተመላሽ ክፍያ ይመዝገብ?",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Refresh",
+    "am": "አድስ",
+    "files": [
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "Refund needed. Review payment details before refunding.",
+    "am": "ተመላሽ ክፍያ ያስፈልጋል። ከመመለስዎ በፊት የክፍያውን ዝርዝር ይመርምሩ።",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Refund pending",
+    "am": "ተመላሽ በመጠባበቅ ላይ",
+    "files": [
+      "lib/core/models.dart"
+    ]
+  },
+  {
+    "key": "Refund recorded. The original receipt is kept for reference.",
+    "am": "ተመላሽ ክፍያው ተመዝግቧል። የመጀመሪያው ደረሰኝ ለማጣቀሻ ተቀምጧል።",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Refunded",
+    "am": "ተመላሽ ሆኗል",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Release builds require an HTTPS server.",
+    "am": "ይህ መተግበሪያ የHTTPS አገልጋይ ይፈልጋል።",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "Remove",
+    "am": "አስወግድ",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Remove {p1}",
+    "am": "{p1} አስወግድ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Remove these unsent items and notes?",
+    "am": "እነዚህን ያልተላኩ ምግቦች እና ማስታወሻዎች ያስወግዱ?",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Remove unavailable items and check the quantities before submitting.",
+    "am": "የማይገኙ ምግቦችን ያስወግዱ እና ከመላክዎ በፊት ብዛቱን ያረጋግጡ።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Reopen table for more orders",
+    "am": "ለተጨማሪ ትዕዛዞች ጠረጴዛውን እንደገና ክፈት",
+    "files": [
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "Reopen takeaway order",
+    "am": "ይዞ የመሄድ ትዕዛዝን እንደገና ክፈት",
+    "files": [
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "Replacement order",
+    "am": "ምትክ ትዕዛዝ",
+    "files": [
+      "lib/core/router.dart",
+      "lib/features/orders/cart_page.dart",
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Resume",
+    "am": "ቀጥል",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Retracted",
+    "am": "ተመልሷል",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Retry payment details",
+    "am": "የክፍያ ዝርዝርን እንደገና ጫን",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Return {p1} to the customer before confirming.{p2}",
+    "am": "ከማረጋገጥዎ በፊት {p1} ለደንበኛው ይመልሱ።{p2}",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Return {p1} via {p2} first. This does not send money.{p3}",
+    "am": "መጀመሪያ {p1} በ{p2} ይመልሱ። ይህ ገንዘብ አይልክም።{p3}",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Review order",
+    "am": "ትዕዛዝ እይ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Save",
+    "am": "አስቀምጥ",
+    "files": [
+      "lib/features/authentication/auth_pages.dart",
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Save account",
+    "am": "መለያ አስቀምጥ",
+    "files": [
+      "lib/features/authentication/quick_login_dialog.dart"
+    ]
+  },
+  {
+    "key": "Scan a receipt or enter its link or reference.",
+    "am": "ደረሰኝ ይቃኙ ወይም አገናኙን ወይም ቁጥሩን ያስገቡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Scan or paste a CBE or Telebirr transaction receipt.",
+    "am": "የCBE ወይም የቴሌብር ደረሰኝ ይቃኙ ወይም አገናኙን ይለጥፉ።",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Scan payment receipt",
+    "am": "የክፍያ ደረሰኝ ቃኝ",
+    "files": [
+      "lib/features/payments/receipt_scanner.dart"
+    ]
+  },
+  {
+    "key": "Scan receipt QR",
+    "am": "የደረሰኝ QR ቃኝ",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Scan the customer’s CBE or Telebirr transaction receipt.",
+    "am": "የደንበኛውን የCBE ወይም የቴሌብር ደረሰኝ ይቃኙ።",
+    "files": [
+      "lib/features/payments/receipt_scanner.dart"
+    ]
+  },
+  {
+    "key": "Search dishes",
+    "am": "ምግቦችን ፈልግ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Search orders",
+    "am": "ትዕዛዞችን ፈልግ",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Search paid orders",
+    "am": "የተከፈሉ ትዕዛዞችን ፈልግ",
+    "files": [
+      "lib/features/orders/history_page.dart"
+    ]
+  },
+  {
+    "key": "Select an order for {p1}.",
+    "am": "ለ{p1} ትዕዛዝ ይምረጡ።",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Selected items",
+    "am": "የተመረጡ ምግቦች",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Send order",
+    "am": "ትዕዛዝ ላክ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Serve all",
+    "am": "ሁሉንም አቅርብ",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Serve item",
+    "am": "ምግብ አቅርብ",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Served",
+    "am": "ተቀርቧል",
+    "files": [
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Server",
+    "am": "አገልጋይ",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Server address",
+    "am": "የአገልጋይ አድራሻ",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Server settings",
+    "am": "የአገልጋይ ቅንብሮች",
+    "files": [
+      "lib/features/authentication/auth_pages.dart",
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Show",
+    "am": "አሳይ",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Sign in",
+    "am": "ግባ",
+    "files": [
+      "lib/features/authentication/auth_pages.dart",
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Sign out",
+    "am": "ውጣ",
+    "files": [
+      "lib/features/authentication/auth_pages.dart",
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Sign out?",
+    "am": "ከመለያዎ ይውጡ?",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Sign-in and session renewal are outside your current shift window.",
+    "am": "የስራ ፈረቃዎ አብቅቷል። በሚቀጥለው ፈረቃዎ ይግቡ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Sign-out is still completing. Please try again in a moment.",
+    "am": "ከመለያዎ በመውጣት ላይ ነው። ትንሽ ቆይተው ይሞክሩ።",
+    "files": [
+      "lib/core/session.dart"
+    ]
+  },
+  {
+    "key": "Signing in…",
+    "am": "በመግባት ላይ…",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Signing out…",
+    "am": "በመውጣት ላይ…",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Something went wrong. Refresh and try again.",
+    "am": "ችግር ተፈጥሯል። ያድሱ እና እንደገና ይሞክሩ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Start item",
+    "am": "ዝግጅት ጀምር",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Start preparing",
+    "am": "ዝግጅት ጀምር",
+    "files": [
+      "lib/features/kitchen/queue_page.dart",
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Submit again?",
+    "am": "እንደገና ይላክ?",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Subtotal",
+    "am": "ንዑስ ድምር",
+    "files": [
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "Subtotal: {p1}",
+    "am": "ንዑስ ድምር፦ {p1}",
+    "files": [
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "Table",
+    "am": "ጠረጴዛ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Table {p1}",
+    "am": "ጠረጴዛ {p1}",
+    "files": [
+      "lib/core/billing.dart",
+      "lib/core/billing.dart",
+      "lib/core/models.dart",
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "Table {p1} · {p2}",
+    "am": "ጠረጴዛ {p1} · {p2}",
+    "files": [
+      "lib/core/billing.dart"
+    ]
+  },
+  {
+    "key": "Table and payment access are required. Contact your manager.",
+    "am": "የጠረጴዛ እና የክፍያ ፈቃድ ያስፈልጋል። አስተዳዳሪዎን ያነጋግሩ።",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "Take payment",
+    "am": "ክፍያ ተቀበል",
+    "files": [
+      "lib/features/orders/orders_page.dart",
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "Takeaway",
+    "am": "ይዞ ለመሄድ",
+    "files": [
+      "lib/core/billing.dart",
+      "lib/core/models.dart",
+      "lib/core/widgets.dart",
+      "lib/features/orders/cart_page.dart",
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Takeaway packaging fee",
+    "am": "የውጪ መውሰጃ የማሸጊያ ክፍያ",
+    "files": [
+      "lib/core/billing.dart"
+    ]
+  },
+  {
+    "key": "Tap + to select",
+    "am": "ለመምረጥ + ይጫኑ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Tax",
+    "am": "ታክስ",
+    "files": [
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "Tax: {p1}",
+    "am": "ግብር፦ {p1}",
+    "files": [
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "Telebirr",
+    "am": "ቴሌብር",
+    "files": [
+      "lib/core/models.dart"
+    ]
+  },
+  {
+    "key": "Test payment. No money is collected.",
+    "am": "የሙከራ ክፍያ። ገንዘብ አይሰበሰብም።",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Test QR · No money collected",
+    "am": "የሙከራ QR · ገንዘብ አይሰበሰብም",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Test QR code. Does not collect money.",
+    "am": "የሙከራ QR። ገንዘብ አይሰበስብም።",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "The app is not configured. Ask your manager for help.",
+    "am": "መተግበሪያው አልተዋቀረም። አስተዳዳሪዎን ለእርዳታ ይጠይቁ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The app needs the restaurant profile key. Contact your administrator.",
+    "am": "መተግበሪያው አልተዋቀረም። አስተዳዳሪዎን ለእርዳታ ይጠይቁ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/core/profile.dart"
+    ]
+  },
+  {
+    "key": "The bank confirms the receipt before this bill is paid. Any overpayment becomes the waiter’s tip.",
+    "am": "ክፍያው ከመመዝገቡ በፊት ደረሰኙን እናረጋግጣለን። ተጨማሪው ክፍያ እንደ ቲፕ ይመዘገባል።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The bank could not find this receipt. Check the reference or obtain the current receipt link.",
+    "am": "ደረሰኙ አልተገኘም። ቁጥሩን ያረጋግጡ ወይም ሙሉ አገናኙን ይጠቀሙ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The bank has not confirmed a completed payment.",
+    "am": "ባንኩ ይህን ክፍያ አላረጋገጠም። ከደንበኛው ጋር ሁኔታውን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The bank has not confirmed this payment. Check its status with the customer.",
+    "am": "ባንኩ ይህን ክፍያ አላረጋገጠም። ከደንበኛው ጋር ሁኔታውን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The bank receipt does not identify the restaurant's receiving account. Check the recipient and use a receipt that shows the receiving account.",
+    "am": "ተቀባዩ ሬስቶራንቱ መሆኑን ማረጋገጥ አልተቻለም። የደረሰኙን ሂሳብ ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The bank receipt has no readable payment date and time. Obtain a receipt that shows when the payment was made.",
+    "am": "ደረሰኙ የክፍያ ቀን ወይም ሰዓት የለውም። የተሟላ ደረሰኝ ይጠቀሙ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The bank receipt has no valid ETB payment amount or transaction reference.",
+    "am": "ደረሰኙ ትክክለኛ መጠን ወይም ቁጥር የለውም። የተሟላ ደረሰኝ ይጠቀሙ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The bank receipt service is unavailable. The bill has not been paid.",
+    "am": "የባንክ ደረሰኝ አገልግሎት አይገኝም። ሂሳቡ አልተከፈለም።",
+    "files": [
+      "lib/core/api.dart",
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The bank receipt's payment time is in the future. Check the receipt and try again.",
+    "am": "ደረሰኙ ወደፊት ያለ የክፍያ ጊዜ ያሳያል። የደረሰኙን ቀን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The bill changed. Close this screen and review the bill again.",
+    "am": "ሂሳቡ ተቀይሯል። ይህን ገጽ ዝጉ እና ሂሳቡን እንደገና ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The bill changed. Review the updated total.",
+    "am": "ሂሳቡ ተቀይሯል። አዲሱን ድምር ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The bill's orders changed. Generate and review the current bill.",
+    "am": "ሂሳቡ ተቀይሯል። ይህን ገጽ ዝጉ እና ሂሳቡን እንደገና ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The daily tip total is unavailable.",
+    "am": "የዛሬ የቲፕ ድምር አልተጫነም።",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "The order changed. Check its current status before continuing.",
+    "am": "ትዕዛዙ ተቀይሯል። ያድሱ እና እንደገና ይሞክሩ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "The order changed. Refresh and try again.",
+    "am": "ትዕዛዙ ተቀይሯል። ያድሱ እና እንደገና ይሞክሩ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The order changed. Refresh its status before cancelling.",
+    "am": "ትዕዛዙ ተቀይሯል። ከመሰረዝዎ በፊት ሁኔታውን ያድሱ።",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "The order changed. Refresh the bill before paying.",
+    "am": "ትዕዛዙ ተቀይሯል። ከመክፈልዎ በፊት ሂሳቡን ያድሱ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The order is no longer eligible for billing.",
+    "am": "ለዚህ ትዕዛዝ አሁን ሂሳብ መፍጠር አይቻልም።",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "The order is no longer eligible for payment. Refresh its details.",
+    "am": "ይህን ትዕዛዝ አሁን መክፈል አይቻልም። ዝርዝሩን ያድሱ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "The payment total changed. Check payment history before trying again.",
+    "am": "የክፍያ ድምሩ ተቀይሯል። እንደገና ከመሞከርዎ በፊት የክፍያ ታሪኩን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The provided token is invalid.",
+    "am": "የመግቢያ ጊዜዎ አልቋል። እንደገና ይግቡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The receipt has no payment date or time. Use a complete receipt.",
+    "am": "ደረሰኙ የክፍያ ቀን ወይም ሰዓት የለውም። የተሟላ ደረሰኝ ይጠቀሙ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The receipt has no valid amount or reference. Use a complete receipt.",
+    "am": "ደረሰኙ ትክክለኛ መጠን ወይም ቁጥር የለውም። የተሟላ ደረሰኝ ይጠቀሙ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The receipt shows a future payment time. Check the receipt date.",
+    "am": "ደረሰኙ ወደፊት ያለ የክፍያ ጊዜ ያሳያል። የደረሰኙን ቀን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The request could not be completed.",
+    "am": "ጥያቄው አልተጠናቀቀም።",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "The request was not completed. Refresh before trying again.",
+    "am": "ጥያቄው አልተጠናቀቀም። እንደገና ከመሞከርዎ በፊት ያድሱ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The restaurant server changed. Add the account again.",
+    "am": "አገልጋዩ ተቀይሯል። መለያውን እንደገና ያክሉ።",
+    "files": [
+      "lib/core/session.dart"
+    ]
+  },
+  {
+    "key": "The restaurant server changed. Sign in again.",
+    "am": "የሬስቶራንቱ አገልጋይ ተቀይሯል። እንደገና ይግቡ።",
+    "files": [
+      "lib/core/session.dart"
+    ]
+  },
+  {
+    "key": "The restaurant server could not finish this request. Refresh the current record before trying again.",
+    "am": "ጥያቄው አልተጠናቀቀም። እንደገና ከመሞከርዎ በፊት ያድሱ።",
+    "files": [
+      "lib/core/api.dart",
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The restaurant’s bank account is not set up. Ask your manager for help.",
+    "am": "የሬስቶራንቱ የባንክ ሂሳብ አልተዋቀረም። አስተዳዳሪዎን ይጠይቁ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The server did not confirm this receipt as paid. Check the bill before trying again.",
+    "am": "ክፍያው አልተረጋገጠም። እንደገና ከመሞከርዎ በፊት የክፍያ ታሪኩን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "The server recorded a different payment total. Close and check the saved payment before submitting again.",
+    "am": "የክፍያ ድምሩ ተቀይሯል። እንደገና ከመሞከርዎ በፊት የክፍያ ታሪኩን ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "The server response was not received. Check the order or session before submitting again.",
+    "am": "ምላሽ አልደረሰም። እንደገና ከመሞከርዎ በፊት ትዕዛዙን ያረጋግጡ።",
+    "files": [
+      "lib/core/api.dart",
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The server returned an unexpected response. Check the server URL.",
+    "am": "የአገልጋዩን ምላሽ ማንበብ አልተቻለም። አድራሻውን ያረጋግጡ።",
+    "files": [
+      "lib/core/api.dart",
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The service ",
+    "am": "",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "The table bill changed. Close and review it again before paying.",
+    "am": "ሂሳቡ ተቀይሯል። ይህን ገጽ ዝጉ እና ሂሳቡን እንደገና ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "The table changed. Review its updated bill before continuing.",
+    "am": "ሂሳቡ ተቀይሯል። አዲሱን ድምር ያረጋግጡ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "The takeaway order is no longer eligible for payment.",
+    "am": "ይህን ትዕዛዝ አሁን መክፈል አይቻልም። ዝርዝሩን ያድሱ።",
+    "files": [
+      "lib/core/api.dart",
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "There is no open dining session for this table.",
+    "am": "ለዚህ ጠረጴዛ ክፍት የመመገቢያ ክፍለ ጊዜ የለም።",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "This account has been deactivated. Contact your manager.",
+    "am": "ይህ መለያ ንቁ አይደለም። አስተዳዳሪዎን ይጠይቁ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "This account is inactive. Ask your manager for help.",
+    "am": "ይህ መለያ ንቁ አይደለም። አስተዳዳሪዎን ይጠይቁ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "This bank receipt has already been used for another payment.",
+    "am": "ይህ ደረሰኝ አስቀድሞ ጥቅም ላይ ውሏል። ሌላ ደረሰኝ ይጠቀሙ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "This CBE receipt needs its full link. Scan or paste the receipt link.",
+    "am": "ይህ የCBE ደረሰኝ ሙሉ አገናኙን ይፈልጋል። ይቃኙ ወይም አገናኙን ይለጥፉ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "This is not a supported CBE or Telebirr receipt. Scan or paste the customer's transaction receipt.",
+    "am": "የCBE ወይም የቴሌብር የክፍያ ደረሰኝ ይጠቀሙ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "This item is no longer available.",
+    "am": "ይህ ምግብ አሁን አይገኝም።",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "This item is no longer eligible for preparation.",
+    "am": "ይህን ምግብ አሁን ማዘጋጀት አይቻልም።",
+    "files": [
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "This older CBE reference needs the full receipt link, including its account suffix. Scan or paste that link, or use the current CBE receipt link.",
+    "am": "ይህ የCBE ደረሰኝ ሙሉ አገናኙን ይፈልጋል። ይቃኙ ወይም አገናኙን ይለጥፉ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "This order cannot be changed in its current state.",
+    "am": "ይህን ትዕዛዝ አሁን መቀየር አይቻልም።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "This order cannot be paid now. Refresh its details.",
+    "am": "ይህን ትዕዛዝ አሁን መክፈል አይቻልም። ዝርዝሩን ያድሱ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "This order is no longer ready to be served by you.",
+    "am": "ይህን ትዕዛዝ አሁን ማቅረብ አይችሉም። ሁኔታውን ያድሱ።",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "This order is not part of the current table bill. Refresh the order.",
+    "am": "ይህ ትዕዛዝ በአሁኑ የጠረጴዛ ሂሳብ ውስጥ የለም። ትዕዛዙን ያድሱ።",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "This order was cancelled. Create a replacement order.",
+    "am": "ይህ ትዕዛዝ ተሰርዟል። ምትክ ትዕዛዝ ይፍጠሩ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "This payment cannot be refunded now. Refresh the order details.",
+    "am": "ይህን ክፍያ አሁን መመለስ አይቻልም። የትዕዛዙን ዝርዝር ያድሱ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "This payment is no longer available.",
+    "am": "ይህ ክፍያ አሁን አይገኝም።",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "This payment was made before the order or dining session started. Use the receipt for this order's payment.",
+    "am": "ይህ ደረሰኝ የቀድሞ ክፍያ ነው። ለዚህ ትዕዛዝ የተከፈለበትን ደረሰኝ ይጠቀሙ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "This receipt is for an earlier payment. Use the receipt for this order.",
+    "am": "ይህ ደረሰኝ የቀድሞ ክፍያ ነው። ለዚህ ትዕዛዝ የተከፈለበትን ደረሰኝ ይጠቀሙ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "This receipt was already used. Use another receipt.",
+    "am": "ይህ ደረሰኝ አስቀድሞ ጥቅም ላይ ውሏል። ሌላ ደረሰኝ ይጠቀሙ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "This staff account is inactive. Contact your manager.",
+    "am": "ይህ መለያ ንቁ አይደለም። አስተዳዳሪዎን ያነጋግሩ።",
+    "files": [
+      "lib/core/session.dart"
+    ]
+  },
+  {
+    "key": "This table has a bill awaiting payment. Ask the cashier to reopen it before adding another order.",
+    "am": "ይህ ጠረጴዛ ክፍያ የሚጠብቅ ሂሳብ አለው። ትዕዛዝ ከመጨመርዎ በፊት ገንዘብ ተቀባዩ እንደገና እንዲከፍተው ይጠይቁ።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "This table is no longer active.",
+    "am": "ይህ ጠረጴዛ አሁን ንቁ አይደለም።",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "This ticket changed. Check its current status before continuing.",
+    "am": "ትዕዛዙ ተቀይሯል። ያድሱ እና እንደገና ይሞክሩ።",
+    "files": [
+      "lib/core/localization.dart",
+      "lib/features/kitchen/queue_page.dart",
+      "lib/features/orders/order_detail_page.dart"
+    ]
+  },
+  {
+    "key": "This ticket is no longer in the active preparation queue.",
+    "am": "ይህ ትዕዛዝ ከዝግጅት ተራው ወጥቷል።",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "Tip",
+    "am": "ቲፕ",
+    "files": [
+      "lib/core/widgets.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Today’s tips unavailable",
+    "am": "የዛሬ ቲፕ አልተጫነም",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Today’s tips: …",
+    "am": "የዛሬ ቲፕ፦ …",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Today’s tips: {p1}{p2}",
+    "am": "",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Total: {p1}",
+    "am": "ድምር፦ {p1}",
+    "files": [
+      "lib/features/payments/table_bill_dialog.dart"
+    ]
+  },
+  {
+    "key": "Transaction",
+    "am": "የግብይት ቁጥር",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Transfer payment",
+    "am": "ክፍያ አስተላልፍ",
+    "files": [
+      "lib/features/payments/payment_pages.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Transferred",
+    "am": "ተላልፏል",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Try again",
+    "am": "እንደገና ሞክር",
+    "files": [
+      "lib/core/widgets.dart",
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Try another search or category.",
+    "am": "ሌላ ፍለጋ ወይም ምድብ ይሞክሩ።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Try another search or filter.",
+    "am": "ሌላ ፍለጋ ወይም ማጣሪያ ይሞክሩ።",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Try another search.",
+    "am": "ሌላ ፍለጋ ይሞክሩ።",
+    "files": [
+      "lib/features/orders/history_page.dart"
+    ]
+  },
+  {
+    "key": "Unable to load",
+    "am": "መጫን አልተቻለም",
+    "files": [
+      "lib/core/widgets.dart"
+    ]
+  },
+  {
+    "key": "Unable to load order",
+    "am": "ትዕዛዙ አልተጫነም",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Unavailable",
+    "am": "አይገኝም",
+    "files": [
+      "lib/features/orders/cart_page.dart",
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Unknown",
+    "am": "ያልታወቀ",
+    "files": [
+      "lib/core/models.dart"
+    ]
+  },
+  {
+    "key": "Unpaid",
+    "am": "ያልተከፈለ",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Unsent order",
+    "am": "ያልተላከ ትዕዛዝ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Use a CBE or Telebirr payment receipt.",
+    "am": "የCBE ወይም የቴሌብር የክፍያ ደረሰኝ ይጠቀሙ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Use a waiter, kitchen, bartender or cashier account.",
+    "am": "የአስተናጋጅ፣ የኩሽና፣ የባር ወይም የገንዘብ ተቀባይ መለያ ይጠቀሙ።",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Use at most 50 characters.",
+    "am": "ከ50 ፊደላት በላይ አያስገቡ።",
+    "files": [
+      "lib/features/authentication/auth_pages.dart",
+      "lib/features/authentication/quick_login_dialog.dart"
+    ]
+  },
+  {
+    "key": "Username",
+    "am": "የተጠቃሚ ስም",
+    "files": [
+      "lib/features/authentication/auth_pages.dart",
+      "lib/features/authentication/quick_login_dialog.dart"
+    ]
+  },
+  {
+    "key": "USSD phone request",
+    "am": "የUSSD ስልክ ጥያቄ",
+    "files": [
+      "lib/core/models.dart"
+    ]
+  },
+  {
+    "key": "Verify payment",
+    "am": "ክፍያ አረጋግጥ",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "Verifying payment",
+    "am": "ክፍያ በማረጋገጥ ላይ",
+    "files": [
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "View",
+    "am": "እይ",
+    "files": [
+      "lib/main.dart"
+    ]
+  },
+  {
+    "key": "View order",
+    "am": "ትዕዛዝ እይ",
+    "files": [
+      "lib/features/orders/orders_page.dart",
+      "lib/features/payments/payment_pages.dart"
+    ]
+  },
+  {
+    "key": "View orders",
+    "am": "ትዕዛዞችን እይ",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "We verify the receipt before recording payment. Extra payment is recorded as a tip.",
+    "am": "ክፍያው ከመመዝገቡ በፊት ደረሰኙን እናረጋግጣለን። ተጨማሪው ክፍያ እንደ ቲፕ ይመዘገባል።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Welcome back. Sign in to start your service.",
+    "am": "የተጠቃሚ ስምዎን እና ፒንዎን ያስገቡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "You can sign in at any time.",
+    "am": "በማንኛውም ጊዜ መግባት ይችላሉ።",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "You do not have access to this action.",
+    "am": "ይህን ለማድረግ ፈቃድ የለዎትም።",
+    "files": [
+      "lib/core/api.dart"
+    ]
+  },
+  {
+    "key": "You do not have permission to prepare this order.",
+    "am": "ይህን ትዕዛዝ ለማዘጋጀት ፈቃድ የለዎትም።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Your account and app settings.",
+    "am": "የእርስዎ መለያ እና የመተግበሪያው ቅንብሮች።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Your draft could not be saved on this device. Keep this screen open until submission.",
+    "am": "ትዕዛዙ በመሳሪያው አልተቀመጠም። እስኪላክ ድረስ ይህን ገጽ ክፍት ያቆዩ።",
+    "files": [
+      "lib/features/orders/cart_page.dart"
+    ]
+  },
+  {
+    "key": "Your orders",
+    "am": "የእርስዎ ትዕዛዞች",
+    "files": [
+      "lib/features/orders/orders_page.dart"
+    ]
+  },
+  {
+    "key": "Your payments",
+    "am": "የእርስዎ ክፍያዎች",
+    "files": [
+      "lib/features/orders/history_page.dart"
+    ]
+  },
+  {
+    "key": "Your session expired. Please sign in again.",
+    "am": "የመግቢያ ጊዜዎ አልቋል። እንደገና ይግቡ።",
+    "files": [
+      "lib/core/api.dart",
+      "lib/core/localization.dart",
+      "lib/core/localization.dart",
+      "lib/core/session.dart"
+    ]
+  },
+  {
+    "key": "Your session has expired. Please log in again.",
+    "am": "የመግቢያ ጊዜዎ አልቋል። እንደገና ይግቡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Your shift",
+    "am": "የስራ ፈረቃዎ",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  },
+  {
+    "key": "Your shift has ended. Sign in during your next shift.",
+    "am": "የስራ ፈረቃዎ አብቅቷል። በሚቀጥለው ፈረቃዎ ይግቡ።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Your staff details and restaurant connection.",
+    "am": "የእርስዎ መለያ እና የመተግበሪያው ቅንብሮች።",
+    "files": [
+      "lib/core/localization.dart"
+    ]
+  },
+  {
+    "key": "Your unsent order will be discarded.",
+    "am": "ያልተላከው ትዕዛዝዎ ይጠፋል።",
+    "files": [
+      "lib/features/authentication/auth_pages.dart"
+    ]
+  }
+]

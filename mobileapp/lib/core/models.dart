@@ -9,8 +9,9 @@ DateTime? date(dynamic value) {
   if (value == null) return null;
   var text = '$value';
   // SQL Server DateTime values may omit the suffix; backend timestamps are UTC.
-  if (!RegExp(r'(Z|[+-]\d{2}:?\d{2})$', caseSensitive: false).hasMatch(text))
+  if (!RegExp(r'(Z|[+-]\d{2}:?\d{2})$', caseSensitive: false).hasMatch(text)) {
     text += 'Z';
+  }
   return DateTime.tryParse(text)?.toUtc();
 }
 
@@ -18,6 +19,13 @@ String code(String value) =>
     value.replaceAll(RegExp(r'[^a-zA-Z]'), '').toUpperCase();
 String money(num value) =>
     'ETB ${NumberFormat('#,##0.00', 'en').format(value)}';
+// Display only: keep the full reference in requests, storage and payment records.
+String shortOrderNumber(String value) {
+  final match = RegExp(r'^(?:O-\d{6}-|ORD-)(\d+)$', caseSensitive: false)
+      .firstMatch(value.trim());
+  return match == null ? value : '#${match.group(1)}';
+}
+
 String statusLabel(String value) => switch (code(value)) {
       'PAYMENTINITIATED' || 'INITIATED' => 'Payment pending',
       'CANCELLEDBYKITCHEN' => 'Kitchen cancelled',
@@ -138,7 +146,7 @@ class Session {
 }
 
 class MenuItem {
-  final String id, categoryId, name, description, categoryName;
+  final String id, categoryId, name, nameAm, description, categoryName;
   final String? image;
   final double price, taxRate;
   final bool available;
@@ -149,6 +157,7 @@ class MenuItem {
       required this.price,
       required this.taxRate,
       required this.available,
+      this.nameAm = '',
       this.description = '',
       this.categoryName = '',
       this.image});
@@ -156,6 +165,7 @@ class MenuItem {
       id: j['id'] as String,
       categoryId: j['categoryId'] as String,
       name: j['name'] as String,
+      nameAm: j['nameAm'] as String? ?? '',
       description: j['description'] as String? ?? '',
       categoryName: j['categoryName'] as String? ?? '',
       image: j['imageUrl'] as String?,
@@ -166,6 +176,7 @@ class MenuItem {
         'id': id,
         'categoryId': categoryId,
         'name': name,
+        'nameAm': nameAm,
         'description': description,
         'categoryName': categoryName,
         'imageUrl': image,
@@ -176,17 +187,19 @@ class MenuItem {
 }
 
 class MenuCategory {
-  final String id, name;
+  final String id, name, nameAm;
   final bool active;
   final List<MenuItem> items;
   const MenuCategory(
       {required this.id,
       required this.name,
+      this.nameAm = '',
       required this.active,
       required this.items});
   factory MenuCategory.fromJson(Json j) => MenuCategory(
       id: j['id'] as String,
       name: j['name'] as String,
+      nameAm: j['nameAm'] as String? ?? '',
       active: j['isActive'] == true,
       items: (j['items'] as List? ?? [])
           .map((v) => MenuItem.fromJson(jsonObject(v)))
@@ -194,7 +207,7 @@ class MenuCategory {
 }
 
 class OrderLine {
-  final String id, menuId, name, note, status;
+  final String id, menuId, name, nameAm, note, status;
   final int quantity;
   final double price;
   const OrderLine(
@@ -204,11 +217,13 @@ class OrderLine {
       required this.quantity,
       required this.price,
       required this.status,
+      this.nameAm = '',
       this.note = ''});
   factory OrderLine.fromJson(Json j) => OrderLine(
       id: j['id'] as String,
       menuId: j['menuItemId'] as String,
       name: j['menuItemName'] as String? ?? 'Menu item',
+      nameAm: j['menuItemNameAm'] as String? ?? '',
       quantity: (j['quantity'] as num).toInt(),
       price: number(j['unitPrice']),
       status: j['itemStatus'] as String? ?? 'UNKNOWN',
@@ -310,8 +325,7 @@ class RestaurantOrder {
   bool get canAdd =>
       const ['UNPAID', 'RETRACTED'].contains(code(paymentStatus)) &&
       !cancelled &&
-      // Extras must be sent before the waiter collects the order.
-      const ['PENDING', 'PREPARING'].contains(code(status));
+      const ['PENDING', 'PREPARING', 'READY', 'SERVED'].contains(code(status));
 }
 
 class KitchenTicket {

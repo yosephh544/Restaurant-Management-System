@@ -189,7 +189,7 @@ import { Icon } from '../../shared/icon';
                 <span class="hint">{{ 'Shown on the payment sheet so customers can scan the restaurant QR.' | t }}</span>
               </div>
 
-              <p class="tiny muted">{{ 'Receipts are verified with check.et when the waiter records a payment.' | t }}</p>
+              <p class="tiny muted">{{ 'Receipts are verified with the bank when the waiter records a payment.' | t }}</p>
             </div>
           </div>
         </aside>

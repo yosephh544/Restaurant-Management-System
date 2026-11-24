@@ -1,6 +1,6 @@
 # Majete Corner mobile app
 
-Android app for Waiter, Kitchen, Bartender, and Cashier accounts, using the existing ASP.NET Core API in `Api`. The interface uses English and displays monetary amounts in ETB.
+Android app for Waiter, Kitchen, Bartender, and Cashier accounts, using the existing ASP.NET Core API in `Api`. The interface supports English and Amharic and displays monetary amounts in Ethiopian birr (ETB).
 
 The restaurant logo is bundled from `assets/images/logo.jpg` and appears on the sign-in screen, navigation, and Android/iOS launcher icons. To regenerate the launcher icons after replacing the logo, run `powershell -ExecutionPolicy Bypass -File tool/generate_brand_icons.ps1` on Windows.
 
@@ -47,17 +47,17 @@ Debug builds temporarily offer **Add quick sign-in account**. Enter a real staff
 
 The backend applies its migrations and seeds the initial Owner when it starts. On a fresh database, sign in through Swagger with username `joseph` and the configured Owner password, authorize with the returned bearer token, then create Waiter/Kitchen/Bartender/Cashier users through `POST /api/v1/users`, assign their default shifts, and configure active tables. An existing Owner password is preserved. Owner/Manager accounts belong in the administration client, not this service app. The app does not create staff accounts.
 
-- **Waiter:** username and PIN sign-in; today's own orders; today's paid orders in Payments; saved drafts; notes; create/add/serve orders; unpaid replacement orders; cash/electronic test payments. History is available only to Cashier.
-- **Kitchen:** queue and item instructions; pending → preparing → ready; item or full-order cancellation with a required explanation.
-- **Bartender:** drink queue; pending → preparing → ready; cancellation of drink items with an explanation. Bartender uses the live Bar API.
-- **Cashier:** view existing orders; cash payment with tendered amount and change; electronic test sessions; paid-order History; pending-session retraction; recording refunds and transfers. Cashiers do not create new or replacement orders, add items, or mark orders served in this app.
+- **Waiter:** username and PIN sign-in; today's own orders; today's paid orders in Payments; saved drafts; notes; create/add/serve orders; unpaid replacement orders; cash payments and verified Telebirr/CBE receipts. History is available only to Cashier.
+- **Kitchen:** queue and item instructions; pending → preparing → ready; item or full-order cancellation with a required reason and optional details.
+- **Bartender:** drink queue; pending → preparing → ready; cancellation of drink items with a required reason and optional details. Bartender uses the live Bar API.
+- **Cashier:** view existing orders; cash payment with tendered amount and change; verified Telebirr/CBE receipts; paid-order History; pending-session retraction; recording refunds and transfers. Cashiers do not create new or replacement orders, add items, or mark orders served in this app.
 - **Manager/Owner:** unsupported in this service app. Use a management client for those accounts.
 
 Navigation and actions use the `permissions` returned by `GET /auth/me`, with creation, additions, replacements, and serving additionally reserved for Waiter in this service app. Mobile sign-in uses `username` and a 4–6 digit PIN through `/auth/pin-login`. Staff accounts need a PIN configured by their manager; password sign-in is available only in the administration client. Login and token refresh first receive tokens, then retrieve and decrypt the AES-GCM staff profile with the access token. The current profile omits phone and active fields; a successful `/auth/me` response confirms the account is active. Shift restrictions apply to both sign-in and token refresh. Profile displays the staff member’s shift windows in EAT. The backend remains authoritative for permission and ownership checks; its broader staff grants do not enable waiter actions for Cashier in the app. Dish selection is available within order creation, adding items, and replacement orders; there is no separate Menu section for these roles.
 
-Kitchen detail reads food tickets from paginated `GET /api/v1/kitchen/queue`, using `kitchen.view`. Bartender uses the matching Bar endpoints. Preparation screens use `stationStatus`, so food can be ready while drinks are still preparing. Staff can start or ready individual items, or use **Ready all**. Waiters can serve individual ready items while the rest are cooking, or use **Serve all** once the whole order is ready. Served lines leave the station board. Item instructions and statuses are available; order-level notes are not returned by this endpoint. Queue positions come from the backend. Preparation staff see only their station’s items, with no bill totals. This app update requires the current backend and its existing migrations; it adds no backend changes or migrations.
+Kitchen detail reads food tickets from paginated `GET /api/v1/kitchen/queue`, using `kitchen.view`. Bartender uses the matching Bar endpoints. Preparation screens use `stationStatus`, so food can be ready while drinks are still preparing. Pending tickets show **Start preparing**, followed by **Ready all** while preparing; individual items also support preparation controls. Ready tickets leave the mobile station board, and their detail screen returns to the queue, including when the last item becomes ready. Queue counts and pages include only pending/preparing tickets. Waiters can serve individual ready items while the rest are cooking, or use **Serve all** once the whole order is ready. Item instructions and statuses are available; order-level notes are not returned by this endpoint. Queue positions come from the backend. Preparation staff see only their station’s items, with no bill totals. This app update requires the current backend and its existing migrations; it adds no backend changes or migrations.
 
-Only waiters can add items while an order is pending or preparing and no bill has been generated. New and replacement orders choose **Dine in** or **Takeaway**; this choice is saved with drafts. Dine-in orders select a configured active table and check its session before submitting. A table with a generated bill must be paid or reopened by an authorized cashier before more orders are placed. Takeaway tickets need no table and are billed independently, including the server's snapshotted packaging fee.
+Only the assigned waiter can add items to pending, preparing, ready, or served orders while payment is unpaid or retracted and the dining session has no open bill. Adding items returns the order to preparation and preserves the earlier items' ready/served states. New and replacement orders choose **Dine in** or **Takeaway**; this choice is saved with drafts. Dine-in orders select a configured active table and check its session before submitting. A table with a generated bill must be paid or reopened by an authorized cashier before more orders are placed. Takeaway tickets need no table and are billed independently, including the server's snapshotted packaging fee.
 
 The waiter selects dishes, quantities, and instructions, then submits the order. Food goes to Kitchen and drinks to Bar; the full order becomes ready after both stations finish. The waiter marks it served and then accepts payment. Order entry and detail pages show no subtotal, tax, tip, or order total. Payment amounts are displayed when accepting payment. Waiters can initiate payment only after the order is served.
 
@@ -73,9 +73,9 @@ Notifications check the existing API every five seconds across screens while the
 
 ## Payments and current API limitations
 
-**Cash payments are manual records; phone requests and generated QR sessions remain test-only.** Waiters accept payment after serving the order; cashiers can accept payment for READY/SERVED orders. Checkout reviews the table's eligible orders or the single takeaway ticket and generates or reuses its bill. Every included order must be ready; Waiters must serve all their own included orders first. Payment submits `billId` and uses the server bill's subtotal, tax, discount, and packaging fee. Tax-inclusive menu pricing is already reflected in these totals. For cash, enter the amount received; the server marks the payment paid immediately and returns change. Manual tip entry has been removed: cash tips stay outside the system.
+**Checkout offers cash payments and verified bank receipts.** Waiters accept payment after serving the order; cashiers can accept payment for READY/SERVED orders. Checkout reviews the table's eligible orders or the single takeaway ticket and generates or reuses its bill. Every included order must be ready; Waiters must serve all their own included orders first. Payment submits `billId` and uses the server bill's subtotal, tax, discount, and packaging fee. Tax-inclusive menu pricing is already reflected in these totals. For cash, enter the amount received; the server marks the payment paid immediately and returns change. Manual tip entry has been removed: cash tips stay outside the system.
 
-**Telebirr/CBE receipts:** choose the receipt payment method, scan the customer's transaction QR or paste its receipt link, and enter the transferred amount. CBE also accepts a transaction number without a link. Android/iOS request camera permission only for scanning; manual receipt entry remains available. The backend checks receipts through check.et, and its verified amount takes precedence over the entered amount. Any overpayment becomes the waiter tip. The payment page saves and displays receipt and verification details. When the backend has no check.et configuration, it can record an unverified receipt; mobile identifies it explicitly. See [backend compatibility notes](docs/backend-compatibility.md).
+**Telebirr/CBE receipts:** open an order, take payment, and tap **Scan receipt QR** without selecting a bank. Flutter gives a bank hint; the .NET backend independently decodes and verifies the official receipt and pays the generated bill. Manual receipt-link or legacy CBE FT entry remains available. Bank-confirmed principal amounts cover the bill; any excess becomes the waiter tip. Recipient mismatch, missing settings, incomplete payments, unavailable banks and duplicate receipts leave the bill unpaid. No check.et subscription or unverified fallback is used. See [direct bank receipt verification](../docs/DIRECT_BANK_RECEIPTS.md).
 
 The app never invokes the provider webhook or simulates success. During local testing, a developer can exercise callback behavior separately through the API's development tools, then observe status changes in the app.
 
@@ -99,17 +99,28 @@ Pull down to refresh Orders, order details, History, Payments, Kitchen/Bar queue
 
 Order and payment mutations are never automatically retried after an ambiguous network failure. The draft is retained and the user must check the existing order/session before submitting again.
 
+Order and kitchen screens show short references such as `#001`, alongside the table or takeaway label. Full order references stay in API requests, stored records, and payment history. Receipt verification displays a centered spinner until the bank responds; a failed check restores the entered receipt and cash amount for correction.
+
+## Language
+
+Choose **English** or **አማርኛ** on sign-in or in **Profile → Language**. The choice applies immediately and stays saved on this device after sign-out and restart. Screens, validation messages, payment errors, and order notifications use the selected language.
+
+Menu items use the backend’s Amharic name when one is available and keep their English name otherwise. Customer notes, staff names, bank references, and receipt links stay as entered. Dates use translated labels with the Gregorian calendar; shift times remain EAT.
+
+Mobile translations and plain English error wording live in `lib/core/translations_am.dart` and `lib/core/localization.dart`. Run `node tool/localize_ui.cjs` to refresh the UI string inventory for translation review.
+
 ## Validation and Android builds
 
-Use Flutter 3.27/Dart 3.6 or a compatible later SDK, Java 17 or 21, Android SDK 35, and Android NDK 27.0.12077973. The Android project uses AGP 8.7.0, Kotlin 2.1.10, and Gradle 8.14.3.
+Use Flutter 3.47.7/Dart 3.13.5 (the verified SDK) or a compatible later SDK, Java 17 or 21, Android SDK 35, and Android NDK 27.0.12077973. The Android project uses AGP 8.7.0, Kotlin 2.1.10, and Gradle 8.14.3.
 
 ```bash
 flutter analyze
+flutter test
 ```
 
 Use focused tests when needed for behavior changes. APK builds run only on explicit request. Debug APK output: `build/app/outputs/flutter-apk/app-debug.apk`.
 
-The older API/widget fixtures reflect earlier response contracts and need updating before the full test suite can validate live backend flows. Focused current-contract tests cover takeaway checkout/drafts, cash totals, receipt payments and recovery, cancelled prepaid refunds, stale payment protection, role restrictions, kitchen navigation, and notifications. For manual verification, create staff/menu data, sign in, prepare and serve an order, record cash or a receipt payment, and check its backend status. Camera scanning and live check.et verification require a device and configured backend.
+The tests use the encrypted staff profile and current backend contracts. They cover takeaway checkout/drafts, cash totals, receipt payments and recovery, cancelled prepaid refunds, stale payment protection, role restrictions, kitchen navigation, added-item notifications, daily tips, saved language switching, and narrow-phone layouts in Amharic. Camera scanning and live bank verification still require a device and configured receiving accounts on a reachable backend.
 
 HTTP is enabled only for Android debug builds. Release configuration requires a trusted HTTPS server:
 

@@ -11,6 +11,10 @@ This mobile feature reads the existing API; it does not change backend statuses,
 
 The first successful snapshot establishes a baseline. Existing ready orders appear silently in the waiter's list; existing preparation tickets do not trigger an alert. Later events trigger an in-app banner and, if allowed, a local phone notification. The header bell shows unread entries, supports marking all read and pulling to refresh, and opens the matching order when tapped. The list keeps the latest 50 alerts for the current sign-in.
 
+The in-app banner dismisses after five seconds, including when its **View** action is present. Dismissing the banner does not mark the alert as read; it stays available through the notification bell.
+
+Waiter detection remembers the non-cancelled item IDs in each ready order. When added items become ready, new item IDs trigger another ready alert for the same order. This also works if preparation finishes between polls; unchanged ready snapshots do not repeat the notification.
+
 Detection history is kept in memory separately by server, account, and role so switching between quick sign-in accounts does not repeatedly announce the same events. Alert lists reset on account changes. Signing out or switching accounts clears delivered phone notifications, and notification taps cannot open an order under a different account. App restarts establish a fresh baseline; this is not a persistent event inbox.
 
 ## Delivery limits

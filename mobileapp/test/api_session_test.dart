@@ -32,13 +32,19 @@ void main() {
               .having((e) => e.uncertain, 'uncertain', isTrue)));
     }
     expect(
-        RestaurantOrder.fromJson(orderJson(status: 'Ready')).canAdd, isFalse);
+        RestaurantOrder.fromJson(
+                orderJson(status: 'Ready', payment: 'PaymentInitiated'))
+            .canAdd,
+        isFalse);
   });
   test('a delayed refresh cannot restore credentials after sign-out', () async {
     final deps = await setup();
     final gate = Completer<void>();
     final requested = Completer<void>();
     deps.api.dio.httpClientAdapter = FakeAdapter((r) async {
+      if (r.uri.path.endsWith('/auth/me')) {
+        return (status: 200, body: envelope(await encryptedProfile()));
+      }
       if (r.uri.path.endsWith('/auth/refresh')) {
         requested.complete();
         await gate.future;
@@ -129,6 +135,9 @@ void main() {
     final gate = Completer<void>();
     var refreshCount = 0;
     final adapter = FakeAdapter((r) async {
+      if (r.uri.path.endsWith('/auth/me')) {
+        return (status: 200, body: envelope(await encryptedProfile()));
+      }
       if (r.uri.path.endsWith('/auth/pin-login')) {
         return (status: 200, body: envelope(authJson()));
       }

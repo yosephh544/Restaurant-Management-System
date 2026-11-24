@@ -13,15 +13,21 @@ add to, replace, or serve orders.
   server subtotal and displayed separately as an included charge.
 - `/payments/initiate` sends no `tipAmount`. Cash change uses the server's base
   amount. Cash tips are outside the system.
-- Telebirr/CBE transfers use `/payments/record`. Telebirr needs a receipt link;
-  CBE permits a receipt link or transaction number. The transferred amount is
-  entered for recording; the server's verified amount is authoritative and its
-  overpayment tip is accepted without a false checkout-total error.
-- Camera access is optional; staff may paste the receipt link instead. A scanned
-  QR only fills the receipt field. It never submits payment automatically.
-- check.et verification requires backend `CheckEt:Enabled` and `CheckEt:ApiKey`
-  configuration. Credentials stay on the backend. A backend response marked
-  unverified remains identified as unverified in mobile.
+- Telebirr/CBE transfers use `/payments/record` with a generated `billId` and raw
+  `qrData`. The backend detects and directly verifies the bank. Older clients
+  may supply one receipt URL or transaction reference, with an optional method.
+- **Scan receipt QR** appears directly in the payment dialog. A successful scan
+  submits once for verification; staff do not choose the bank or enter an amount.
+  Manual receipt link/legacy CBE FT entry uses **Verify payment**.
+- Checkout also offers cash entry. The redundant payment-method dropdown and
+  phone-request/generated-QR test options have been removed from this dialog.
+- The bank's principal amount is authoritative. It must cover the bill and match
+  the configured receiving account. Excess becomes the waiter tip.
+- Bank errors and unverified responses do not authorize settlement. Same-bill
+  receipt retries recover the existing verified payment; uncertain responses
+  require checking the bill before another submission.
+- Configuration, legacy PDF support, locking, and deployment are documented in
+  [direct bank receipt verification](../../docs/DIRECT_BANK_RECEIPTS.md).
 
 ## Records and refunds
 
@@ -54,5 +60,5 @@ flutter test test/backend_compatibility_test.dart test/kitchen_navigation_test.d
 flutter analyze
 ```
 
-Camera scanning, platform permission prompts, and live check.et requests still
+Camera scanning, platform permission prompts, and live bank requests still
 need device/backend verification. Do not build an APK unless explicitly requested.

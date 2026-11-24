@@ -26,26 +26,6 @@ Future<void> tapVisible(WidgetTester tester, Finder finder) async {
 }
 
 void main() {
-  testWidgets('cashier creates a phone test session with the entered tip',
-      (tester) async {
-    final backend = FakeRestaurant('Cashier');
-    final adapter = FakeAdapter(backend.handle);
-    await pumpApp(tester, backend, adapter: adapter);
-    go(tester, '/orders/$orderId');
-    await tester.pumpAndSettle();
-    await tapVisible(tester, find.text('Create test payment'));
-    await tester.enterText(find.byType(TextFormField).at(0), '+251922222222');
-    await tester.enterText(find.byType(TextFormField).at(1), '50.00');
-    await tapVisible(tester, find.text('Create test session'));
-    final request = adapter.requests
-        .firstWhere((r) => r.uri.path.endsWith('/arifpay/initiate'));
-    expect(request.data['method'], 'PHONE_PUSH');
-    expect(request.data['tipAmount'], 50);
-    expect(request.data['customerPhone'], '+251922222222');
-    expect(find.text('Test payment session'), findsOneWidget);
-    expect(tester.takeException(), isNull);
-    await finish(tester);
-  });
   testWidgets('cashier retracts a pending session and sees the updated status',
       (tester) async {
     final backend = FakeRestaurant('Cashier');
@@ -55,28 +35,27 @@ void main() {
     await pumpApp(tester, backend, vault: vault);
     go(tester, '/sessions/$paymentId');
     await tester.pumpAndSettle();
-    await tapVisible(tester, find.text('Retract test session'));
-    await tester.tap(find.text('Confirm'));
+    await tapVisible(tester, find.text('Cancel test payment'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Cancel payment'));
     await tester.pumpAndSettle();
     expect(backend.sessionStatus, 'RETRACTED');
-    expect(
-        find.text('Backend-reported test status: Retracted.'), findsOneWidget);
+    expect(find.text('Retracted'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await finish(tester);
   });
   testWidgets('sign-in validates PIN and opens the waiter workspace',
       (tester) async {
     await pumpApp(tester, FakeRestaurant(), signedIn: false);
-    await tapVisible(tester, find.text('Sign in'));
+    await tapVisible(tester, find.widgetWithText(FilledButton, 'Sign in'));
     await tester.pump();
     expect(find.text('Enter a 4–6 digit PIN.'), findsOneWidget);
     await tester.enterText(find.byType(TextFormField).at(0), '+251911111111');
     await tester.enterText(find.byType(TextFormField).at(1), '1234');
-    await tapVisible(tester, find.text('Sign in'));
+    await tapVisible(tester, find.widgetWithText(FilledButton, 'Sign in'));
     await tester.pumpAndSettle();
-    expect(find.text('Hello, Abebe.'), findsOneWidget);
+    expect(find.text('Your orders'), findsOneWidget);
     expect(find.text('Table T12'), findsOneWidget);
-    expect(find.text('Tips'), findsOneWidget);
+    expect(find.text('New order'), findsWidgets);
     expect(tester.takeException(), isNull);
     await finish(tester);
   });
@@ -87,15 +66,14 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     addTearDown(tester.view.resetDevicePixelRatio);
     await pumpApp(tester, FakeRestaurant()..available = false);
-    go(tester, '/menu');
+    go(tester, '/orders/new');
     await tester.pumpAndSettle();
-    final button = tester.widget<OutlinedButton>(find
-        .ancestor(
-            of: find.text('Add to order'),
-            matching: find.byWidgetPredicate((w) => w is OutlinedButton))
-        .first);
-    expect(button.onPressed, isNull);
     expect(find.text('Unavailable'), findsOneWidget);
+    expect(
+        tester
+            .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.add))
+            .onPressed,
+        isNull);
     expect(tester.takeException(), isNull);
     await finish(tester);
   });
@@ -107,14 +85,22 @@ void main() {
     final vault = await pumpApp(tester, backend, adapter: adapter);
     go(tester, '/orders/new?item=$itemId');
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).first, 'T12');
-    await tapVisible(tester, find.text('Create order'));
-    expect(find.text('Check existing orders'), findsOneWidget);
+    await tapVisible(tester, find.text('Review order'));
+    final tableField = find
+        .byWidgetPredicate((w) => w is DropdownButtonFormField<String>)
+        .last;
+    await tester.tap(tableField);
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Table T12').last);
+    await tester.pumpAndSettle();
+    await tapVisible(tester, find.text('Send order'));
+    expect(find.text('Check Orders before sending this order again.'),
+        findsOneWidget);
     expect(
         tester
             .widget<FilledButton>(find
                 .ancestor(
-                    of: find.text('Create order'),
+                    of: find.text('Send order'),
                     matching: find.byWidgetPredicate((w) => w is FilledButton))
                 .first)
             .onPressed,
@@ -133,36 +119,70 @@ void main() {
       (tester) async {
     final backend = FakeRestaurant('Kitchen');
     await pumpApp(tester, backend);
-    await tapVisible(tester, find.text('Open order'));
+    await tapVisible(tester, find.text('#1042'));
     expect(find.text('No spicy sauce'), findsOneWidget);
-    await tapVisible(tester, find.text('Start preparation'));
+    await tapVisible(tester, find.text('Start preparing'));
     expect(backend.status, 'PREPARING');
-    await tapVisible(tester, find.text('Mark ready'));
+    await tapVisible(tester, find.text('Ready all'));
     expect(backend.status, 'READY');
     expect(tester.takeException(), isNull);
     await finish(tester);
   });
-  testWidgets('cancellation requires a written explanation', (tester) async {
+  for (final item in [false, true]) {
+    testWidgets('cancel ${item ? 'item' : 'order'} without written details',
+        (tester) async {
+      final backend = FakeRestaurant('Kitchen');
+      final adapter = FakeAdapter(backend.handle);
+      await pumpApp(tester, backend, adapter: adapter);
+      try {
+        go(tester, '/orders/$orderId');
+        await tester.pumpAndSettle();
+        await tapVisible(
+            tester,
+            item
+                ? find.widgetWithText(TextButton, 'Cancel item')
+                : find.widgetWithText(OutlinedButton, 'Cancel order'));
+        expect(find.text('Reason details (optional)'), findsOneWidget);
+        if (item) {
+          await tester.enterText(find.byType(TextFormField), '   ');
+        } else {
+          await tester.tap(find.text('Out of stock'));
+          await tester.pumpAndSettle();
+          await tester.tap(find.text('Other').last);
+          await tester.pumpAndSettle();
+        }
+        await tester.tap(find.widgetWithText(
+            FilledButton, item ? 'Cancel item' : 'Cancel order'));
+        await tester.pumpAndSettle();
+        final request =
+            adapter.requests.singleWhere((r) => r.uri.path.endsWith('/cancel'));
+        expect(request.data['reasonCode'], item ? 'OUT_OF_STOCK' : 'OTHER');
+        expect(request.data['reasonNote'], isNull);
+        expect(request.data['orderItemId'], item ? 'line-1' : null);
+        expect(find.byType(AlertDialog), findsNothing);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await finish(tester);
+      }
+    });
+  }
+  testWidgets('cancellation preserves an optional written explanation',
+      (tester) async {
     final backend = FakeRestaurant('Kitchen');
     final adapter = FakeAdapter(backend.handle);
     await pumpApp(tester, backend, adapter: adapter);
     go(tester, '/orders/$orderId');
     await tester.pumpAndSettle();
-    await tapVisible(tester, find.text('Cancel item'));
-    await tester.tap(find.widgetWithText(FilledButton, 'Confirm cancellation'));
-    await tester.pumpAndSettle();
-    expect(
-        find.text('A cancellation explanation is required.'), findsOneWidget);
+    await tapVisible(tester, find.widgetWithText(TextButton, 'Cancel item'));
     await tester.enterText(
         find.byType(TextFormField), 'Ingredient unavailable');
-    await tester.tap(find.widgetWithText(FilledButton, 'Confirm cancellation'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Cancel item'));
     await tester.pumpAndSettle();
     final request =
         adapter.requests.firstWhere((r) => r.uri.path.endsWith('/cancel'));
     expect(request.data['reasonNote'], 'Ingredient unavailable');
     expect(request.data['orderItemId'], 'line-1');
-    expect(find.textContaining('still included in the server total'),
-        findsOneWidget);
+    expect(backend.cancelledItem, isTrue);
     await finish(tester);
   });
   testWidgets(
@@ -175,36 +195,25 @@ void main() {
     await pumpApp(tester, backend, vault: vault);
     go(tester, '/sessions/$paymentId');
     await tester.pumpAndSettle();
-    expect(find.text('TEST QR — NOT FOR PAYMENT'), findsOneWidget);
+    expect(find.text('Test QR · No money collected'), findsOneWidget);
     expect(find.byType(QrImageView), findsOneWidget);
-    expect(find.text(paymentJson()['qrData'] as String), findsOneWidget);
+    final saved =
+        (await LocalWorkspace(vault, testServer, userId).sessions()).single;
+    expect(saved.qrData, paymentJson()['qrData']);
     backend.sessionStatus = 'PAID';
     await tester.pump(const Duration(seconds: 3));
     await tester.pumpAndSettle();
-    expect(find.text('Backend-reported test status: Paid.'), findsOneWidget);
-    expect(find.text('Retract test session'), findsNothing);
+    expect(find.text('Paid'), findsOneWidget);
+    expect(find.text('Cancel test payment'), findsNothing);
     await finish(tester);
   });
-  testWidgets(
-      'cancelled lines block cashier checkout and preserve server total',
+  testWidgets('cancelled lines stay marked and a pending order cannot be paid',
       (tester) async {
     await pumpApp(tester, FakeRestaurant('Cashier')..cancelledItem = true);
     go(tester, '/orders/$orderId');
     await tester.pumpAndSettle();
-    expect(find.text('Create test payment'), findsNothing);
-    expect(find.textContaining('still included in the server total'),
-        findsOneWidget);
-    expect(find.text('ETB 517.50'), findsOneWidget);
-    await finish(tester);
-  });
-  testWidgets('tip ledger labels page totals and account scope',
-      (tester) async {
-    await pumpApp(tester, FakeRestaurant());
-    go(tester, '/tips');
-    await tester.pumpAndSettle();
-    expect(find.text('Tips on this page'), findsOneWidget);
-    expect(find.text('ETB 50.00'), findsNWidgets(2));
-    expect(find.text('Unsettled'), findsOneWidget);
+    expect(find.text('Take payment'), findsNothing);
+    expect(find.text('Cancelled'), findsWidgets);
     await finish(tester);
   });
   testWidgets('polling pauses in background, resumes, and stops on disposal',

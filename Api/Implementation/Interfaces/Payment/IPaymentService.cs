@@ -10,7 +10,7 @@ public interface IPaymentService
 
     /// <summary>
     /// Records a customer Telebirr/CBE transfer to the restaurant account, verifies
-    /// the receipt with check.et, and settles the bill on success.
+    /// the receipt with the bank, and settles the bill on success.
     /// </summary>
     Task<PaymentResponse> RecordDigitalPaymentAsync(RecordDigitalPaymentRequest request, CancellationToken ct = default);
     Task HandleArifpayWebhookAsync(ArifpayWebhookPayload payload, CancellationToken ct = default);

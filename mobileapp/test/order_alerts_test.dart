@@ -355,6 +355,59 @@ void main() {
     expect(sink.shown.single.orderId, 'ready');
   });
 
+  testWidgets('order popup expires after five seconds and stays in the inbox',
+      (tester) async {
+    final deps = await setup();
+    final staff = alertStaff('Waiter');
+    var records = <AlertOrder>[];
+    final controller =
+        OrderAlertsController(fetch: (_) async => records, sink: AlertSink());
+    controller.configure(staff, testServer);
+    await controller.pollNow();
+    final adapter = FakeAdapter((request) async =>
+        request.uri.path.endsWith('/orders')
+            ? (status: 200, body: paged([orderJson(status: 'READY')]))
+            : (status: 200, body: envelope(orderJson(status: 'READY'))));
+    final api =
+        ApiClient(testServer, transport: Dio()..httpClientAdapter = adapter);
+    try {
+      await tester.pumpWidget(ProviderScope(overrides: [
+        preferencesProvider.overrideWithValue(deps.prefs),
+        vaultProvider.overrideWithValue(deps.vault),
+        apiClientProvider.overrideWithValue(api),
+        sessionProvider.overrideWith(
+            (ref) => AlertSession(api, deps.vault, deps.prefs, staff)),
+        orderAlertsProvider.overrideWith((ref) => controller),
+      ], child: const RmsApp()));
+      await tester.pumpAndSettle();
+      records = [AlertOrder(orderId, 'ORD-1042', 'T12')];
+      await controller.pollNow();
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsOneWidget);
+      await tester.pump(const Duration(seconds: 4));
+      expect(find.byType(SnackBar), findsOneWidget);
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsNothing);
+      expect(controller.state.unread, 1);
+
+      await controller.pollNow();
+      await tester.pumpAndSettle();
+      expect(find.byType(SnackBar), findsNothing);
+      await tester.tap(find.byTooltip('Notifications'));
+      await tester.pumpAndSettle();
+      expect(find.text('Order ready'), findsOneWidget);
+      await tester.tap(find.text('Order ready'));
+      await tester.pumpAndSettle();
+      expect(find.byType(OrderDetailPage), findsOneWidget);
+      expect(controller.state.unread, 0);
+      expect(tester.takeException(), isNull);
+    } finally {
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump();
+    }
+  });
+
   testWidgets('grouped snackbar View opens the notification list',
       (tester) async {
     final deps = await setup();

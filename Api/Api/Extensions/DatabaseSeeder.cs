@@ -111,7 +111,10 @@ public static class DatabaseSeeder
         }
 
         var ownerRole = roles["Owner"];
-        var owner = await db.Users.FirstOrDefaultAsync(u => u.Username == "joseph" || u.Phone == "0920496730", ct);
+        // Profile edits can change the bootstrap account's name and phone. Its
+        // stable ID must take precedence so startup never inserts it twice.
+        var owner = await db.Users.FindAsync(new object[] { OwnerUserId }, ct)
+            ?? await db.Users.FirstOrDefaultAsync(u => u.Username == "joseph" || u.Phone == "0920496730", ct);
         if (owner is null)
         {
             db.Users.Add(new User
@@ -130,12 +133,10 @@ public static class DatabaseSeeder
         }
         else
         {
-            owner.FullName = "Joseph";
-            owner.Username = "joseph";
             owner.Role = UserRole.Owner;
             owner.RoleId = ownerRole.Id;
             owner.RoleEntity = ownerRole;
-            // Never overwrite an existing owner's password on startup.
+            // Preserve the existing owner's name, username, phone and credentials.
             owner.IsActive = true;
             owner.UpdatedAt = DateTime.UtcNow;
         }

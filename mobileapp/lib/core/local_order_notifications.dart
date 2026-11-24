@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'models.dart';
 import 'order_alerts.dart';
+import 'localization.dart';
 
 class LocalOrderNotifications implements OrderNotificationSink {
   final SharedPreferences preferences;
@@ -90,10 +92,12 @@ class LocalOrderNotifications implements OrderNotificationSink {
   @override
   Future<void> show(OrderAlert alert) async {
     if (!_initialized || !_allowed) return;
+    final strings =
+        AppStrings(Locale(preferences.getString('app_language') ?? 'en'));
     await plugin.show(
         ++_nextId,
-        alert.title,
-        alert.body,
+        strings.text(alert.title),
+        strings.text(alert.body),
         const NotificationDetails(
             android: AndroidNotificationDetails(
                 'restaurant_orders', 'Order alerts',

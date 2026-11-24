@@ -50,8 +50,9 @@ class _PaidOrdersPageState extends ConsumerState<PaidOrdersPage> {
       return const SizedBox.shrink();
     }
     final search = TextField(
-        decoration: const InputDecoration(
-            hintText: 'Search paid orders', prefixIcon: Icon(Icons.search)),
+        decoration: InputDecoration(
+            hintText: context.t('Search paid orders'),
+            prefixIcon: Icon(Icons.search)),
         onChanged: (value) {
           _debounce?.cancel();
           _debounce = Timer(const Duration(milliseconds: 350), () {
@@ -69,8 +70,8 @@ class _PaidOrdersPageState extends ConsumerState<PaidOrdersPage> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       RefreshHeading(
-                          eyebrow:
-                              '${DateFormat('EEEE').format(DateTime.now())} service',
+                          eyebrow: DateFormat('EEEE', context.languageCode)
+                              .format(DateTime.now()),
                           title: staff.waiter
                               ? 'Your payments'
                               : 'Payment history',
@@ -83,7 +84,7 @@ class _PaidOrdersPageState extends ConsumerState<PaidOrdersPage> {
                               child: TextButton(
                                   onPressed: () =>
                                       context.push('/payment-records'),
-                                  child: const Text('All payment records'))),
+                                  child: const AppText('All payment records'))),
                         const SizedBox(height: 16)
                       ],
                     ]),
@@ -102,11 +103,8 @@ class _PaidOrdersPageState extends ConsumerState<PaidOrdersPage> {
                   children: [
                     const SectionHeading('Paid orders'),
                     if (orders.isEmpty)
-                      EmptyState(
-                          'No paid orders',
-                          staff.waiter
-                              ? 'Completed payments will appear here.'
-                              : 'Completed payments will appear here. Try another search if needed.',
+                      EmptyState('No paid orders',
+                          _search.isNotEmpty ? 'Try another search.' : '',
                           icon: staff.waiter
                               ? Icons.payments_outlined
                               : Icons.history),

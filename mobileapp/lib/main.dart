@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'core/session.dart';
+import 'core/language.dart';
 import 'core/widgets.dart';
 import 'core/router.dart';
 import 'core/order_alerts.dart';
@@ -68,16 +70,18 @@ class _RmsAppState extends ConsumerState<RmsApp> with WidgetsBindingObserver {
             _alerts.currentScope != alerts.first.scope) {
           return;
         }
+        final strings = AppStrings(ref.read(languageProvider));
         final message = alerts.length == 1
-            ? '${alerts.first.title}: ${alerts.first.body}'
-            : '${alerts.length} new order alerts';
+            ? '${strings.text(alerts.first.title)}: ${strings.text(alerts.first.body)}'
+            : strings.text('${alerts.length} new order alerts');
         final messenger = _messenger.currentState;
         messenger?.hideCurrentSnackBar();
         messenger?.showSnackBar(SnackBar(
-            content: Text(message),
+            content: AppText(message, translate: false),
             duration: const Duration(seconds: 5),
+            persist: false,
             action: SnackBarAction(
-                label: 'View',
+                label: strings.text('View'),
                 onPressed: () {
                   if (_alerts.currentScope != alerts.first.scope) return;
                   if (alerts.length == 1) {
@@ -96,6 +100,14 @@ class _RmsAppState extends ConsumerState<RmsApp> with WidgetsBindingObserver {
       });
     });
     return MaterialApp.router(
+        locale: ref.watch(languageProvider),
+        supportedLocales: supportedAppLocales,
+        localizationsDelegates: const [
+          AppStringsDelegate(),
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
         scaffoldMessengerKey: _messenger,
         title: restaurantName,
         debugShowCheckedModeBanner: false,

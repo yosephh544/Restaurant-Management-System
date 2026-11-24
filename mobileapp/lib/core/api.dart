@@ -59,10 +59,15 @@ class ApiClient {
       response = await dio.request<dynamic>(path,
           data: body,
           queryParameters: query,
-          options: Options(method: method, headers: {
-            'Accept': 'application/json',
-            if (access != null) 'Authorization': 'Bearer $access'
-          }));
+          options: Options(
+              method: method,
+              receiveTimeout: path == 'payments/record'
+                  ? const Duration(seconds: 45)
+                  : null,
+              headers: {
+                'Accept': 'application/json',
+                if (access != null) 'Authorization': 'Bearer $access'
+              }));
     } on DioException catch (e) {
       throw ApiException(
           method == 'GET' || public
@@ -82,6 +87,14 @@ class ApiClient {
     }
     final j =
         response.data is Map ? jsonObject(response.data) : <String, dynamic>{};
+    if (response.statusCode == 503 &&
+        path == 'payments/record' &&
+        j['errorCode'] == 'SERVICE_UNAVAILABLE') {
+      throw ApiException(
+          j['message'] as String? ??
+              'The bank receipt service is unavailable. The bill has not been paid.',
+          status: 503);
+    }
     if ((response.statusCode ?? 500) >= 500) {
       throw ApiException(
           'The restaurant server could not finish this request. Refresh the current record before trying again.',
@@ -98,8 +111,12 @@ class ApiClient {
               : 'The request could not be completed.';
       final fieldText =
           fields.values.expand((v) => v is List ? v : [v]).join('\n');
+      final message = j['message'] as String?;
+      final genericValidation = message == null ||
+          message.trim().isEmpty ||
+          message.toLowerCase().contains('validation');
       throw ApiException(
-          j['message'] as String? ??
+          (genericValidation && fieldText.isNotEmpty ? fieldText : message) ??
               (fieldText.isNotEmpty
                   ? fieldText
                   : j['title'] as String? ?? fallback),
@@ -317,11 +334,38 @@ class RestaurantApi {
   Future<void> serveItem(String id, String itemId) async =>
       client.call('PATCH', 'orders/$id/items/$itemId/served');
   Future<PageData<KitchenTicket>> queue(int page,
-          {String station = 'kitchen'}) async =>
-      PageData.fromJson(
-          await client.call('GET', '$station/queue',
-              query: {'page': page, 'pageSize': 20}),
-          KitchenTicket.fromJson);
+      {String station = 'kitchen', bool activeOnly = false}) async {
+    Future<PageData<KitchenTicket>> fetch(int sourcePage, int pageSize) async =>
+        PageData.fromJson(
+            await client.call('GET', '$station/queue',
+                query: {'page': sourcePage, 'pageSize': pageSize}),
+            KitchenTicket.fromJson);
+    if (!activeOnly) return fetch(page, 20);
+
+    // Ready station tickets remain in the API until collection. Filter before
+    // paging the mobile board so completed tickets cannot leave empty pages.
+    final active = <String, KitchenTicket>{};
+    var sourcePage = 1;
+    while (true) {
+      final data = await fetch(sourcePage, 100);
+      for (final ticket in data.items) {
+        if (const ['PENDING', 'PREPARING'].contains(code(ticket.status))) {
+          active[ticket.orderId] = ticket;
+        }
+      }
+      if (sourcePage >= data.totalPages) break;
+      sourcePage++;
+    }
+    final tickets = active.values.toList();
+    final totalPages = (tickets.length / 20).ceil();
+    final currentPage = page.clamp(1, totalPages < 1 ? 1 : totalPages).toInt();
+    return PageData(
+        items: tickets.skip((currentPage - 1) * 20).take(20).toList(),
+        page: currentPage,
+        totalPages: totalPages,
+        totalCount: tickets.length);
+  }
+
   Future<void> kitchenStatus(String id, String status,
           {String station = 'kitchen'}) async =>
       client.call('PATCH', '$station/orders/$id/status',
@@ -334,7 +378,7 @@ class RestaurantApi {
           {String? itemId, String station = 'kitchen'}) async =>
       client.call('POST', '$station/orders/$id/cancel', body: {
         'reasonCode': reason,
-        'reasonNote': note,
+        'reasonNote': note.trim().isEmpty ? null : note.trim(),
         if (itemId != null) 'orderItemId': itemId
       });
   Future<PaymentSession> initiate(String id, String method, String phone,
@@ -347,6 +391,12 @@ class RestaurantApi {
         if (tendered != null) 'amountTendered': tendered
       }))
           .withRequest(method, phone);
+  Future<PaymentSession> recordReceipt(String billId, String qrData) async =>
+      PaymentSession.fromJson(
+          await client.data('POST', 'payments/record', body: {
+        'billId': billId,
+        'qrData': qrData,
+      }));
   Future<PaymentSession> recordDigital(String billId, String method,
           {String? receiptUrl,
           String? transactionNumber,
@@ -413,4 +463,31 @@ class RestaurantApi {
       await client.call('GET', 'payments/tips/my-ledger',
           query: {'page': page, 'pageSize': 20}),
       TipEntry.fromJson);
+
+  Future<double> dailyTips({DateTime? at}) async {
+    final local = (at ?? DateTime.now()).toLocal();
+    final day = DateTime(local.year, local.month, local.day);
+    final end = DateTime(local.year, local.month, local.day + 1)
+        .subtract(const Duration(microseconds: 1));
+    final report =
+        jsonObject((await client.call('GET', 'reports/my-waiter', query: {
+      'from': day.toUtc().toIso8601String(),
+      'to': end.toUtc().toIso8601String(),
+      'timezoneOffsetMinutes': -local.timeZoneOffset.inMinutes,
+    }))['data']);
+    final points = report['daily'];
+    if (points is! List) {
+      throw const ApiException('The daily tip total is unavailable.');
+    }
+    final key = '${local.year.toString().padLeft(4, '0')}-'
+        '${local.month.toString().padLeft(2, '0')}-'
+        '${local.day.toString().padLeft(2, '0')}';
+    // The report can include neighbouring UTC days. Use the local daily point,
+    // which includes both pending and paid-out tips earned on this day.
+    for (final value in points) {
+      final point = jsonObject(value);
+      if (point['date'] == key) return number(point['tips']);
+    }
+    return 0;
+  }
 }

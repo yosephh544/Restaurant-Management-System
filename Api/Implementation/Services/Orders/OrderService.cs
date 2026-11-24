@@ -298,9 +298,6 @@ public class OrderService : IOrderService
         if (order.OrderStatus == OrderStatus.CancelledByKitchen)
             throw new ConflictException("Cannot add items to a kitchen-cancelled order.");
 
-        if (order.OrderStatus == OrderStatus.Served)
-            throw new ConflictException("Cannot add items to an order that has already been served.");
-
         // Load the catalog (with category type for kitchen/bar routing) and match in memory:
         // EF Core's OPENJSON translation of list Contains is rejected by this SQL Server instance.
         var menuItems = await _dbContext.MenuItems
@@ -325,7 +322,7 @@ public class OrderService : IOrderService
             order.Subtotal += net;
             order.TaxTotal += itemTax;
 
-            order.OrderItems.Add(new OrderItem
+            _dbContext.OrderItems.Add(new OrderItem
             {
                 Id = Guid.NewGuid(),
                 OrderId = orderId,
@@ -345,10 +342,11 @@ public class OrderService : IOrderService
         order.GrandTotal = Math.Round(order.Subtotal + order.TaxTotal + order.TakeawayFee + order.TipAmount, 2);
         order.UpdatedAt = DateTime.UtcNow;
 
-        // New lines may belong to the other station; a READY/PREPARING ticket must
-        // drop back until every station has finished its share again.
-        if (order.OrderStatus is OrderStatus.Ready or OrderStatus.Preparing)
-            RecalculateOrderStatus(order);
+        // Reopen the whole order for the new lines while preserving each older
+        // line's preparation and serving history.
+        RecalculateOrderStatus(order);
+        order.ReadyAt = null;
+        order.ServedAt = null;
 
         // Check if the dining session is still active before allowing item addition
         if (order.DiningSessionId.HasValue)

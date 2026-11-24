@@ -213,7 +213,7 @@ import { PaySheet } from '../../shared/pay-sheet';
                       <div class="between small">
                         <span class="muted">{{ 'Verification' | t }}</span>
                         <span class="strong" [style.color]="p.verification === 'VERIFIED' ? 'var(--green)' : 'var(--amber)'">
-                          {{ p.verification === 'VERIFIED' ? ('Verified with check.et' | t) : ('Unverified' | t) }}
+                          {{ p.verification === 'VERIFIED' ? ('Verified with the bank' | t) : ('Unverified' | t) }}
                         </span>
                       </div>
                       @if (p.verifiedPayer) {
