@@ -5,7 +5,7 @@ namespace RestaurantManagement.Implementation.Dtos.Payment;
 /// <summary>
 /// Records a customer transfer made directly to the restaurant's Telebirr/CBE
 /// account. The waiter scans the customer's receipt QR and the server
-/// confirms it with check.et before marking the bill paid.
+/// confirms it with the bank before marking the bill paid.
 /// </summary>
 public class RecordDigitalPaymentRequest
 {
@@ -13,9 +13,11 @@ public class RecordDigitalPaymentRequest
 
     public Guid? OrderId { get; set; }
 
-    [Required(ErrorMessage = "Method is required.")]
+    [MaxLength(4096)]
+    public string? QrData { get; set; }
+
     [RegularExpression("^(TELEBIRR|CBE)$", ErrorMessage = "Method must be TELEBIRR or CBE.")]
-    public string Method { get; set; } = default!;
+    public string? Method { get; set; }
 
     /// <summary>Receipt link decoded from the customer's transaction QR.</summary>
     [MaxLength(500)]
@@ -26,8 +28,8 @@ public class RecordDigitalPaymentRequest
     public string? TransactionNumber { get; set; }
 
     /// <summary>
-    /// Amount the customer transferred. check.et's amount takes precedence when it
-    /// returns one; anything above the bill is recorded as the waiter's tip.
+    /// Deprecated compatibility field. Only the bank-confirmed amount is used;
+    /// anything above the bill is recorded as the waiter's tip.
     /// </summary>
     [Range(0, 1000000.0, ErrorMessage = "AmountPaid cannot be negative.")]
     public decimal? AmountPaid { get; set; }

@@ -24,7 +24,7 @@ public class PaymentService : IPaymentService
 {
     private readonly RestaurantDbContext _dbContext;
     private readonly ICurrentUserService _currentUserService;
-    private readonly ICheckEtVerifier _checkEtVerifier;
+    private readonly IBankReceiptVerifier _bankReceiptVerifier;
 
     private readonly IConfiguration _configuration;
     private readonly ILogger<PaymentService> _logger;
@@ -32,13 +32,13 @@ public class PaymentService : IPaymentService
     public PaymentService(
         RestaurantDbContext dbContext,
         ICurrentUserService currentUserService,
-        ICheckEtVerifier checkEtVerifier,
+        IBankReceiptVerifier bankReceiptVerifier,
         IConfiguration configuration,
         ILogger<PaymentService> logger)
     {
         _dbContext = dbContext;
         _currentUserService = currentUserService;
-        _checkEtVerifier = checkEtVerifier;
+        _bankReceiptVerifier = bankReceiptVerifier;
         _configuration = configuration;
         _logger = logger;
     }
@@ -79,6 +79,7 @@ public class PaymentService : IPaymentService
             var order = await _dbContext.Orders
                 .Include(o => o.DiningSession).ThenInclude(s => s!.Bills)
                 .Include(o => o.DiningSession).ThenInclude(s => s!.Table)
+                .Include(o => o.DiningSession).ThenInclude(s => s!.Orders)
                 .FirstOrDefaultAsync(o => o.Id == request.OrderId.Value, ct)
                 ?? throw new NotFoundException("Order", request.OrderId.Value);
 
@@ -152,6 +153,9 @@ public class PaymentService : IPaymentService
             changeGiven = Math.Round(amountTendered.Value - totalAmount, 2);
         }
 
+        await using var settlement = await _dbContext.Database.BeginTransactionAsync(ct);
+        await GuardBillAsync(bill, billOrders, ct);
+
         var pendingPayments = await _dbContext.Payments
             .Where(p => p.BillId == bill.Id && p.Status == PaymentGatewayStatus.Initiated)
             .ToListAsync(ct);
@@ -215,6 +219,8 @@ public class PaymentService : IPaymentService
 
         await _dbContext.SaveChangesAsync(ct);
 
+        await settlement.CommitAsync(ct);
+
         var qrData = method == PaymentMethod.QrScan
             ? $"https://checkout.arifpay.net/pay/{sessionId}"
             : null;
@@ -277,6 +283,7 @@ public class PaymentService : IPaymentService
         var initiatorId = _currentUserService.UserId
             ?? throw new UnauthorizedException("User identity could not be verified from token.");
 
+        var input = BankReceiptInput.Resolve(request);
         Bill bill;
         DiningSession session;
         RestaurantTable? table;
@@ -308,6 +315,7 @@ public class PaymentService : IPaymentService
             var order = await _dbContext.Orders
                 .Include(o => o.DiningSession).ThenInclude(s => s!.Bills)
                 .Include(o => o.DiningSession).ThenInclude(s => s!.Table)
+                .Include(o => o.DiningSession).ThenInclude(s => s!.Orders)
                 .FirstOrDefaultAsync(o => o.Id == request.OrderId.Value, ct)
                 ?? throw new NotFoundException("Order", request.OrderId.Value);
 
@@ -338,188 +346,124 @@ public class PaymentService : IPaymentService
             throw new ValidationException("BillId", "A generated BillId is required.");
         }
 
-        if (bill.Status is BillStatus.Paid or BillStatus.Refunded or BillStatus.Voided)
+        if (!WaiterMayCollect(session, bill, session.Orders.ToList(), initiatorId))
+            throw new ForbiddenException("You can only collect payment for your own orders or table sessions.");
+        var settings = await _dbContext.RestaurantSettings.AsNoTracking().FirstOrDefaultAsync(ct);
+        var method = input.Bank == "CBE" ? PaymentMethod.Cbe : PaymentMethod.Telebirr;
+        var suffix = input.AccountSuffix ?? new string((settings?.CbeAccountNumber ?? "").Where(char.IsAsciiDigit).TakeLast(8).ToArray());
+        var sourceUrl = input.Bank == "TELEBIRR" ? $"https://transactioninfo.ethiotelecom.et/receipt/{Uri.EscapeDataString(input.Reference)}"
+            : input.Legacy ? $"https://apps.cbe.com.et:100/?id={Uri.EscapeDataString(input.Reference)}{suffix}"
+            : $"https://mbreciept.cbe.com.et/{Uri.EscapeDataString(input.Reference)}";
+        if (bill.Status == BillStatus.Paid)
+        {
+            var repeated = await _dbContext.Payments.Include(p => p.Order).AsNoTracking()
+                .FirstOrDefaultAsync(p => p.BillId == bill.Id && p.Method == method && p.Status == PaymentGatewayStatus.Paid
+                    && p.VerificationStatus == PaymentVerificationStatus.Verified
+                    && (p.ReceiptReference == input.Reference || p.ReceiptUrl == sourceUrl), ct);
+            if (repeated is not null) return MapPaymentToResponse(repeated, repeated.Order.OrderNumber);
+        }
+        if (bill.Status is BillStatus.Paid or BillStatus.Refunded or BillStatus.Voided
+            || session.Status != DiningSessionStatus.BillRequested || billOrders.Count == 0)
             throw new ConflictException("This bill is not available for payment.");
 
-        if (session.Status != DiningSessionStatus.BillRequested)
-            throw new ConflictException("The dining session must have a generated bill before payment.");
-
-        if (billOrders.Count == 0)
-            throw new ConflictException("The bill has no unpaid orders.");
-
-        var representativeOrder = billOrders
-            .OrderBy(o => o.CreatedAt)
-            .First();
-
-        if (!WaiterMayCollect(session, bill, billOrders, initiatorId))
-            throw new ForbiddenException("You can only collect payment for your own orders or table sessions.");
-
-        var method = request.Method.Trim().ToUpperInvariant() switch
-        {
-            "TELEBIRR" => PaymentMethod.Telebirr,
-            "CBE" => PaymentMethod.Cbe,
-            _ => throw new ValidationException("Method", "Method must be TELEBIRR or CBE.")
-        };
-
-        var receiptUrl = string.IsNullOrWhiteSpace(request.ReceiptUrl) ? null : request.ReceiptUrl.Trim();
-        if (receiptUrl is not null &&
-            (!Uri.TryCreate(receiptUrl, UriKind.Absolute, out var parsedReceipt) ||
-             (parsedReceipt.Scheme != Uri.UriSchemeHttp && parsedReceipt.Scheme != Uri.UriSchemeHttps)))
-        {
-            throw new ValidationException("ReceiptUrl", "Scan the customer's receipt QR to capture a valid receipt link.");
-        }
-
-        var transactionNumber = string.IsNullOrWhiteSpace(request.TransactionNumber)
-            ? null
-            : request.TransactionNumber.Trim();
-
-        if (method == PaymentMethod.Telebirr && receiptUrl is null)
-            throw new ValidationException("ReceiptUrl", "Scan the customer's Telebirr receipt QR before recording the payment.");
-
-        if (method == PaymentMethod.Cbe && receiptUrl is null && transactionNumber is null)
-            throw new ValidationException("ReceiptUrl", "Scan the customer's CBE receipt or enter its transaction number.");
-
+        var receipt = await _bankReceiptVerifier.VerifyAsync(request, settings?.CbeAccountNumber, ct);
+        if (receipt.Bank != input.Bank) throw new ConflictException("The bank returned a receipt for a different payment method.");
+        BankReceiptParser.Validate(receipt, requireStatus: receipt.Bank == "TELEBIRR");
+        ReceiptRecipient.Validate(receipt, settings);
+        // Payment can precede bill generation. SQL stores these existing timestamps in UTC.
+        var startedAtUtc = billOrders.Select(o => o.CreatedAt).Append(session.OpenedAt).Min();
+        var bankDate = ReceiptTiming.Validate(receipt, startedAtUtc, DateTime.UtcNow);
         var baseAmount = Math.Round(bill.Subtotal + bill.TaxTotal - bill.DiscountAmount, 2);
-
-        if (transactionNumber is not null)
+        var amountPaid = Math.Round(receipt.Amount, 2);
+        if (amountPaid < baseAmount)
+            throw new ConflictException($"The transfer is {amountPaid:0.00} ETB but the bill is {baseAmount:0.00} ETB. Ask for the remaining amount before accepting.");
+        var duplicate = await _dbContext.Payments.Include(p => p.Order).AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Method == method &&
+                (p.ReceiptReference == receipt.Reference || p.ReceiptUrl == receipt.ReceiptUrl)
+                && (p.Status == PaymentGatewayStatus.Paid || p.Status == PaymentGatewayStatus.Refunded || p.Status == PaymentGatewayStatus.Transferred), ct);
+        if (duplicate is not null)
         {
-            var clash = await _dbContext.Payments
-                .Where(p => p.ReceiptReference == transactionNumber && p.Status == PaymentGatewayStatus.Paid)
-                .Select(p => p.Order.OrderNumber)
-                .FirstOrDefaultAsync(ct);
-
-            if (clash is not null)
-                throw new ConflictException($"This transaction was already recorded for order {clash}.");
+            if (duplicate.BillId == bill.Id && duplicate.Status == PaymentGatewayStatus.Paid && duplicate.VerificationStatus == PaymentVerificationStatus.Verified)
+                return MapPaymentToResponse(duplicate, duplicate.Order.OrderNumber);
+            throw new ConflictException("This bank receipt has already been used for another payment.");
         }
 
-        if (receiptUrl is not null)
-        {
-            var clash = await _dbContext.Payments
-                .Where(p => p.ReceiptUrl == receiptUrl && p.Status == PaymentGatewayStatus.Paid)
-                .Select(p => p.Order.OrderNumber)
-                .FirstOrDefaultAsync(ct);
-
-            if (clash is not null)
-                throw new ConflictException($"This receipt was already recorded for order {clash}.");
-        }
-
-        var settings = await _dbContext.RestaurantSettings.AsNoTracking().FirstOrDefaultAsync(ct);
-        var verification = await _checkEtVerifier.VerifyAsync(
-            receiptUrl,
-            receiptUrl is null ? (method == PaymentMethod.Cbe ? "cbe" : "telebirr") : null,
-            receiptUrl is null ? transactionNumber : null,
-            method == PaymentMethod.Cbe ? settings?.CbeAccountNumber : null,
-            ct);
-
-        if (verification.IsConfigured && !verification.Verified)
-        {
-            var reason = verification.Duplicate
-                ? "This receipt has already been verified for another payment."
-                : string.IsNullOrWhiteSpace(verification.Message)
-                    ? "check.et could not confirm this receipt."
-                    : verification.Message!;
-            throw new ConflictException(reason);
-        }
-
-        decimal? amountPaid = null;
-        if (verification.Amount.HasValue)
-            amountPaid = Math.Round(verification.Amount.Value, 2);
-        else if (request.AmountPaid.HasValue)
-            amountPaid = Math.Round(request.AmountPaid.Value, 2);
-
-        if (amountPaid.HasValue && amountPaid.Value + 0.01m < baseAmount)
-        {
-            var shortfall = Math.Round(baseAmount - amountPaid.Value, 2);
-            throw new ConflictException(
-                $"The transfer is {amountPaid.Value:0.00} ETB but the bill is {baseAmount:0.00} ETB. " +
-                $"Paid {amountPaid.Value:0.00} ETB · remaining {shortfall:0.00} ETB. " +
-                "Ask the customer for the remaining amount before accepting.");
-        }
-
-        var tipAmount = amountPaid.HasValue ? Math.Round(amountPaid.Value - baseAmount, 2) : 0m;
-        var totalAmount = Math.Round(baseAmount + tipAmount, 2);
-
-        var pendingPayments = await _dbContext.Payments
-            .Where(p => p.BillId == bill.Id && p.Status == PaymentGatewayStatus.Initiated)
-            .ToListAsync(ct);
-
-        foreach (var pending in pendingPayments)
-        {
-            pending.Status = PaymentGatewayStatus.Retracted;
-            pending.UpdatedAt = DateTime.UtcNow;
-        }
-
-        var now = DateTime.UtcNow;
-        var payerName = verification.PayerName ?? (string.IsNullOrWhiteSpace(request.PayerName) ? null : request.PayerName.Trim());
-
-        var payment = new PaymentEntity
-        {
-            Id = Guid.NewGuid(),
-            BillId = bill.Id,
-            OrderId = representativeOrder.Id,
-            InitiatedById = initiatorId,
-            Method = method,
-            TxRef = transactionNumber,
-            BaseAmount = Math.Round(baseAmount, 2),
-            TipAmount = tipAmount,
-            TotalAmount = totalAmount,
-            Status = PaymentGatewayStatus.Paid,
-            ReceiptUrl = receiptUrl,
-            ReceiptReference = transactionNumber,
-            AmountPaid = amountPaid,
-            VerificationStatus = verification.Verified
-                ? PaymentVerificationStatus.Verified
-                : PaymentVerificationStatus.Unverified,
-            VerifiedAmount = verification.Amount,
-            VerifiedPayerName = payerName,
-            VerifiedBank = verification.BankName ?? verification.Bank,
-            VerifiedAt = verification.Verified ? now : null,
-            VerifiedVia = verification.Verified ? "check.et" : null,
-            VerifiedById = verification.Verified ? initiatorId : null,
-            VerificationNote = verification.Verified
-                ? verification.Message
-                : "Recorded without check.et verification. Review the receipt before releasing tips.",
-            SettledAt = now,
-            CreatedAt = now
-        };
-
-        bill.TipAmount = tipAmount;
-        bill.GrandTotal = totalAmount;
-        bill.Status = BillStatus.Paid;
-        bill.PaidAt = now;
-
-        foreach (var order in billOrders)
-        {
-            order.TipAmount = 0;
-            order.GrandTotal = order.Subtotal + order.TaxTotal + order.TakeawayFee;
-            order.PaymentStatus = PaymentStatus.Paid;
-            order.UpdatedAt = now;
-        }
-
-        session.Status = DiningSessionStatus.Paid;
-        session.ClosedAt = now;
-        if (table is not null)
-            table.Status = TableStatus.Available;
-
-        _dbContext.Payments.Add(payment);
-
-        if (tipAmount > 0)
-            await EnsureWaiterTipAsync(payment, ResolveTipWaiterId(session, initiatorId), ct);
-
+        await using var settlement = await _dbContext.Database.BeginTransactionAsync(ct);
         try
         {
+            await GuardBillAsync(bill, billOrders, ct);
+            var representativeOrder = billOrders.OrderBy(o => o.CreatedAt).First();
+            var pendingPayments = await _dbContext.Payments.Where(p => p.BillId == bill.Id && p.Status == PaymentGatewayStatus.Initiated).ToListAsync(ct);
+            foreach (var pending in pendingPayments) { pending.Status = PaymentGatewayStatus.Retracted; pending.UpdatedAt = DateTime.UtcNow; }
+            var now = DateTime.UtcNow;
+            var payment = new PaymentEntity
+            {
+                Id = Guid.NewGuid(), BillId = bill.Id, OrderId = representativeOrder.Id, InitiatedById = initiatorId,
+                Method = method, TxRef = receipt.Reference, ReceiptReference = receipt.Reference, ReceiptUrl = receipt.ReceiptUrl,
+                BaseAmount = baseAmount, TipAmount = amountPaid - baseAmount, TotalAmount = amountPaid, AmountPaid = amountPaid,
+                Status = PaymentGatewayStatus.Paid, VerificationStatus = PaymentVerificationStatus.Verified,
+                VerifiedAmount = amountPaid, VerifiedPayerName = receipt.PayerName is { Length: > 120 } payer ? payer[..120] : receipt.PayerName, VerifiedBank = receipt.Bank,
+                VerifiedAt = now, VerifiedVia = input.Legacy ? "CBE legacy receipt" : receipt.Bank + " receipt",
+                VerifiedById = initiatorId, VerificationNote = $"Confirmed directly against the bank receipt dated {bankDate:O}.", SettledAt = now, CreatedAt = now
+            };
+            bill.TipAmount = payment.TipAmount; bill.GrandTotal = amountPaid; bill.Status = BillStatus.Paid; bill.PaidAt = now;
+            foreach (var order in billOrders)
+            {
+                order.TipAmount = 0; order.GrandTotal = order.Subtotal + order.TaxTotal + order.TakeawayFee;
+                order.PaymentStatus = PaymentStatus.Paid; order.UpdatedAt = now;
+            }
+            session.Status = DiningSessionStatus.Paid; session.ClosedAt = now;
+            if (table is not null) table.Status = TableStatus.Available;
+            _dbContext.Payments.Add(payment);
+            if (payment.TipAmount > 0) await EnsureWaiterTipAsync(payment, ResolveTipWaiterId(session, initiatorId), ct);
             await _dbContext.SaveChangesAsync(ct);
+            await settlement.CommitAsync(ct);
+            _logger.LogInformation("Bank payment {PaymentId} verified for bill {BillNumber} via {Bank}.", payment.Id, bill.BillNumber, receipt.Bank);
+            return MapPaymentToResponse(payment, representativeOrder.OrderNumber);
         }
-        catch (DbUpdateException ex) when (ex.InnerException?.Message.Contains("IX_payments_ReceiptReference") == true)
+        catch (Exception error) when (error is ConflictException || error is DbUpdateException dbError && dbError.InnerException?.Message.Contains("IX_payments_ReceiptReference") == true)
         {
-            throw new ConflictException("This transaction number is already attached to another payment.");
+            await settlement.RollbackAsync(ct);
+            _dbContext.ChangeTracker.Clear();
+            var repeated = await _dbContext.Payments.Include(p => p.Order).AsNoTracking()
+                .FirstOrDefaultAsync(p => p.BillId == bill.Id && p.Method == method && p.ReceiptReference == receipt.Reference
+                    && p.Status == PaymentGatewayStatus.Paid && p.VerificationStatus == PaymentVerificationStatus.Verified, ct);
+            if (repeated is not null) return MapPaymentToResponse(repeated, repeated.Order.OrderNumber);
+            if (error is ConflictException) throw;
+            throw new ConflictException("This bank receipt has already been used for another payment.");
         }
+    }
 
-        _logger.LogInformation(
-            "Digital payment {PaymentId} recorded for bill {BillNumber} via {Method} (verified: {Verified}).",
-            payment.Id, bill.BillNumber, method, verification.Verified);
+    // The conditional UPDATE claims the existing bill row until the surrounding
+    // transaction commits. No concurrency column or schema migration is needed.
+    private async Task GuardBillAsync(Bill bill, List<Order> orders, CancellationToken ct)
+    {
+        var original = _dbContext.Entry(bill).OriginalValues;
+        var status = original.GetValue<BillStatus>(nameof(Bill.Status));
+        var subtotal = original.GetValue<decimal>(nameof(Bill.Subtotal));
+        var tax = original.GetValue<decimal>(nameof(Bill.TaxTotal));
+        var discount = original.GetValue<decimal>(nameof(Bill.DiscountAmount));
+        var total = original.GetValue<decimal>(nameof(Bill.GrandTotal));
+        if (status is not (BillStatus.Requested or BillStatus.PaymentInitiated)) throw new ConflictException("This bill is no longer payable.");
+        var claimed = await _dbContext.Bills.Where(b => b.Id == bill.Id && b.Status == status
+            && b.Subtotal == subtotal && b.TaxTotal == tax && b.DiscountAmount == discount && b.GrandTotal == total)
+            .ExecuteUpdateAsync(setters => setters.SetProperty(b => b.Status, status), ct);
+        if (claimed != 1) throw new ConflictException("The bill changed or has already been paid. Refresh its details.");
+        var memberIds = await _dbContext.BillItems.Where(i => i.BillId == bill.Id).Select(i => i.OrderId).Distinct().ToListAsync(ct);
+        if (!memberIds.Order().SequenceEqual(orders.Select(o => o.Id).Distinct().Order()))
+            throw new ConflictException("The bill's orders changed. Generate and review the current bill.");
+        foreach (var order in orders.OrderBy(o => o.Id)) await GuardOrderAsync(order, ct);
+    }
 
-        return MapPaymentToResponse(payment, representativeOrder.OrderNumber);
+    private async Task GuardOrderAsync(Order order, CancellationToken ct)
+    {
+        var original = _dbContext.Entry(order).OriginalValues;
+        var status = original.GetValue<PaymentStatus>(nameof(Order.PaymentStatus));
+        var updated = original.GetValue<DateTime?>(nameof(Order.UpdatedAt));
+        var total = original.GetValue<decimal>(nameof(Order.GrandTotal));
+        var count = await _dbContext.Orders.Where(o => o.Id == order.Id && o.PaymentStatus == status && o.UpdatedAt == updated && o.GrandTotal == total)
+            .ExecuteUpdateAsync(s => s.SetProperty(o => o.UpdatedAt, updated), ct);
+        if (count != 1) throw new ConflictException("An order changed during payment verification. Refresh the bill.");
     }
 
     public async Task HandleArifpayWebhookAsync(ArifpayWebhookPayload payload, CancellationToken ct = default)
@@ -550,11 +494,17 @@ public class PaymentService : IPaymentService
 
         var statusUpper = (payload.Status ?? "PAID").ToUpperInvariant();
 
+        await using var settlement = await _dbContext.Database.BeginTransactionAsync(ct);
         if (statusUpper == "PAID" || statusUpper == "SUCCESS" || statusUpper == "COMPLETED")
         {
             if (payment.Order.PaymentStatus is PaymentStatus.RefundPending or PaymentStatus.Refunded)
                 throw new ConflictException("Payment cannot be settled because the order is being refunded.");
 
+            if (payment.Bill is { } guardedBill)
+                await GuardBillAsync(guardedBill, guardedBill.DiningSession.Orders.Where(o => o.PaymentStatus == PaymentStatus.PaymentInitiated && o.OrderStatus != OrderStatus.CancelledByKitchen && o.GrandTotal > 0m).ToList(), ct);
+            else await GuardOrderAsync(payment.Order, ct);
+            await _dbContext.Entry(payment).ReloadAsync(ct);
+            if (payment.Status != PaymentGatewayStatus.Initiated) return;
             payment.Status = PaymentGatewayStatus.Paid;
             payment.SettledAt = DateTime.UtcNow;
             payment.UpdatedAt = DateTime.UtcNow;
@@ -599,6 +549,7 @@ public class PaymentService : IPaymentService
         }
 
         await _dbContext.SaveChangesAsync(ct);
+        await settlement.CommitAsync(ct);
     }
 
     public async Task<PaymentStatusResponse> GetPaymentStatusAsync(Guid paymentId, CancellationToken ct = default)
@@ -629,6 +580,9 @@ public class PaymentService : IPaymentService
 
         if (payment.Status == PaymentGatewayStatus.Paid)
             throw new ConflictException("Settled payments cannot be retracted. Issue a refund instead.");
+
+        if (payment.Status is PaymentGatewayStatus.Refunded or PaymentGatewayStatus.Transferred)
+            throw new ConflictException("Refunded or transferred payments cannot be retracted.");
 
         payment.Status = PaymentGatewayStatus.Retracted;
         payment.UpdatedAt = DateTime.UtcNow;
@@ -756,6 +710,7 @@ public class PaymentService : IPaymentService
             .Include(o => o.DiningSession).ThenInclude(s => s!.Bills)
             .Include(o => o.DiningSession).ThenInclude(s => s!.Orders)
             .Include(o => o.DiningSession).ThenInclude(s => s!.Table)
+                .Include(o => o.DiningSession).ThenInclude(s => s!.Orders)
             .FirstOrDefaultAsync(o => o.Id == request.TargetOrderId, ct)
             ?? throw new NotFoundException("Order", request.TargetOrderId);
 
@@ -785,6 +740,12 @@ public class PaymentService : IPaymentService
 
         await using var transaction = await _dbContext.Database.BeginTransactionAsync(ct);
 
+        if (targetBill is not null && targetSession is not null)
+            await GuardBillAsync(targetBill, targetSession.Orders.Where(o => o.PaymentStatus is PaymentStatus.Unpaid or PaymentStatus.PaymentInitiated or PaymentStatus.Retracted && o.OrderStatus != OrderStatus.CancelledByKitchen && o.GrandTotal > 0m).ToList(), ct);
+        else await GuardOrderAsync(targetOrder, ct);
+        await GuardOrderAsync(payment.Order, ct);
+        await _dbContext.Entry(payment).ReloadAsync(ct);
+        if (payment.Status != PaymentGatewayStatus.Paid) throw new ConflictException("The source payment changed during transfer.");
         var sourceOrder = payment.Order;
 
         // Any pending QR/PUSH session started for the target bill is superseded.

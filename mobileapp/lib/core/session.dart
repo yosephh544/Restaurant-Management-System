@@ -115,6 +115,8 @@ final apiClientProvider = Provider<ApiClient>((ref) => ApiClient(
     ref.read(preferencesProvider).getString('server') ?? defaultServer));
 final restaurantApiProvider = Provider<RestaurantApi>(
     (ref) => RestaurantApi(ref.read(apiClientProvider)));
+final stationQueueRevisionProvider = StateProvider<int>((ref) => 0);
+final paymentFlowActiveProvider = StateProvider<bool>((ref) => false);
 final sessionProvider =
     StateNotifierProvider<SessionController, SessionState>((ref) {
   final controller = SessionController(ref.read(apiClientProvider),
@@ -408,8 +410,9 @@ class SessionController extends StateNotifier<SessionState> {
         final staff = await decodeStaffProfile(
             await api.data('GET', 'auth/me', bearerToken: value.accessToken),
             username: old.staff.username);
-        if (!mounted || _generation != generation || !staff.active)
+        if (!mounted || _generation != generation || !staff.active) {
           return false;
+        }
         await _accept(value.withStaff(staff));
       } on ApiException catch (e) {
         if (e.status == 401 || e.status == 403) {
@@ -420,8 +423,9 @@ class SessionController extends StateNotifier<SessionState> {
       }
       return mounted && _generation == generation;
     } on ApiException catch (e) {
-      if (e.status == 401 || e.status == 403)
+      if (e.status == 401 || e.status == 403) {
         api.authFailureMessage = e.message;
+      }
       return false;
     } catch (_) {
       return false;
@@ -444,8 +448,9 @@ class SessionController extends StateNotifier<SessionState> {
       }
       await _accept(state.session!.withStaff(staff));
     } on ApiException catch (e) {
-      if (e.status == 401 || e.status == 403)
+      if (e.status == 401 || e.status == 403) {
         await signOut(remote: false, message: e.message);
+      }
     }
   }
 

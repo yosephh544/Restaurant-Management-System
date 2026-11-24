@@ -50,11 +50,15 @@ class OrderAlertDetector {
         } else if (_initialized) {
           changes.add(AlertChange(order, OrderAlertKind.newOrder));
         }
-      } else if (audience != AlertAudience.waiter) {
+      } else {
         final added = order.itemIds.difference(known);
         if (added.isNotEmpty) {
           known.addAll(added);
-          changes.add(AlertChange(order, OrderAlertKind.itemsAdded));
+          changes.add(AlertChange(
+              order,
+              audience == AlertAudience.waiter
+                  ? OrderAlertKind.ready
+                  : OrderAlertKind.itemsAdded));
         }
       }
     }
@@ -86,7 +90,8 @@ class OrderAlert {
           audience == AlertAudience.bar ? 'New bar order' : 'New kitchen order',
         OrderAlertKind.itemsAdded => 'Items added to order',
       };
-  String get body => '$number · Table $table';
+  String get body => '${shortOrderNumber(number)} · '
+      '${code(table) == 'TAKEAWAY' ? 'Takeaway' : 'Table $table'}';
   String get route => kind == OrderAlertKind.ready
       ? '/orders/${Uri.encodeComponent(orderId)}'
       : '/queue/orders/${Uri.encodeComponent(orderId)}';
@@ -141,8 +146,12 @@ Future<List<AlertOrder>> fetchAlertOrders(
           await api.orders(page: page, waiterId: staff.id, status: 'Ready');
       for (final order in data.items) {
         if (order.waiterId == staff.id && code(order.status) == 'READY') {
-          records[order.id] =
-              AlertOrder(order.id, order.orderNumber, order.table);
+          records[order.id] = AlertOrder(
+              order.id, order.orderNumber, order.table,
+              itemIds: order.items
+                  .where((item) => !item.cancelled)
+                  .map((item) => item.id)
+                  .toSet());
         }
       }
       if (page >= data.totalPages) break;

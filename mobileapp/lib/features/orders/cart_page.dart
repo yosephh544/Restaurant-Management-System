@@ -85,9 +85,10 @@ class _CartPageState extends ConsumerState<CartPage> {
           : widget.replacement
               ? access.canReplaceOrders
               : access.canAddItems;
-      if (!canPrepare)
+      if (!canPrepare) {
         throw const ApiException(
             'You do not have permission to prepare this order.');
+      }
       if (discard) await _workspace?.clearDraft();
       final draft = await _workspace?.draft();
       if (draft != null && draft['route'] != _route) {
@@ -145,6 +146,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                       id: line.item.id,
                       categoryId: line.item.categoryId,
                       name: line.item.name,
+                      nameAm: line.item.nameAm,
                       price: line.item.price,
                       taxRate: line.item.taxRate,
                       available: false),
@@ -210,6 +212,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                   id: line.item.id,
                   categoryId: line.item.categoryId,
                   name: line.item.name,
+                  nameAm: line.item.nameAm,
                   description: line.item.description,
                   categoryName: line.item.categoryName,
                   image: line.item.image,
@@ -281,21 +284,24 @@ class _CartPageState extends ConsumerState<CartPage> {
     final result = await showDialog<String>(
         context: context,
         builder: (c) => AlertDialog(
-                title: Text(_lines[index].item.name),
+                title: AppText(
+                    context.menuName(
+                        _lines[index].item.name, _lines[index].item.nameAm),
+                    translate: false),
                 content: TextFormField(
                     initialValue: noteText,
                     onChanged: (v) => noteText = v,
                     maxLength: 500,
                     maxLines: 3,
-                    decoration: const InputDecoration(
-                        labelText: 'Notes', counterText: '')),
+                    decoration: InputDecoration(
+                        labelText: context.t('Notes'), counterText: '')),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(c),
-                      child: const Text('Cancel')),
+                      child: const AppText('Cancel')),
                   FilledButton(
                       onPressed: () => Navigator.pop(c, noteText.trim()),
-                      child: const Text('Save'))
+                      child: const AppText('Save'))
                 ]));
     if (result != null && mounted) {
       setState(() => _lines[index] = _lines[index].copy(note: result));
@@ -332,8 +338,9 @@ class _CartPageState extends ConsumerState<CartPage> {
           : widget.replacement
               ? access.canReplaceOrders
               : access.canAddItems;
-      if (!canPrepare)
+      if (!canPrepare) {
         throw const ApiException('Order permission is required.');
+      }
       if (widget.orderId != null) {
         final current =
             await ref.read(restaurantApiProvider).order(widget.orderId!);
@@ -348,9 +355,10 @@ class _CartPageState extends ConsumerState<CartPage> {
         final api = ref.read(restaurantApiProvider);
         final matches =
             (await api.tables()).where((t) => t.number == _table.text.trim());
-        if (matches.isEmpty)
+        if (matches.isEmpty) {
           throw const ApiException(
               'Choose an active table before sending the order.');
+        }
         final session = await api.tableSession(matches.first.id);
         if (session != null && code(session['status'] as String) != 'ACTIVE') {
           throw const ApiException(
@@ -403,7 +411,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                 FilledButton(
                     onPressed: () =>
                         context.go(_otherDraft!['route'] as String),
-                    child: const Text('Resume')),
+                    child: const AppText('Resume')),
                 TextButton(
                     onPressed: () async {
                       if (await confirmAction(context, 'Discard order?',
@@ -411,7 +419,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                         await _load(discard: true);
                       }
                     },
-                    child: const Text('Discard'))
+                    child: const AppText('Discard'))
               ])));
     }
     if (!_loaded) {
@@ -420,7 +428,7 @@ class _CartPageState extends ConsumerState<CartPage> {
           child: EmptyState(
               'Unable to load order', _error ?? 'Check the server connection.',
               action: FilledButton(
-                  onPressed: _load, child: const Text('Try again'))));
+                  onPressed: _load, child: const AppText('Try again'))));
     }
     final cart = Form(
         key: _form,
@@ -432,31 +440,33 @@ class _CartPageState extends ConsumerState<CartPage> {
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
+                        AppText(
                             widget.replacement
                                 ? 'Replacement order'
                                 : widget.orderId != null
-                                    ? 'Add to ${_original?.orderNumber}'
+                                    ? 'Add to ${shortOrderNumber(_original?.orderNumber ?? '')}'
                                     : 'Order',
                             style: Theme.of(context)
                                 .textTheme
                                 .titleLarge
                                 ?.copyWith(fontWeight: FontWeight.w800)),
                         const SizedBox(height: 6),
-                        Text(
+                        AppText(
                             '${_lines.fold<int>(0, (count, line) => count + line.quantity)} items selected',
                             style: const TextStyle(color: muted, fontSize: 12)),
                         const SizedBox(height: 18),
                         if (widget.orderId == null || widget.replacement) ...[
                           DropdownButtonFormField<String>(
-                              value: _orderType,
-                              decoration: const InputDecoration(
-                                  labelText: 'Order type'),
+                              initialValue: _orderType,
+                              decoration: InputDecoration(
+                                  labelText: context.t('Order type')),
                               items: const [
                                 DropdownMenuItem(
-                                    value: 'DINE_IN', child: Text('Dine in')),
+                                    value: 'DINE_IN',
+                                    child: AppText('Dine in')),
                                 DropdownMenuItem(
-                                    value: 'TAKEAWAY', child: Text('Takeaway')),
+                                    value: 'TAKEAWAY',
+                                    child: AppText('Takeaway')),
                               ],
                               onChanged: _busy
                                   ? null
@@ -467,18 +477,18 @@ class _CartPageState extends ConsumerState<CartPage> {
                           const SizedBox(height: 12),
                           if (!_takeaway)
                             DropdownButtonFormField<String>(
-                                value:
+                                initialValue:
                                     _tables.any((t) => t.number == _table.text)
                                         ? _table.text
                                         : null,
                                 isExpanded: true,
-                                decoration:
-                                    const InputDecoration(labelText: 'Table'),
+                                decoration: InputDecoration(
+                                    labelText: context.t('Table')),
                                 items: [
                                   for (final table in _tables)
                                     DropdownMenuItem(
                                         value: table.number,
-                                        child: Text(table.label,
+                                        child: AppText(table.label,
                                             overflow: TextOverflow.ellipsis))
                                 ],
                                 onChanged: _busy
@@ -487,26 +497,29 @@ class _CartPageState extends ConsumerState<CartPage> {
                                         _table.text = value ?? '';
                                         _saveSoon();
                                       },
-                                validator: (value) =>
-                                    value == null ? 'Choose a table.' : null),
+                                validator: localizedValidator(
+                                    context,
+                                    (value) => value == null
+                                        ? 'Choose a table.'
+                                        : null)),
                           if (!_takeaway && _tables.isEmpty)
                             const Notice(
-                                'No active tables are available. Ask your manager to configure tables or choose Takeaway.'),
+                                'No tables available. Choose takeaway or ask your manager to add tables.'),
                           const SizedBox(height: 12),
                           TextFormField(
                               controller: _note,
                               enabled: !_busy,
                               maxLength: 500,
                               maxLines: 2,
-                              decoration: const InputDecoration(
-                                  labelText: 'Notes (optional)',
+                              decoration: InputDecoration(
+                                  labelText: context.t('Notes (optional)'),
                                   counterText: ''),
                               onChanged: (_) => _saveSoon()),
                         ],
                         if (_lines.isEmpty)
                           const Padding(
                               padding: EdgeInsets.symmetric(vertical: 20),
-                              child: Text('No items selected')),
+                              child: AppText('No items selected')),
                         for (var index = 0; index < _lines.length; index++)
                           _cartLine(index),
                       ]))),
@@ -515,7 +528,7 @@ class _CartPageState extends ConsumerState<CartPage> {
             const Notice('Check Orders before sending this order again.'),
             OutlinedButton(
                 onPressed: () => context.go('/orders'),
-                child: const Text('View orders')),
+                child: const AppText('View orders')),
             TextButton(
                 onPressed: () async {
                   if (await confirmAction(context, 'Submit again?',
@@ -524,7 +537,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                     _saveSoon();
                   }
                 },
-                child: const Text('I checked'))
+                child: const AppText('I checked'))
           ],
         ]));
     final submitButton = FilledButton.icon(
@@ -536,7 +549,7 @@ class _CartPageState extends ConsumerState<CartPage> {
             ? null
             : _submit,
         icon: const Icon(Icons.send_outlined),
-        label: Text(_busy
+        label: AppText(_busy
             ? 'Sending…'
             : widget.orderId != null && !widget.replacement
                 ? 'Add items'
@@ -545,7 +558,7 @@ class _CartPageState extends ConsumerState<CartPage> {
         .expand((c) => c.items)
         .where((i) =>
             (_categoryId == null || i.categoryId == _categoryId) &&
-            '${i.name} ${i.description} ${i.categoryName}'
+            '${i.name} ${i.nameAm} ${i.description} ${i.categoryName}'
                 .toLowerCase()
                 .contains(_search))
         .toList();
@@ -557,17 +570,11 @@ class _CartPageState extends ConsumerState<CartPage> {
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           if (MediaQuery.viewInsetsOf(context).bottom == 0) ...[
             ScreenHeading(
-                eyebrow: widget.replacement
-                    ? 'Waiter · Replacement'
-                    : widget.orderId != null
-                        ? 'Waiter · Add items'
-                        : 'Waiter · New order',
                 title: widget.replacement
-                    ? 'A fresh order'
+                    ? 'Replacement order'
                     : widget.orderId != null
-                        ? 'Add to the table'
-                        : 'Start an order',
-                subtitle: 'Choose dishes and add any preparation notes.'),
+                        ? 'Add items'
+                        : 'New order'),
             const SizedBox(height: 12),
           ],
           TextField(
@@ -578,12 +585,12 @@ class _CartPageState extends ConsumerState<CartPage> {
                 _resetMenuScroll();
               },
               decoration: InputDecoration(
-                  hintText: 'Search dishes',
+                  hintText: context.t('Search dishes'),
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: _searchController.text.isEmpty
                       ? null
                       : IconButton(
-                          tooltip: 'Clear search',
+                          tooltip: context.t('Clear search'),
                           onPressed: () {
                             _searchController.clear();
                             setState(() => _search = '');
@@ -597,7 +604,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                 Padding(
                     padding: const EdgeInsets.only(right: 8),
                     child: ChoiceChip(
-                        label: const Text('All Items'),
+                        label: const AppText('All Items'),
                         selected: _categoryId == null,
                         labelStyle: TextStyle(
                             color: _categoryId == null ? Colors.white : ink),
@@ -611,7 +618,9 @@ class _CartPageState extends ConsumerState<CartPage> {
                   Padding(
                       padding: const EdgeInsets.only(right: 8),
                       child: ChoiceChip(
-                          label: Text(category.name),
+                          label: AppText(
+                              context.menuName(category.name, category.nameAm),
+                              translate: false),
                           selected: _categoryId == category.id,
                           labelStyle: TextStyle(
                               color: _categoryId == category.id
@@ -628,9 +637,9 @@ class _CartPageState extends ConsumerState<CartPage> {
           const SizedBox(height: 8),
           Row(children: [
             const Expanded(
-                child: Text('Dishes',
+                child: AppText('Dishes',
                     style: TextStyle(fontWeight: FontWeight.w700))),
-            Text(
+            AppText(
                 '${menuItems.length} ${menuItems.length == 1 ? 'dish' : 'dishes'}',
                 style: const TextStyle(color: muted, fontSize: 12)),
           ]),
@@ -680,25 +689,29 @@ class _CartPageState extends ConsumerState<CartPage> {
                                             CrossAxisAlignment.start,
                                         children: [
                                       if (item.categoryName.isNotEmpty) ...[
-                                        Text(item.categoryName,
+                                        AppText(item.categoryName,
                                             style: const TextStyle(
                                                 color: muted, fontSize: 10)),
                                         const SizedBox(height: 4),
                                       ],
-                                      Text(item.name,
+                                      AppText(
+                                          context.menuName(
+                                              item.name, item.nameAm),
+                                          translate: false,
                                           style: const TextStyle(
                                               fontWeight: FontWeight.w700,
                                               fontSize: 15)),
                                       if (item.description.isNotEmpty) ...[
                                         const SizedBox(height: 4),
-                                        Text(item.description,
+                                        AppText(item.description,
+                                            translate: false,
                                             maxLines: 1,
                                             overflow: TextOverflow.ellipsis,
                                             style: const TextStyle(
                                                 color: muted, fontSize: 11)),
                                       ],
                                       const SizedBox(height: 6),
-                                      Text(
+                                      AppText(
                                           item.available
                                               ? money(item.price)
                                               : 'Unavailable',
@@ -712,19 +725,21 @@ class _CartPageState extends ConsumerState<CartPage> {
                                 const SizedBox(width: 10),
                                 if (quantity > 0) ...[
                                   QuantityButton(
-                                      tooltip: 'Decrease ${item.name} quantity',
+                                      tooltip: context.t(
+                                          'Decrease ${context.menuName(item.name, item.nameAm)} quantity'),
                                       onPressed:
                                           _busy ? null : () => _decrease(item),
                                       icon: Icons.remove),
                                   const SizedBox(width: 8),
-                                  Text('$quantity',
+                                  AppText('$quantity',
                                       style: const TextStyle(
                                           color: forestDark,
                                           fontWeight: FontWeight.w700)),
                                   const SizedBox(width: 8),
                                 ],
                                 QuantityButton(
-                                    tooltip: 'Add ${item.name}',
+                                    tooltip: context.t(
+                                        'Add ${context.menuName(item.name, item.nameAm)}'),
                                     onPressed: item.available && !_busy
                                         ? () => _add(item)
                                         : null,
@@ -760,7 +775,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                                                   : () => _showReview(false),
                                               icon:
                                                   const Icon(Icons.arrow_back),
-                                              label: const Text(
+                                              label: const AppText(
                                                   'Back to dishes'))),
                                       cart,
                                     ])))
@@ -783,7 +798,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                                               CrossAxisAlignment.start,
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                        Text(
+                                        AppText(
                                             itemCount == 0
                                                 ? 'Add dishes'
                                                 : '$itemCount ${itemCount == 1 ? 'item' : 'items'}',
@@ -791,7 +806,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                                                 fontWeight: FontWeight.w800,
                                                 fontSize: 18)),
                                         const SizedBox(height: 3),
-                                        Text(
+                                        AppText(
                                             itemCount == 0
                                                 ? 'Tap + to select'
                                                 : 'Selected items',
@@ -804,7 +819,7 @@ class _CartPageState extends ConsumerState<CartPage> {
                                           ? null
                                           : () => _showReview(true),
                                       icon: const Icon(Icons.arrow_forward),
-                                      label: const Text('Review order')),
+                                      label: const AppText('Review order')),
                                 ])),
                     ]))));
   }
@@ -816,11 +831,14 @@ class _CartPageState extends ConsumerState<CartPage> {
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(
-                child: Text(line.item.name,
+                child: AppText(
+                    context.menuName(line.item.name, line.item.nameAm),
+                    translate: false,
                     style: const TextStyle(
                         fontWeight: FontWeight.w700, fontSize: 16))),
             IconButton(
-                tooltip: 'Remove ${line.item.name}',
+                tooltip: context.t(
+                    'Remove ${context.menuName(line.item.name, line.item.nameAm)}'),
                 onPressed: _busy
                     ? null
                     : () {
@@ -830,13 +848,14 @@ class _CartPageState extends ConsumerState<CartPage> {
                 icon: const Icon(Icons.delete_outline))
           ]),
           if (!line.item.available)
-            const Text('Unavailable', style: TextStyle(color: red)),
+            const AppText('Unavailable', style: TextStyle(color: red)),
           if (line.note.isNotEmpty)
-            Text(line.note, style: const TextStyle(color: muted)),
+            AppText(line.note,
+                translate: false, style: const TextStyle(color: muted)),
           const SizedBox(height: 8),
           Row(children: [
             QuantityButton(
-                tooltip: 'Decrease quantity',
+                tooltip: context.t('Decrease quantity'),
                 onPressed: _busy || line.quantity <= 1
                     ? null
                     : () {
@@ -846,11 +865,11 @@ class _CartPageState extends ConsumerState<CartPage> {
                       },
                 icon: Icons.remove),
             const SizedBox(width: 12),
-            Text('${line.quantity}',
+            AppText('${line.quantity}',
                 style: const TextStyle(fontWeight: FontWeight.bold)),
             const SizedBox(width: 12),
             QuantityButton(
-                tooltip: 'Increase quantity',
+                tooltip: context.t('Increase quantity'),
                 onPressed: _busy || line.quantity >= 100
                     ? null
                     : () {
@@ -864,7 +883,7 @@ class _CartPageState extends ConsumerState<CartPage> {
           TextButton.icon(
               onPressed: _busy ? null : () => _editNote(index),
               icon: const Icon(Icons.edit_note),
-              label: const Text('Notes')),
+              label: const AppText('Notes')),
           const Divider(),
         ]));
   }

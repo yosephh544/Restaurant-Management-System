@@ -31,7 +31,7 @@ class _QueuePageState extends ConsumerState<QueuePage> {
           await api.kitchenOrder(order.orderId, station: staff.station);
       if (!(next == 'PREPARING'
           ? code(current.status) == 'PENDING'
-          : const ['PENDING', 'PREPARING'].contains(code(current.status)))) {
+          : code(current.status) == 'PREPARING')) {
         throw const ApiException(
             'This ticket changed. Check its current status before continuing.');
       }
@@ -49,6 +49,7 @@ class _QueuePageState extends ConsumerState<QueuePage> {
   @override
   Widget build(BuildContext context) {
     final staff = ref.watch(sessionProvider).session?.staff;
+    final revision = ref.watch(stationQueueRevisionProvider);
     if (staff?.canViewStation != true) return const SizedBox.shrink();
     final canUpdate = staff!.preparationStaff && staff.canUpdateStation;
     return ScreenBody(
@@ -56,19 +57,20 @@ class _QueuePageState extends ConsumerState<QueuePage> {
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       AsyncPane<PageData<KitchenTicket>>(
           headerBuilder: (refreshControl) => RefreshHeading(
-              eyebrow: '${DateFormat('EEEE').format(DateTime.now())} service',
-              title: staff.bartender ? 'Bar display' : 'Kitchen display',
+              eyebrow: DateFormat('EEEE', context.languageCode)
+                  .format(DateTime.now()),
+              title: staff.bartender ? 'Bar' : 'Kitchen',
               refreshControl: refreshControl),
-          loadKey: '${staff.station}/$_page',
+          loadKey: '${staff.station}/$_page/$revision',
           load: () => ref
               .read(restaurantApiProvider)
-              .queue(_page, station: staff.station),
+              .queue(_page, station: staff.station, activeOnly: true),
           interval: const Duration(seconds: 5),
           builder: (data, refresh) =>
               Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
                 StatRow([
                   ServiceStat(
-                      'New tickets',
+                      'Pending',
                       data.items
                           .where((o) => code(o.status) == 'PENDING')
                           .length,
@@ -80,14 +82,11 @@ class _QueuePageState extends ConsumerState<QueuePage> {
                           .where((o) => code(o.status) == 'PREPARING')
                           .length,
                       'on this page'),
-                  ServiceStat('In queue', data.totalCount,
-                      staff.bartender ? 'in the bar' : 'in the kitchen'),
+                  ServiceStat('In queue', data.totalCount, ''),
                 ]),
                 const SizedBox(height: 20),
-                SectionHeading(staff.bartender ? 'Bar queue' : 'Kitchen queue'),
                 if (data.items.isEmpty)
-                  const EmptyState('All caught up',
-                      'New tickets will appear when a waiter sends an order.',
+                  const EmptyState('No pending orders', '',
                       icon: Icons.soup_kitchen_outlined),
                 LayoutBuilder(builder: (context, constraints) {
                   final columns = constraints.maxWidth > 720 ? 2 : 1;
@@ -100,35 +99,21 @@ class _QueuePageState extends ConsumerState<QueuePage> {
                               action: canUpdate &&
                                       ['PENDING', 'PREPARING']
                                           .contains(code(order.status))
-                                  ? Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.stretch,
-                                      children: [
-                                          if (code(order.status) == 'PENDING')
-                                            OutlinedButton(
-                                                onPressed: _updatingId == null
-                                                    ? () => _update(
-                                                        order,
-                                                        code(order.status) ==
-                                                                'PENDING'
-                                                            ? 'PREPARING'
-                                                            : 'READY',
-                                                        refresh)
-                                                    : null,
-                                                child: Text(_updatingId ==
-                                                        order.orderId
-                                                    ? 'Updating…'
-                                                    : code(order.status) ==
-                                                            'PENDING'
-                                                        ? 'Start preparation'
-                                                        : 'Mark ready')),
-                                          OutlinedButton(
-                                              onPressed: _updatingId == null
-                                                  ? () => _update(
-                                                      order, 'READY', refresh)
-                                                  : null,
-                                              child: const Text('Ready all')),
-                                        ])
+                                  ? OutlinedButton(
+                                      onPressed: _updatingId == null
+                                          ? () => _update(
+                                              order,
+                                              code(order.status) == 'PENDING'
+                                                  ? 'PREPARING'
+                                                  : 'READY',
+                                              refresh)
+                                          : null,
+                                      child:
+                                          AppText(_updatingId == order.orderId
+                                              ? 'Updating…'
+                                              : code(order.status) == 'PENDING'
+                                                  ? 'Start preparing'
+                                                  : 'Ready all'))
                                   : null))
                   ]);
                 }),
@@ -161,7 +146,8 @@ class _TicketCard extends StatelessWidget {
         if (order.note.isNotEmpty)
           Padding(
               padding: const EdgeInsets.only(bottom: 12),
-              child: Text(order.note,
+              child: AppText(order.note,
+                  translate: false,
                   style: const TextStyle(fontWeight: FontWeight.w700))),
         for (final item in order.items)
           Padding(
@@ -169,7 +155,8 @@ class _TicketCard extends StatelessWidget {
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('${item.quantity} × ${item.name}',
+                    AppText(
+                        '${item.quantity} × ${context.menuName(item.name, item.nameAm)}',
                         style: TextStyle(
                             fontWeight: FontWeight.w700,
                             decoration: item.cancelled
@@ -183,10 +170,11 @@ class _TicketCard extends StatelessWidget {
                           decoration: BoxDecoration(
                               color: amberPale,
                               borderRadius: BorderRadius.circular(8)),
-                          child: Text(item.note,
+                          child: AppText(item.note,
+                              translate: false,
                               style:
                                   const TextStyle(color: amber, fontSize: 13))),
-                    Text(statusLabel(item.status),
+                    AppText(item.active ? 'Pending' : statusLabel(item.status),
                         style: const TextStyle(color: muted, fontSize: 12)),
                   ])),
         OrderCardFooter(

@@ -40,7 +40,7 @@ public class PaymentsController : ApiControllerBase
 
     /// <summary>
     /// Records a customer Telebirr/CBE transfer made to the restaurant account.
-    /// The receipt is verified with check.et and stored on the order for later review.
+    /// The receipt is verified with the bank and stored on the order for later review.
     /// </summary>
     [HttpPost("record")]
     [Permission(Permissions.PaymentsInitiate)]
@@ -48,9 +48,7 @@ public class PaymentsController : ApiControllerBase
     public async Task<IActionResult> RecordDigitalPayment([FromBody] RecordDigitalPaymentRequest request, CancellationToken ct)
     {
         var payment = await _paymentService.RecordDigitalPaymentAsync(request, ct);
-        var message = payment.VerificationStatus == "VERIFIED"
-            ? $"{payment.Method} transfer verified with check.et. The receipt is stored on the order."
-            : $"{payment.Method} transfer recorded. Review the receipt before releasing tips.";
+        var message = $"{payment.Method} transfer verified with the bank. The receipt is stored on the order.";
         return OkResponse(payment, message);
     }
 

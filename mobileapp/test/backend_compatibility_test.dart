@@ -2,6 +2,8 @@ import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:mobileapp/core/localization.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobileapp/core/api.dart';
 import 'package:mobileapp/core/models.dart';
@@ -11,6 +13,7 @@ import 'package:mobileapp/core/router.dart';
 import 'package:mobileapp/features/orders/history_page.dart';
 import 'package:mobileapp/features/orders/cart_page.dart';
 import 'package:mobileapp/features/orders/order_detail_page.dart';
+import 'package:mobileapp/features/kitchen/queue_page.dart';
 import 'package:mobileapp/features/payments/payment_pages.dart';
 import 'package:mobileapp/features/payments/receipt_scanner.dart';
 import 'support.dart';
@@ -78,6 +81,7 @@ class Backend {
   bool generated = false;
   bool timeoutPayment = false;
   double transferred = 150;
+  bool receiptUnavailable = false, unverifiedReceipt = false;
   Json get bill => {
         'id': billId,
         'tableId': null,
@@ -168,7 +172,20 @@ class Backend {
             requestOptions: request, type: DioExceptionType.receiveTimeout);
       }
       final body = jsonObject(request.data);
-      payment = makePayment(body['method'] as String);
+      if (path == 'payments/record' && receiptUnavailable) {
+        return (
+          status: 503,
+          body: {
+            'success': false,
+            'errorCode': 'SERVICE_UNAVAILABLE',
+            'message':
+                'Telebirr receipt service unavailable. The bill has not been paid.'
+          }
+        );
+      }
+      payment = makePayment(
+          body['method'] as String? ?? receiptBank(body['qrData'] as String)!);
+      if (unverifiedReceipt) payment!['verificationStatus'] = 'UNVERIFIED';
       if (body['method'] == 'CASH') {
         payment!['amountTendered'] = body['amountTendered'];
         payment!['changeGiven'] = number(body['amountTendered']) - 125;
@@ -232,7 +249,9 @@ class SignedIn extends SessionController {
 
 Future<({FakeAdapter adapter, MemoryVault vault})> pumpMobile(
     WidgetTester tester, Backend backend, String role, String route,
-    {MemoryVault? vault}) async {
+    {MemoryVault? vault,
+    Locale locale = const Locale('en'),
+    Future<String?> Function(BuildContext)? scanner}) async {
   final deps = await setup();
   final storage = vault ?? deps.vault;
   final adapter = FakeAdapter(backend.handle);
@@ -240,12 +259,17 @@ Future<({FakeAdapter adapter, MemoryVault vault})> pumpMobile(
       ApiClient(testServer, transport: Dio()..httpClientAdapter = adapter);
   final router = GoRouter(initialLocation: route, routes: [
     GoRoute(
+        path: '/queue', builder: (_, __) => const Scaffold(body: QueuePage())),
+    GoRoute(
         path: '/orders/new',
         builder: (_, __) => const Scaffold(body: CartPage())),
     GoRoute(
         path: '/orders/:id/replace',
         builder: (_, __) => const Scaffold(
             body: CartPage(orderId: orderId, replacement: true))),
+    GoRoute(
+        path: '/orders/:id/add',
+        builder: (_, __) => const Scaffold(body: CartPage(orderId: orderId))),
     GoRoute(
         path: '/orders/:id',
         builder: (_, __) => const Scaffold(body: OrderDetailPage(id: orderId))),
@@ -260,13 +284,25 @@ Future<({FakeAdapter adapter, MemoryVault vault})> pumpMobile(
         builder: (_, __) => const Scaffold(body: SessionsPage())),
   ]);
   addTearDown(router.dispose);
-  await tester.pumpWidget(ProviderScope(overrides: [
-    preferencesProvider.overrideWithValue(deps.prefs),
-    vaultProvider.overrideWithValue(storage),
-    apiClientProvider.overrideWithValue(api),
-    sessionProvider.overrideWith(
-        (ref) => SignedIn(api, storage, deps.prefs, worker(role))),
-  ], child: MaterialApp.router(routerConfig: router)));
+  await tester.pumpWidget(ProviderScope(
+      overrides: [
+        if (scanner != null) receiptScannerProvider.overrideWithValue(scanner),
+        preferencesProvider.overrideWithValue(deps.prefs),
+        vaultProvider.overrideWithValue(storage),
+        apiClientProvider.overrideWithValue(api),
+        sessionProvider.overrideWith(
+            (ref) => SignedIn(api, storage, deps.prefs, worker(role))),
+      ],
+      child: MaterialApp.router(
+          locale: locale,
+          supportedLocales: supportedAppLocales,
+          localizationsDelegates: const [
+            AppStringsDelegate(),
+            GlobalMaterialLocalizations.delegate,
+            GlobalWidgetsLocalizations.delegate,
+            GlobalCupertinoLocalizations.delegate,
+          ],
+          routerConfig: router)));
   await tester.pumpAndSettle();
   return (adapter: adapter, vault: storage);
 }
@@ -483,16 +519,15 @@ void main() {
     try {
       await tap(tester, 'Take payment');
       await tap(tester, 'Generate bill');
-      await tap(tester, 'Cash');
-      await tap(tester, 'CBE receipt');
+      await tap(tester, 'Enter receipt manually');
       await tester.enterText(
-          find.byKey(const ValueKey('payment-transaction')), 'FT123');
-      await tester.enterText(
-          find.byKey(const ValueKey('payment-amount-paid')), '150');
-      await tap(tester, 'Record transfer');
+          find.byKey(const ValueKey('payment-receipt')), 'FT26SAMPLE01');
+      await tap(tester, 'Verify payment');
       final request = deps.adapter.requests
           .singleWhere((r) => r.uri.path.endsWith('/payments/record'));
-      expect(jsonObject(request.data)['transactionNumber'], 'FT123');
+      expect(jsonObject(request.data)['qrData'], 'FT26SAMPLE01');
+      expect(jsonObject(request.data).containsKey('method'), isFalse);
+      expect(jsonObject(request.data).containsKey('amountPaid'), isFalse);
       expect(jsonObject(request.data).containsKey('receiptUrl'), isFalse);
       expect(find.byType(PaymentPage), findsOneWidget);
     } finally {
@@ -513,15 +548,17 @@ void main() {
       await tap(tester, 'Record refund');
       expect(deps.adapter.requests.where((r) => r.uri.path.endsWith('/refund')),
           isEmpty);
-      expect(find.textContaining('Only a settled payment'), findsOneWidget);
+      expect(find.textContaining('This payment cannot be refunded now'),
+          findsOneWidget);
     } finally {
       await closeApp(tester);
     }
   });
 
   test('receipt links reject non-links and keep bank receipt URLs intact', () {
-    expect(receiptLink(' https://receipt.example/r?id=123 '),
-        'https://receipt.example/r?id=123');
+    expect(
+        receiptLink(' https://apps.cbe.com.et:100/?id=FT26SAMPLE0100006171 '),
+        'https://apps.cbe.com.et:100/?id=FT26SAMPLE0100006171');
     for (final value in [
       '12345',
       'javascript:alert(1)',
@@ -568,21 +605,20 @@ void main() {
     try {
       await tap(tester, 'Take payment');
       await tap(tester, 'Generate bill');
-      await tap(tester, 'Cash');
-      await tap(tester, 'Telebirr receipt');
+      await tap(tester, 'Enter receipt manually');
       await tester.enterText(find.byKey(const ValueKey('payment-receipt')),
-          'https://receipt.example/transaction');
-      await tester.enterText(
-          find.byKey(const ValueKey('payment-amount-paid')), '145');
-      await tap(tester, 'Record transfer');
+          'https://transactioninfo.ethiotelecom.et/receipt/DET0SAMPLE');
+      await tap(tester, 'Verify payment');
       expect(find.byType(PaymentPage), findsOneWidget);
-      expect(find.text('Receipt: Verified'), findsOneWidget);
+      expect(find.text('Receipt verified'), findsOneWidget);
       expect(find.text(testPaymentNotice), findsNothing);
       expect(find.text('ETB 150.00'), findsOneWidget);
       final request = deps.adapter.requests
           .singleWhere((r) => r.uri.path.endsWith('/payments/record'));
       expect(jsonObject(request.data)['billId'], billId);
-      expect(jsonObject(request.data)['method'], 'TELEBIRR');
+      expect(jsonObject(request.data)['qrData'],
+          'https://transactioninfo.ethiotelecom.et/receipt/DET0SAMPLE');
+      expect(jsonObject(request.data).containsKey('method'), isFalse);
     } finally {
       await closeApp(tester);
     }
@@ -712,5 +748,127 @@ void main() {
     } finally {
       await closeApp(tester);
     }
+  });
+  testWidgets('scan submits the raw QR once without bank or amount selection',
+      (tester) async {
+    final backend = Backend();
+    var scans = 0;
+    const qr = 'https://mbreciept.cbe.com.et/v2-aB3dEfGh4JkLmN5pQrSt';
+    final deps = await pumpMobile(tester, backend, 'Waiter', '/orders/$orderId',
+        scanner: (_) async {
+      scans++;
+      return qr;
+    });
+    try {
+      await tap(tester, 'Take payment');
+      await tap(tester, 'Generate bill');
+      expect(find.text('CBE receipt'), findsNothing);
+      expect(find.text('Telebirr receipt'), findsNothing);
+      expect(find.text('Phone request (test)'), findsNothing);
+      expect(find.text('QR code (test)'), findsNothing);
+      expect(find.text('Other payment methods'), findsNothing);
+      expect(find.text('Cash payment'), findsOneWidget);
+      expect(find.byKey(const ValueKey('payment-amount-paid')), findsNothing);
+      await tap(tester, 'Scan receipt QR');
+      expect(scans, 1);
+      final request = deps.adapter.requests
+          .singleWhere((r) => r.uri.path.endsWith('/payments/record'));
+      expect(jsonObject(request.data), {'billId': billId, 'qrData': qr});
+      expect(find.byType(PaymentPage), findsOneWidget);
+      expect(find.text('Receipt verified'), findsOneWidget);
+      expect(backend.payment!['tipAmount'], 25);
+    } finally {
+      await closeApp(tester);
+    }
+  });
+
+  testWidgets('cancelling the camera leaves the bill unpaid', (tester) async {
+    final backend = Backend();
+    final deps = await pumpMobile(tester, backend, 'Waiter', '/orders/$orderId',
+        scanner: (_) async => null);
+    try {
+      await tap(tester, 'Take payment');
+      await tap(tester, 'Generate bill');
+      await tap(tester, 'Scan receipt QR');
+      expect(
+          deps.adapter.requests
+              .where((r) => r.uri.path.endsWith('/payments/record')),
+          isEmpty);
+      expect(backend.payment, isNull);
+      expect(find.text('Accept cash'), findsOneWidget);
+    } finally {
+      await closeApp(tester);
+    }
+  });
+
+  testWidgets(
+      'unavailable verification shows a retryable error without payment',
+      (tester) async {
+    final backend = Backend()..receiptUnavailable = true;
+    await pumpMobile(tester, backend, 'Waiter', '/orders/$orderId',
+        scanner: (_) async =>
+            'https://transactioninfo.ethiotelecom.et/receipt/DET0SAMPLE');
+    try {
+      await tap(tester, 'Take payment');
+      await tap(tester, 'Generate bill');
+      await tap(tester, 'Scan receipt QR');
+      expect(backend.payment, isNull);
+      expect(
+          find.textContaining('receipt service unavailable'), findsOneWidget);
+      expect(
+          tester
+              .widget<OutlinedButton>(
+                  find.byKey(const ValueKey('scan-receipt')))
+              .onPressed,
+          isNotNull);
+    } finally {
+      await closeApp(tester);
+    }
+  });
+
+  testWidgets('an unverified response never displays confirmed payment',
+      (tester) async {
+    final backend = Backend()..unverifiedReceipt = true;
+    await pumpMobile(tester, backend, 'Waiter', '/orders/$orderId',
+        scanner: (_) async =>
+            'https://mbreciept.cbe.com.et/v2-aB3dEfGh4JkLmN5pQrSt');
+    try {
+      await tap(tester, 'Take payment');
+      await tap(tester, 'Generate bill');
+      await tap(tester, 'Scan receipt QR');
+      expect(find.byType(PaymentPage), findsNothing);
+      expect(find.text('Check payment history before trying again.'),
+          findsOneWidget);
+      expect(
+          tester
+              .widget<OutlinedButton>(
+                  find.byKey(const ValueKey('scan-receipt')))
+              .onPressed,
+          isNull);
+    } finally {
+      await closeApp(tester);
+    }
+  });
+
+  test('bank hints reject spoofed hosts and accept encoded Telebirr payloads',
+      () {
+    expect(receiptBank('https://mbreciept.cbe.com.et/v2-aB3dEfGh4JkLmN5pQrSt'),
+        'CBE');
+    expect(
+        receiptBank(
+            'https://transactioninfo.ethiotelecom.et/receipt/DET0SAMPLE'),
+        'TELEBIRR');
+    expect(receiptBank('https://example.com/?ethiotelecom'), isNull);
+    expect(
+        receiptBank(
+            'https://transactioninfo.ethiotelecom.et.evil.example/receipt/DET0SAMPLE'),
+        isNull);
+    expect(
+        receiptBank(
+            'https://user@mbreciept.cbe.com.et/v2-aB3dEfGh4JkLmN5pQrSt'),
+        isNull);
+    // This is only a format hint; the backend checks TLV structure and CRC.
+    expect(receiptBank('ODEyNDAwMGE0NDQ1NTQzMDUzNDE0ZDUwNGM0NTYzMDQwMDAw'),
+        'TELEBIRR');
   });
 }

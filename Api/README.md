@@ -2,6 +2,10 @@
 
 The API is an ASP.NET Core Web API targeting .NET 9.
 
+Implemented backend changes are documented in
+[Backend changes](../docs/BACKEND_CHANGES.md), with the receipt integration
+reference in [Direct bank receipts](../docs/DIRECT_BANK_RECEIPTS.md).
+
 ## Run
 
 From the repository root:

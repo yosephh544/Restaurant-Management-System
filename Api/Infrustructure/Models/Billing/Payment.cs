@@ -69,7 +69,7 @@ public class Payment
     public string? VerifiedBank { get; set; }
     public DateTime? VerifiedAt { get; set; }
 
-    /// <summary>How the receipt was confirmed, e.g. "check.et" or a manual override note.</summary>
+    /// <summary>How the receipt was confirmed, e.g. "the bank" or a manual override note.</summary>
     public string? VerifiedVia { get; set; }
 
     public Guid? VerifiedById { get; set; }

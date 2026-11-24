@@ -22,10 +22,16 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
   Future<RestaurantOrder> _load() async {
     final staff = ref.read(sessionProvider).session!.staff;
     final api = ref.read(restaurantApiProvider);
-    if (!staff.preparationStaff && staff.can(P.ordersView))
+    if (!staff.preparationStaff && staff.can(P.ordersView)) {
       return api.order(widget.id);
+    }
     try {
-      return await api.kitchenOrder(widget.id, station: staff.station);
+      final order = await api.kitchenOrder(widget.id, station: staff.station);
+      if (code(order.status) == 'READY' && mounted) {
+        ref.read(stationQueueRevisionProvider.notifier).state++;
+        context.go('/queue');
+      }
+      return order;
     } on ApiException catch (e) {
       if (e.status == 404 && mounted) context.go('/queue');
       rethrow;
@@ -58,8 +64,8 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
         context: context,
         builder: (c) => StatefulBuilder(
             builder: (c, change) => AlertDialog(
-                    title:
-                        Text(itemId == null ? 'Cancel order?' : 'Cancel item?'),
+                    title: AppText(
+                        itemId == null ? 'Cancel order?' : 'Cancel item?'),
                     content: SizedBox(
                         width: 440,
                         child: SingleChildScrollView(
@@ -69,9 +75,14 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
                                       DropdownButtonFormField<String>(
-                                          value: reason,
-                                          decoration: const InputDecoration(
-                                              labelText: 'Reason'),
+                                          initialValue: reason,
+                                          decoration: InputDecoration(
+                                              labelText: context.t('Reason')),
+                                          validator: localizedValidator(
+                                              context,
+                                              (value) => value == null
+                                                  ? 'Choose a reason.'
+                                                  : null),
                                           items: [
                                             for (final r in [
                                               ('OUT_OF_STOCK', 'Out of stock'),
@@ -87,7 +98,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                                             ])
                                               DropdownMenuItem(
                                                   value: r.$1,
-                                                  child: Text(r.$2)),
+                                                  child: AppText(r.$2)),
                                           ],
                                           onChanged: (v) =>
                                               change(() => reason = v!)),
@@ -97,31 +108,30 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                                           onChanged: (v) => note = v,
                                           maxLength: 1000,
                                           maxLines: 3,
-                                          decoration: const InputDecoration(
-                                              labelText: 'Reason details',
-                                              counterText: ''),
-                                          validator: (v) =>
-                                              (v == null || v.trim().isEmpty)
-                                                  ? 'Explain the cancellation.'
-                                                  : null),
+                                          decoration: InputDecoration(
+                                              labelText: context.t(
+                                                  'Reason details (optional)'),
+                                              counterText: '')),
                                     ])))),
                     actions: [
                       TextButton(
                           onPressed: () => Navigator.pop(c),
-                          child: Text(
+                          child: AppText(
                               itemId == null ? 'Keep order' : 'Keep item')),
                       FilledButton(
                           onPressed: () {
-                            if (form.currentState!.validate())
+                            if (form.currentState!.validate()) {
                               Navigator.pop(c, (reason, note.trim()));
+                            }
                           },
-                          child: Text(
+                          child: AppText(
                               itemId == null ? 'Cancel order' : 'Cancel item'))
                     ])));
     if (result == null || !mounted) return;
     await _act(() async {
-      if (!ref.read(sessionProvider).session!.staff.canCancelStation)
+      if (!ref.read(sessionProvider).session!.staff.canCancelStation) {
         throw const ApiException('Cancellation permission is required.');
+      }
       final current = await _load();
       if (!current.canKitchenCancel ||
           (itemId != null &&
@@ -159,13 +169,36 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
           if (!staff.preparationStaff ||
               !staff.canUpdateStation ||
               !item.active ||
-              !const ['PENDING', 'PREPARING'].contains(code(current.status))) {
+              !(action == 'PREPARING'
+                  ? code(current.status) == 'PENDING'
+                  : code(current.status) == 'PREPARING')) {
             throw const ApiException(
                 'This item is no longer eligible for preparation.');
           }
           await api.kitchenItemStatus(order.id, item.id, action,
               station: staff.station);
         }
+      }, refresh);
+
+  Future<void> _stationAction(
+          RestaurantOrder order, String next, VoidCallback refresh) =>
+      _act(() async {
+        final staff = ref.read(sessionProvider).session?.staff;
+        if (staff == null ||
+            !staff.preparationStaff ||
+            !staff.canUpdateStation) {
+          throw const ApiException('Preparation permission is required.');
+        }
+        final current = await _load();
+        if (!(next == 'PREPARING'
+            ? code(current.status) == 'PENDING'
+            : code(current.status) == 'PREPARING')) {
+          throw const ApiException(
+              'This ticket changed. Check its current status before continuing.');
+        }
+        await ref
+            .read(restaurantApiProvider)
+            .kitchenStatus(order.id, next, station: staff.station);
       }, refresh);
 
   Future<List<PaymentSession>> _payments(
@@ -205,8 +238,8 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                       status: order.status,
                       subtitle: order.waiterName),
                   const SizedBox(height: 10),
-                  Text(
-                      DateFormat('MMM d, HH:mm')
+                  AppText(
+                      DateFormat('MMM d, HH:mm', context.languageCode)
                           .format(order.created.toLocal()),
                       style: const TextStyle(color: muted, fontSize: 12)),
                   if (financialView &&
@@ -219,7 +252,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                   if (financialView &&
                       code(order.paymentStatus) == 'REFUNDPENDING')
                     const Notice(
-                        'This prepaid order needs a refund. Open Payment details to review the full payment before recording it.'),
+                        'Refund needed. Review payment details before refunding.'),
                   const SizedBox(height: 20),
                   if (order.note.isNotEmpty)
                     Card(
@@ -231,11 +264,12 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                                   const Icon(Icons.notes,
                                       size: 20, color: forest),
                                   const SizedBox(width: 12),
-                                  Expanded(child: Text(order.note)),
+                                  Expanded(
+                                      child: AppText(order.note,
+                                          translate: false)),
                                 ]))),
                   const SizedBox(height: 12),
-                  const SectionHeading('Order items',
-                      eyebrow: 'Preparation details'),
+                  const SectionHeading('Order items'),
                   for (final line in order.items)
                     Padding(
                         padding: const EdgeInsets.only(bottom: 12),
@@ -251,8 +285,8 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                                               CrossAxisAlignment.start,
                                           children: [
                                             Expanded(
-                                                child: Text(
-                                                    '${line.quantity} × ${line.name}',
+                                                child: AppText(
+                                                    '${line.quantity} × ${context.menuName(line.name, line.nameAm)}',
                                                     style: TextStyle(
                                                         fontWeight:
                                                             FontWeight.w800,
@@ -268,39 +302,35 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                                       ],
                                       if (line.note.isNotEmpty) ...[
                                         const SizedBox(height: 8),
-                                        Text(line.note),
+                                        AppText(line.note, translate: false),
                                       ],
                                       if (staff.preparationStaff &&
                                           staff.canUpdateStation &&
                                           line.active &&
                                           const ['PENDING', 'PREPARING']
                                               .contains(code(order.status)))
-                                        Wrap(spacing: 8, children: [
-                                          if (code(order.status) == 'PENDING')
-                                            TextButton(
-                                                onPressed: _busy
-                                                    ? null
-                                                    : () => _itemAction(
-                                                        order,
-                                                        line,
-                                                        'PREPARING',
-                                                        refresh),
-                                                child:
-                                                    const Text('Start item')),
-                                          TextButton(
-                                              onPressed: _busy
-                                                  ? null
-                                                  : () => _itemAction(order,
-                                                      line, 'READY', refresh),
-                                              child: const Text('Ready item')),
-                                        ]),
+                                        TextButton(
+                                            onPressed: _busy
+                                                ? null
+                                                : () => _itemAction(
+                                                    order,
+                                                    line,
+                                                    code(order.status) ==
+                                                            'PENDING'
+                                                        ? 'PREPARING'
+                                                        : 'READY',
+                                                    refresh),
+                                            child: AppText(
+                                                code(order.status) == 'PENDING'
+                                                    ? 'Start item'
+                                                    : 'Ready item')),
                                       if (staff.canServeItem(order, line))
                                         TextButton(
                                             onPressed: _busy
                                                 ? null
                                                 : () => _itemAction(order, line,
                                                     'SERVED', refresh),
-                                            child: const Text('Serve item')),
+                                            child: const AppText('Serve item')),
                                       if (canCancel && !line.cancelled)
                                         TextButton.icon(
                                             onPressed: _busy
@@ -309,7 +339,8 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                                                     itemId: line.id),
                                             icon: const Icon(
                                                 Icons.cancel_outlined),
-                                            label: const Text('Cancel item')),
+                                            label:
+                                                const AppText('Cancel item')),
                                     ])))),
                 ]);
             final actions = Column(
@@ -321,7 +352,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                             ? null
                             : () => context.go('/orders/${order.id}/add'),
                         icon: const Icon(Icons.add),
-                        label: const Text('Add items')),
+                        label: const AppText('Add items')),
                   if (staff.canServeOrder(order)) ...[
                     const SizedBox(height: 12),
                     FilledButton.icon(
@@ -340,7 +371,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                                       .served(order.id);
                                 }, refresh),
                         icon: const Icon(Icons.room_service_outlined),
-                        label: const Text('Serve all'))
+                        label: const AppText('Serve all'))
                   ],
                   if (canEdit &&
                       staff.canReplaceOrders &&
@@ -352,40 +383,29 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                             ? null
                             : () => context.go('/orders/${order.id}/replace'),
                         icon: const Icon(Icons.replay),
-                        label: const Text('Create replacement order'))
+                        label: const AppText('Create replacement order'))
                   ],
                   if (staff.canUpdateStation && code(order.status) == 'PENDING')
                     FilledButton.icon(
                         onPressed: _busy
                             ? null
-                            : () => _act(
-                                () => ref
-                                    .read(restaurantApiProvider)
-                                    .kitchenStatus(order.id, 'PREPARING',
-                                        station: staff.station),
-                                refresh),
+                            : () => _stationAction(order, 'PREPARING', refresh),
                         icon: const Icon(Icons.soup_kitchen_outlined),
-                        label: const Text('Start preparation')),
+                        label: const AppText('Start preparing')),
                   if (staff.canUpdateStation &&
-                      const ['PENDING', 'PREPARING']
-                          .contains(code(order.status)))
+                      code(order.status) == 'PREPARING')
                     FilledButton.icon(
                         onPressed: _busy
                             ? null
-                            : () => _act(
-                                () => ref
-                                    .read(restaurantApiProvider)
-                                    .kitchenStatus(order.id, 'READY',
-                                        station: staff.station),
-                                refresh),
+                            : () => _stationAction(order, 'READY', refresh),
                         icon: const Icon(Icons.check_circle_outline),
-                        label: const Text('Ready all')),
+                        label: const AppText('Ready all')),
                   if (canCancel) ...[
                     const SizedBox(height: 12),
                     OutlinedButton.icon(
                         onPressed: _busy ? null : () => _cancel(order, refresh),
                         icon: const Icon(Icons.cancel_outlined),
-                        label: const Text('Cancel order'))
+                        label: const AppText('Cancel order'))
                   ],
                   if (staff.canTakePayment(order) &&
                       financialView &&
@@ -396,7 +416,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                             ? null
                             : () => startPayment(context, ref, order),
                         icon: const Icon(Icons.payments_outlined),
-                        label: const Text('Take payment')),
+                        label: const AppText('Take payment')),
                   ],
                   if (staff.can(P.paymentsView) && financialView)
                     FutureBuilder<List<PaymentSession>>(
@@ -405,7 +425,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                           if (snapshot.hasError) {
                             return TextButton(
                                 onPressed: () => setState(() {}),
-                                child: const Text('Retry payment details'));
+                                child: const AppText('Retry payment details'));
                           }
                           return Column(children: [
                             for (final payment
@@ -413,7 +433,7 @@ class _OrderDetailPageState extends ConsumerState<OrderDetailPage> {
                               TextButton(
                                   onPressed: () =>
                                       context.go('/sessions/${payment.id}'),
-                                  child: Text(
+                                  child: AppText(
                                       'Payment details · ${statusLabel(payment.status)}'))
                           ]);
                         }),

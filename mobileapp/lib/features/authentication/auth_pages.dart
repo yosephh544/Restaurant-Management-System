@@ -6,13 +6,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/models.dart';
 import '../../core/session.dart';
 import '../../core/widgets.dart';
+import '../../core/language.dart';
 import 'quick_login_dialog.dart';
 
-String _shiftTime(dynamic value) {
+String _shiftTime(BuildContext context, dynamic value) {
   final time = date(value);
   return time == null
       ? ''
-      : DateFormat('EEE d MMM, HH:mm')
+      : DateFormat('EEE d MMM, HH:mm', context.languageCode)
           .format(time.toUtc().add(const Duration(hours: 3)));
 }
 
@@ -22,14 +23,14 @@ Future<void> configureServer(BuildContext context, WidgetRef ref) async {
   final value = await showDialog<String>(
       context: context,
       builder: (c) => AlertDialog(
-              title: const Text('Server settings'),
+              title: const AppText('Server settings'),
               content: SizedBox(
                   width: 440,
                   child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
+                        const AppText(
                             'Changing servers signs you out and clears unsent orders and saved payments.'),
                         const SizedBox(height: 16),
                         TextFormField(
@@ -37,17 +38,18 @@ Future<void> configureServer(BuildContext context, WidgetRef ref) async {
                             onChanged: (v) => fieldValue = v,
                             keyboardType: TextInputType.url,
                             autocorrect: false,
-                            decoration: const InputDecoration(
-                                labelText: 'Server address',
-                                hintText: 'http://192.168.1.2:5012/api/v1')),
+                            decoration: InputDecoration(
+                                labelText: context.t('Server address'),
+                                hintText: context
+                                    .t('http://192.168.1.2:5012/api/v1'))),
                       ])),
               actions: [
                 TextButton(
                     onPressed: () => Navigator.pop(c),
-                    child: const Text('Cancel')),
+                    child: const AppText('Cancel')),
                 FilledButton(
                     onPressed: () => Navigator.pop(c, fieldValue),
-                    child: const Text('Save'))
+                    child: const AppText('Save'))
               ]));
   if (value == null) return;
   try {
@@ -200,14 +202,20 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
-                              Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton.icon(
-                                      onPressed: _busy
-                                          ? null
-                                          : () => configureServer(context, ref),
-                                      icon: const Icon(Icons.settings_ethernet),
-                                      label: const Text('Server'))),
+                              Row(
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const LanguageChoice(compact: true),
+                                    TextButton.icon(
+                                        onPressed: _busy
+                                            ? null
+                                            : () =>
+                                                configureServer(context, ref),
+                                        icon:
+                                            const Icon(Icons.settings_ethernet),
+                                        label: const AppText('Server'))
+                                  ]),
                               const SizedBox(height: 20),
                               const Row(children: [
                                 BrandMark(size: 72),
@@ -217,31 +225,22 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                      Text(restaurantName,
+                                      AppText(restaurantName,
                                           style: TextStyle(
                                               color: ink,
                                               fontSize: 20,
                                               fontWeight: FontWeight.w800,
                                               letterSpacing: -.5)),
-                                      Text('Restaurant operations',
-                                          style: TextStyle(
-                                              color: muted, fontSize: 12)),
                                     ])),
                               ]),
                               const SizedBox(height: 26),
-                              const Eyebrow('Staff sign-in'),
-                              const SizedBox(height: 6),
-                              Text('Sign in',
+                              AppText('Sign in',
                                   style: Theme.of(context)
                                       .textTheme
                                       .headlineLarge
                                       ?.copyWith(
                                           fontWeight: FontWeight.w800,
                                           color: ink)),
-                              const SizedBox(height: 8),
-                              const Text(
-                                  'Welcome back. Sign in to start your service.',
-                                  style: TextStyle(color: muted)),
                               const SizedBox(height: 24),
                               Form(
                                   key: _form,
@@ -256,16 +255,17 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                         autofillHints: const [
                                           AutofillHints.username
                                         ],
-                                        decoration: const InputDecoration(
-                                            labelText: 'Username',
+                                        decoration: InputDecoration(
+                                            labelText: context.t('Username'),
                                             prefixIcon:
                                                 Icon(Icons.person_outline)),
-                                        validator: (v) => v == null ||
-                                                v.trim().isEmpty
-                                            ? 'Enter your staff username.'
-                                            : v.trim().length > 50
-                                                ? 'Use at most 50 characters.'
-                                                : null),
+                                        validator: localizedValidator(
+                                            context,
+                                            (v) => v == null || v.trim().isEmpty
+                                                ? 'Enter your username.'
+                                                : v.trim().length > 50
+                                                    ? 'Use at most 50 characters.'
+                                                    : null)),
                                     const SizedBox(height: 16),
                                     TextFormField(
                                         controller: _pin,
@@ -280,22 +280,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                         maxLength: 6,
                                         onFieldSubmitted: (_) => _login(),
                                         decoration: InputDecoration(
-                                            labelText: 'PIN',
+                                            labelText: context.t('PIN'),
                                             counterText: '',
                                             prefixIcon:
                                                 const Icon(Icons.lock_outline),
                                             suffixIcon: IconButton(
-                                                tooltip:
-                                                    _visible ? 'Hide' : 'Show',
+                                                tooltip: context.t(
+                                                    _visible ? 'Hide' : 'Show'),
                                                 onPressed: () => setState(
                                                     () => _visible = !_visible),
                                                 icon: Icon(_visible
                                                     ? Icons.visibility_off
                                                     : Icons.visibility))),
-                                        validator: (v) => (RegExp(r'^\d{4,6}$')
-                                                .hasMatch(v ?? '')
-                                            ? null
-                                            : 'Enter a 4–6 digit PIN.')),
+                                        validator: localizedValidator(
+                                            context,
+                                            (v) => (RegExp(r'^\d{4,6}$')
+                                                    .hasMatch(v ?? '')
+                                                ? null
+                                                : 'Enter a 4–6 digit PIN.'))),
                                   ])),
                               if (_error != null ||
                                   ref.watch(sessionProvider).message != null)
@@ -306,12 +308,12 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                               const SizedBox(height: 24),
                               FilledButton(
                                   onPressed: _busy ? null : _login,
-                                  child:
-                                      Text(_busy ? 'Signing in…' : 'Sign in')),
+                                  child: AppText(
+                                      _busy ? 'Signing in…' : 'Sign in')),
                               if (temporaryQuickLoginEnabled) ...[
                                 const SizedBox(height: 16),
                                 if (_quickAccounts.isNotEmpty) ...[
-                                  const Text('Quick sign-in',
+                                  const AppText('Quick sign-in',
                                       style: TextStyle(
                                           fontWeight: FontWeight.w700)),
                                   const SizedBox(height: 8),
@@ -328,7 +330,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                                       : () => _quickSignIn(
                                                           account['username']
                                                               as String),
-                                                  child: Text(
+                                                  child: AppText(
                                                       '${account['username']}${(account['role'] as String).isEmpty ? '' : ' · ${statusLabel(account['role'] as String)}'}'))),
                                           const SizedBox(width: 8),
                                           TextButton(
@@ -337,14 +339,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                                   : () => _forgetQuickAccount(
                                                       account['username']
                                                           as String),
-                                              child: const Text('Remove')),
+                                              child: const AppText('Remove')),
                                         ])),
                                 ],
                                 TextButton(
                                     onPressed: _busy || _quickLoading
                                         ? null
                                         : _addQuickAccount,
-                                    child: Text(_quickLoading
+                                    child: AppText(_quickLoading
                                         ? 'Loading quick sign-in…'
                                         : 'Add quick sign-in account')),
                               ],
@@ -369,10 +371,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         onRefresh: () => ref.read(sessionProvider.notifier).revalidate(),
         child:
             Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-          const ScreenHeading(
-              eyebrow: 'Your account',
-              title: 'Profile',
-              subtitle: 'Your staff details and restaurant connection.'),
+          const ScreenHeading(title: 'Profile'),
           const SizedBox(height: 20),
           Card(
               child: Padding(
@@ -388,19 +387,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                          Text(staff.name,
+                          AppText(staff.name,
+                              translate: false,
                               style: Theme.of(context)
                                   .textTheme
                                   .titleLarge
                                   ?.copyWith(fontWeight: FontWeight.w700)),
                           if (staff.username.isNotEmpty) ...[
                             const SizedBox(height: 4),
-                            Text(staff.username,
+                            AppText(staff.username,
+                                translate: false,
                                 style: const TextStyle(color: muted)),
                           ],
                           if (staff.phone.isNotEmpty) ...[
                             const SizedBox(height: 4),
-                            Text(staff.phone,
+                            AppText(staff.phone,
+                                translate: false,
                                 style: const TextStyle(color: muted)),
                           ],
                           const SizedBox(height: 8),
@@ -416,20 +418,21 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                 builder: (shift, _) => Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          Text('Your shift',
+                          AppText('Your shift',
                               style: Theme.of(context).textTheme.titleMedium),
                           const SizedBox(height: 8),
                           if (shift['unrestricted'] == true)
-                            const Text('No shift restriction.'),
+                            const AppText('You can sign in at any time.'),
                           for (final window in shift['shifts'] as List? ?? [])
                             Padding(
                                 padding: const EdgeInsets.only(bottom: 8),
-                                child: Text(
-                                    '${window['name']} · ${_shiftTime(window['startsAt'])} – ${_shiftTime(window['endsAt'])} EAT')),
-                          if (shift['message'] != null)
-                            Text(shift['message'] as String),
-                          if (shift['canSignInNow'] == false)
-                            const Text(
+                                child: AppText(
+                                    '${window['name']} · ${_shiftTime(context, window['startsAt'])} – ${_shiftTime(context, window['endsAt'])} EAT')),
+                          if ((shift['message'] as String?)?.isNotEmpty == true)
+                            AppText(shift['message'] as String),
+                          if (shift['canSignInNow'] == false &&
+                              (shift['message'] as String?)?.isNotEmpty != true)
+                            const AppText(
                                 'Sign-in and session renewal are outside your current shift window.'),
                         ])),
             const SizedBox(height: 20),
@@ -438,20 +441,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               child: ListTile(
                   contentPadding: const EdgeInsets.all(20),
                   leading: const Icon(Icons.settings_ethernet),
-                  title: const Text('Server settings'),
-                  subtitle: Text(
+                  title: const AppText('Server settings'),
+                  subtitle: AppText(
                       Uri.tryParse(ref.read(sessionProvider.notifier).server)
                               ?.host ??
                           ''),
                   trailing: const Icon(Icons.chevron_right),
                   onTap: _busy ? null : () => configureServer(context, ref))),
           const SizedBox(height: 20),
+          const LanguageChoice(),
+          const SizedBox(height: 20),
           OutlinedButton.icon(
               onPressed: _busy
                   ? null
                   : () async {
                       if (!await confirmAction(context, 'Sign out?',
-                          'Unsent orders and saved payments will be cleared.')) {
+                          'Your unsent order will be discarded.')) {
                         return;
                       }
                       if (!mounted) return;
@@ -465,7 +470,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       }
                     },
               icon: const Icon(Icons.logout),
-              label: Text(_busy ? 'Signing out…' : 'Sign out')),
+              label: AppText(_busy ? 'Signing out…' : 'Sign out')),
         ]));
   }
 }
@@ -482,5 +487,5 @@ class UnsupportedRolePage extends ConsumerWidget {
                   action: FilledButton(
                       onPressed: () =>
                           ref.read(sessionProvider.notifier).signOut(),
-                      child: const Text('Sign out'))))));
+                      child: const AppText('Sign out'))))));
 }

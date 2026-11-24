@@ -1,5 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+export 'localization.dart';
+import 'localization.dart';
 import 'package:intl/intl.dart';
 import 'models.dart';
 
@@ -173,7 +175,8 @@ class Eyebrow extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 10),
-          Text(text.toUpperCase(),
+          AppText(context.t(text).toUpperCase(),
+              translate: false,
               style: const TextStyle(
                   color: muted,
                   fontSize: 10,
@@ -187,7 +190,7 @@ class ScreenHeading extends StatelessWidget {
   final String eyebrow, title, subtitle;
   final Widget? action;
   const ScreenHeading(
-      {required this.eyebrow,
+      {this.eyebrow = '',
       required this.title,
       this.subtitle = '',
       this.action,
@@ -196,12 +199,14 @@ class ScreenHeading extends StatelessWidget {
   Widget build(BuildContext context) {
     final copy =
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Eyebrow(eyebrow),
-      const SizedBox(height: 6),
-      Text(title, style: Theme.of(context).textTheme.headlineSmall),
+      if (eyebrow.isNotEmpty) ...[
+        Eyebrow(eyebrow),
+        const SizedBox(height: 6),
+      ],
+      AppText(title, style: Theme.of(context).textTheme.headlineSmall),
       if (subtitle.isNotEmpty) ...[
         const SizedBox(height: 7),
-        Text(subtitle, style: const TextStyle(color: muted, fontSize: 13)),
+        AppText(subtitle, style: const TextStyle(color: muted, fontSize: 13)),
       ],
     ]);
     return LayoutBuilder(builder: (context, constraints) {
@@ -226,19 +231,28 @@ class ScreenHeading extends StatelessWidget {
 class RefreshHeading extends StatelessWidget {
   final String eyebrow, title;
   final Widget refreshControl;
+  final Widget? eyebrowTrailing;
   const RefreshHeading(
       {required this.eyebrow,
       required this.title,
       required this.refreshControl,
+      this.eyebrowTrailing,
       super.key});
   @override
   Widget build(BuildContext context) =>
       Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        Eyebrow(eyebrow),
+        Row(children: [
+          Expanded(child: Eyebrow(eyebrow)),
+          if (eyebrowTrailing != null)
+            Flexible(
+                child: Padding(
+                    padding: const EdgeInsets.only(left: 12),
+                    child: eyebrowTrailing!)),
+        ]),
         const SizedBox(height: 4),
         Row(children: [
           Expanded(
-              child: Text(title,
+              child: AppText(title,
                   style: Theme.of(context).textTheme.headlineSmall)),
           const SizedBox(width: 12),
           refreshControl,
@@ -265,10 +279,11 @@ class SectionHeading extends StatelessWidget {
                 Eyebrow(eyebrow!),
                 const SizedBox(height: 4)
               ],
-              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              AppText(title, style: Theme.of(context).textTheme.titleMedium),
             ]),
             if (detail != null)
-              Text(detail!, style: const TextStyle(color: muted, fontSize: 11)),
+              AppText(detail!,
+                  style: const TextStyle(color: muted, fontSize: 11)),
           ]));
 }
 
@@ -284,7 +299,7 @@ class ServiceStat extends StatelessWidget {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(
-              child: Text('$value',
+              child: AppText('$value',
                   style: TextStyle(
                       color: accent ? forestDark : ink,
                       fontSize: 24,
@@ -292,11 +307,13 @@ class ServiceStat extends StatelessWidget {
                       height: 1))),
         ]),
         const SizedBox(height: 7),
-        Text(label,
+        AppText(label,
             style: const TextStyle(
                 color: ink, fontSize: 12, fontWeight: FontWeight.w700)),
-        const SizedBox(height: 3),
-        Text(hint, style: const TextStyle(color: muted, fontSize: 11)),
+        if (hint.isNotEmpty) ...[
+          const SizedBox(height: 3),
+          AppText(hint, style: const TextStyle(color: muted, fontSize: 11)),
+        ],
       ]));
 }
 
@@ -347,20 +364,21 @@ class OrderHeading extends StatelessWidget {
   Widget build(BuildContext context) {
     final copy =
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(number,
+      AppText(shortOrderNumber(number),
+          translate: false,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: const TextStyle(
               color: muted, fontSize: 11, fontWeight: FontWeight.w700)),
       const SizedBox(height: 4),
-      Text(takeaway ? 'Takeaway' : 'Table $table',
+      AppText(takeaway ? 'Takeaway' : 'Table $table',
           style: Theme.of(context)
               .textTheme
               .titleLarge
               ?.copyWith(fontSize: 21, fontWeight: FontWeight.w800)),
       if (queuePosition > 0) ...[
         const SizedBox(height: 4),
-        Text('Queue $queuePosition',
+        AppText('Queue $queuePosition',
             style: const TextStyle(color: muted, fontSize: 12)),
       ],
     ]);
@@ -380,7 +398,9 @@ class OrderHeading extends StatelessWidget {
                 ])),
       if (subtitle != null && subtitle!.isNotEmpty) ...[
         const SizedBox(height: 7),
-        Text(subtitle!, style: const TextStyle(color: muted, fontSize: 12)),
+        AppText(subtitle!,
+            translate: false,
+            style: const TextStyle(color: muted, fontSize: 12)),
       ],
     ]);
   }
@@ -399,7 +419,7 @@ class QuantityButton extends StatelessWidget {
       super.key});
   @override
   Widget build(BuildContext context) => IconButton(
-      tooltip: tooltip,
+      tooltip: context.t(tooltip),
       onPressed: onPressed,
       style: IconButton.styleFrom(
           minimumSize: const Size(48, 48),
@@ -422,7 +442,7 @@ class StatusBadge extends StatelessWidget {
         decoration: BoxDecoration(
             color: appearance.background,
             borderRadius: BorderRadius.circular(10)),
-        child: Text(statusLabel(status),
+        child: AppText(statusLabel(status),
             style: TextStyle(
                 color: appearance.color,
                 fontWeight: FontWeight.w700,
@@ -445,7 +465,7 @@ class Notice extends StatelessWidget {
         Icon(error ? Icons.error_outline : Icons.info_outline,
             size: 18, color: error ? red : amber),
         const SizedBox(width: 10),
-        Expanded(child: Text(text)),
+        Expanded(child: AppText(text)),
       ]));
 }
 
@@ -470,12 +490,12 @@ class EmptyState extends StatelessWidget {
                 color: mint, borderRadius: BorderRadius.circular(15)),
             child: Icon(icon, size: 24, color: forest)),
         const SizedBox(height: 16),
-        Text(title,
+        AppText(title,
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.titleMedium),
         if (message.isNotEmpty) ...[
           const SizedBox(height: 8),
-          Text(message,
+          AppText(message,
               textAlign: TextAlign.center,
               style: const TextStyle(color: muted)),
         ],
@@ -484,23 +504,25 @@ class EmptyState extends StatelessWidget {
 }
 
 void showError(BuildContext context, Object error) {
-  ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('$error'), duration: const Duration(seconds: 6)));
+  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: AppText('$error'), duration: const Duration(seconds: 6)));
 }
 
 Future<bool> confirmAction(
         BuildContext context, String title, String message) async =>
     await showDialog<bool>(
         context: context,
-        builder: (c) =>
-            AlertDialog(title: Text(title), content: Text(message), actions: [
-              TextButton(
-                  onPressed: () => Navigator.pop(c, false),
-                  child: const Text('Cancel')),
-              FilledButton(
-                  onPressed: () => Navigator.pop(c, true),
-                  child: const Text('Confirm')),
-            ])) ??
+        builder: (c) => AlertDialog(
+                title: AppText(title),
+                content: AppText(message),
+                actions: [
+                  TextButton(
+                      onPressed: () => Navigator.pop(c, false),
+                      child: const AppText('Cancel')),
+                  FilledButton(
+                      onPressed: () => Navigator.pop(c, true),
+                      child: const AppText('Confirm')),
+                ])) ??
     false;
 
 class PageButtons extends StatelessWidget {
@@ -519,14 +541,14 @@ class PageButtons extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Row(children: [
             Expanded(
-                child: Text('$page / $pages',
+                child: AppText('$page / $pages',
                     style: const TextStyle(color: muted))),
             IconButton(
-                tooltip: 'Previous page',
+                tooltip: context.t('Previous page'),
                 onPressed: page > 1 ? () => onPage(page - 1) : null,
                 icon: const Icon(Icons.chevron_left)),
             IconButton(
-                tooltip: 'Next page',
+                tooltip: context.t('Next page'),
                 onPressed: page < pages ? () => onPage(page + 1) : null,
                 icon: const Icon(Icons.chevron_right)),
           ]));
@@ -705,42 +727,14 @@ class _AsyncPaneState<T> extends State<AsyncPane<T>>
 
   @override
   Widget build(BuildContext context) {
-    final label = widget.interval != null &&
-            (_data == null || widget.keepPolling?.call(_data as T) != false)
-        ? 'Auto refresh'
-        : 'Updated';
-    final refreshText = widget.headerBuilder == null
-        ? Text(
-            '$label${_updated == null ? '' : ' · ${DateFormat.Hm().format(_updated!)}'}',
-            style: const TextStyle(color: muted, fontSize: 12))
-        : Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-                Text(label,
-                    style: const TextStyle(
-                        color: forestDark,
-                        fontSize: 10,
-                        fontWeight: FontWeight.w700)),
-                if (_updated != null)
-                  Text(DateFormat.Hm().format(_updated!),
-                      style: const TextStyle(color: muted, fontSize: 10)),
-              ]);
-    final refreshControl = Row(
-        mainAxisSize:
-            widget.headerBuilder == null ? MainAxisSize.max : MainAxisSize.min,
-        children: [
-          if (widget.headerBuilder == null)
-            Expanded(child: refreshText)
-          else
-            refreshText,
-          IconButton(
-              tooltip: 'Refresh',
-              style: IconButton.styleFrom(
-                  foregroundColor: forest, backgroundColor: mint),
-              onPressed: _busy ? null : () => unawaited(_load()),
-              icon: const Icon(Icons.refresh, size: 18)),
-        ]);
+    final refreshControl = Align(
+        alignment: Alignment.centerRight,
+        child: IconButton(
+            tooltip: context.t('Refresh'),
+            style: IconButton.styleFrom(
+                foregroundColor: forest, backgroundColor: mint),
+            onPressed: _busy ? null : () => unawaited(_load()),
+            icon: const Icon(Icons.refresh, size: 18)));
     final content = _buildContent(refreshControl);
     return widget.headerBuilder == null
         ? content
@@ -758,7 +752,7 @@ class _AsyncPaneState<T> extends State<AsyncPane<T>>
             action: FilledButton.icon(
                 onPressed: () => unawaited(_load()),
                 icon: const Icon(Icons.refresh),
-                label: const Text('Try again')));
+                label: const AppText('Try again')));
       }
       return const Padding(
           padding: EdgeInsets.all(48),
@@ -768,7 +762,7 @@ class _AsyncPaneState<T> extends State<AsyncPane<T>>
       if (_busy) const LinearProgressIndicator(minHeight: 2),
       if (_error != null)
         Notice(
-            'Last updated ${_updated == null ? 'earlier' : DateFormat.Hm().format(_updated!)}. $_error',
+            'Last updated ${_updated == null ? 'earlier' : DateFormat.Hm(context.languageCode).format(_updated!)}. $_error',
             error: true),
       if (widget.headerBuilder == null) refreshControl,
       widget.builder(_data as T, () => unawaited(_load())),
@@ -817,13 +811,19 @@ class Totals extends StatelessWidget {
                   padding: const EdgeInsets.only(bottom: 10),
                   child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [Text(row.$1), Text(money(row.$2))])),
+                      children: [
+                        Expanded(child: AppText(row.$1)),
+                        const SizedBox(width: 12),
+                        AppText(money(row.$2))
+                      ])),
             const Divider(),
             const SizedBox(height: 8),
             Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              Text(estimate ? 'Estimated total' : 'Order total',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-              Text(money(total),
+              Expanded(
+                  child: AppText(estimate ? 'Estimated total' : 'Order total',
+                      style: const TextStyle(fontWeight: FontWeight.bold))),
+              const SizedBox(width: 12),
+              AppText(money(total),
                   style: Theme.of(context)
                       .textTheme
                       .titleLarge

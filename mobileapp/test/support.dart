@@ -1,12 +1,16 @@
 import 'dart:convert';
 import 'dart:typed_data';
 import 'package:dio/dio.dart';
+import 'package:cryptography/cryptography.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobileapp/core/api.dart';
 import 'package:mobileapp/core/models.dart';
+import 'package:mobileapp/core/permissions.dart';
+import 'package:mobileapp/core/profile.dart';
 import 'package:mobileapp/core/session.dart';
 import 'package:mobileapp/main.dart';
 
@@ -68,8 +72,48 @@ Json staffJson([String role = 'Waiter']) => {
       'fullName': 'Abebe Bekele',
       'phone': '+251911111111',
       'role': role,
-      'isActive': true
+      'isActive': true,
+      'permissions': [
+        P.menuView,
+        P.ordersView,
+        P.ordersCreate,
+        P.ordersAdd,
+        P.ordersReorder,
+        P.ordersServe,
+        P.kitchenView,
+        P.kitchenUpdate,
+        P.kitchenCancel,
+        P.barView,
+        P.barUpdate,
+        P.barCancel,
+        P.availability,
+        P.tablesView,
+        P.billsGenerate,
+        P.billsReopen,
+        P.paymentsInitiate,
+        P.paymentsView,
+        P.paymentsRetract,
+        P.tipsView,
+      ],
     };
+// Match the real encrypted /auth/me contract without weakening app decoding.
+Future<Json> encryptedProfile([String role = 'Waiter']) async {
+  final staff = staffJson(role);
+  final key = SecretKey(
+      (await Sha256().hash(utf8.encode(responseEncryptionKey.trim()))).bytes);
+  final result = <String, dynamic>{};
+  for (final field in ['id', 'fullName', 'role', 'permissions']) {
+    final clear = field == 'permissions'
+        ? jsonEncode(staff[field])
+        : staff[field] as String;
+    final box =
+        await AesGcm.with256bits().encrypt(utf8.encode(clear), secretKey: key);
+    result[field] =
+        base64Encode([...box.nonce, ...box.cipherText, ...box.mac.bytes]);
+  }
+  return result;
+}
+
 Json authJson([String role = 'Waiter', String token = 'old']) => {
       'accessToken': token,
       'refreshToken': 'refresh-$token',
@@ -147,7 +191,7 @@ class FakeRestaurant {
         path == 'auth/refresh') {
       data = envelope(authJson(role));
     } else if (path == 'auth/me') {
-      data = envelope(staffJson(role));
+      data = envelope(await encryptedProfile(role));
     } else if (path == 'auth/logout') {
       data = envelope(null);
     } else if (path == 'menu/categories') {
@@ -156,6 +200,17 @@ class FakeRestaurant {
       data = envelope({
         'categories': [categoryJson()]
       });
+    } else if (path == 'tables') {
+      data = envelope([
+        {'id': 'table-12', 'number': 'T12', 'name': '', 'status': 'Available'}
+      ]);
+    } else if (path == 'tables/table-12/session' ||
+        path.startsWith('bills/active')) {
+      data = envelope(null);
+    } else if (path == 'reports/my-waiter') {
+      data = envelope({'daily': []});
+    } else if (path == 'shifts/me') {
+      data = envelope({'unrestricted': true, 'shifts': []});
     } else if (path == 'menu/items/$itemId/availability') {
       available = jsonObject(r.data)['isAvailable'] == true;
       data = envelope(menuJson(available: available));
@@ -163,8 +218,11 @@ class FakeRestaurant {
       data = envelope(menuJson(available: available));
     } else if (path == 'orders' && r.method == 'GET') {
       data = paged([
-        orderJson(
-            status: status, payment: payment, cancelledItem: cancelledItem)
+        {
+          ...orderJson(
+              status: status, payment: payment, cancelledItem: cancelledItem),
+          'createdAt': DateTime.now().toUtc().toIso8601String()
+        }
       ]);
     } else if (path == 'orders' && r.method == 'POST') {
       if (timeoutCreate) {
@@ -203,6 +261,8 @@ class FakeRestaurant {
     } else if (path == 'payments/arifpay/initiate') {
       payment = 'PaymentInitiated';
       data = envelope(paymentJson());
+    } else if (path == 'payments' && r.method == 'GET') {
+      data = paged([], total: 0);
     } else if (path == 'payments/$paymentId/status') {
       data = envelope({'status': sessionStatus});
     } else if (path == 'payments/$paymentId/retract') {
@@ -235,6 +295,8 @@ Future<
       ApiClient api,
       SharedPreferences prefs
     })> setup([FakeRestaurant? backend]) async {
+  await initializeDateFormatting('en');
+  await initializeDateFormatting('am');
   SharedPreferences.setMockInitialValues({'server': testServer});
   final prefs = await SharedPreferences.getInstance();
   final adapter = FakeAdapter((backend ?? FakeRestaurant()).handle);

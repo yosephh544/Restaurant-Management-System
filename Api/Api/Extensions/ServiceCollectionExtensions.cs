@@ -129,20 +129,10 @@ public static class ServiceCollectionExtensions
     {
         services.AddHttpContextAccessor();
 
-        // check.et receipt verification. The API key lives in configuration/env only.
-        services.AddHttpClient<ICheckEtVerifier, CheckEtVerifier>((sp, client) =>
+        services.AddHttpClient<IBankReceiptVerifier, DirectBankReceiptVerifier>(client =>
         {
-            var config = sp.GetRequiredService<IConfiguration>();
-            var baseUrl = config["CheckEt:BaseUrl"];
-            if (string.IsNullOrWhiteSpace(baseUrl))
-                baseUrl = "https://api.check.et";
-            if (!baseUrl.EndsWith('/'))
-                baseUrl += "/";
-
-            client.BaseAddress = new Uri(baseUrl);
-            var timeoutSeconds = config.GetValue<int?>("CheckEt:TimeoutSeconds") ?? 20;
-            client.Timeout = TimeSpan.FromSeconds(Math.Clamp(timeoutSeconds, 3, 60));
-        });
+            client.Timeout = Timeout.InfiniteTimeSpan; // Per-bank deadlines include response bodies.
+        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
 
         // Common
         services.AddScoped<IJwtTokenService, JwtTokenService>();

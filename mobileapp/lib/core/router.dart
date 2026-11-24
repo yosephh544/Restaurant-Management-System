@@ -220,7 +220,7 @@ final routerProvider = Provider<GoRouter>((ref) {
               child: EmptyState('Page not found', '',
                   action: FilledButton(
                       onPressed: () => context.go('/'),
-                      child: const Text('Home'))))));
+                      child: const AppText('Home'))))));
   ref.onDispose(() {
     router.dispose();
     refresh.dispose();
@@ -236,6 +236,7 @@ class ServiceShell extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final session = ref.watch(sessionProvider);
     final alerts = ref.watch(orderAlertsProvider);
+    final paymentFlowActive = ref.watch(paymentFlowActiveProvider);
     final staff = session.session?.staff;
     if (staff == null) return const SizedBox.shrink();
     final destinations = destinationsFor(staff);
@@ -269,7 +270,7 @@ class ServiceShell extends ConsumerWidget {
           leading: root
               ? const Center(child: BrandMark(size: 42))
               : IconButton(
-                  tooltip: 'Back',
+                  tooltip: context.t('Back'),
                   icon: const Icon(Icons.arrow_back),
                   onPressed: () async {
                     if (context.canPop()) {
@@ -281,7 +282,7 @@ class ServiceShell extends ConsumerWidget {
           titleSpacing: 0,
           title:
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(
+            AppText(
               root ? restaurantName : title,
               style: TextStyle(fontSize: 20),
             ),
@@ -291,7 +292,7 @@ class ServiceShell extends ConsumerWidget {
           actions: [
             if (alerts.enabled)
               IconButton(
-                  tooltip: 'Notifications',
+                  tooltip: context.t('Notifications'),
                   onPressed: () => showOrderNotifications(context),
                   icon: Badge.count(
                       count: alerts.unread,
@@ -300,13 +301,13 @@ class ServiceShell extends ConsumerWidget {
             if (MediaQuery.sizeOf(context).width >= 360)
               Padding(
                   padding: const EdgeInsets.only(right: 6),
-                  child: Text(statusLabel(staff.role),
+                  child: AppText(statusLabel(staff.role),
                       style: const TextStyle(
                           color: muted,
                           fontSize: 12,
                           fontWeight: FontWeight.w600))),
             IconButton(
-                tooltip: 'Profile',
+                tooltip: context.t('Profile'),
                 onPressed: () {
                   if (path != '/profile') context.go('/profile');
                 },
@@ -342,19 +343,20 @@ class ServiceShell extends ConsumerWidget {
                 destinations: [
                   for (final d in destinations)
                     NavigationRailDestination(
-                        icon: Icon(d.$3), label: Text(d.$2))
+                        icon: Icon(d.$3), label: AppText(d.$2))
                 ]),
           Expanded(child: child),
         ])),
-        floatingActionButton: path == '/orders' && staff.canCreateOrders
-            ? FloatingActionButton.extended(
-                onPressed: () => context.go('/orders/new'),
-                backgroundColor: forest,
-                foregroundColor: Colors.white,
-                elevation: 3,
-                icon: const Icon(Icons.add),
-                label: const Text('New order'))
-            : null,
+        floatingActionButton:
+            path == '/orders' && staff.canCreateOrders && !paymentFlowActive
+                ? FloatingActionButton.extended(
+                    onPressed: () => context.go('/orders/new'),
+                    backgroundColor: forest,
+                    foregroundColor: Colors.white,
+                    elevation: 3,
+                    icon: const Icon(Icons.add),
+                    label: const AppText('New order'))
+                : null,
         floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
         bottomNavigationBar: wide
             ? null
@@ -412,7 +414,7 @@ class ServiceShell extends ConsumerWidget {
                                                                   : muted),
                                                           const SizedBox(
                                                               height: 5),
-                                                          Text(
+                                                          AppText(
                                                               destinations[i]
                                                                   .$2,
                                                               textAlign:

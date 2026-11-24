@@ -19,7 +19,7 @@ Future<void> configureQuickLogin(
           builder: (c, change) => PopScope(
               canPop: !busy,
               child: AlertDialog(
-                  title: const Text('Add quick sign-in account'),
+                  title: const AppText('Add quick sign-in account'),
                   content: SizedBox(
                       width: 400,
                       child: SingleChildScrollView(
@@ -30,24 +30,23 @@ Future<void> configureQuickLogin(
                                   crossAxisAlignment:
                                       CrossAxisAlignment.stretch,
                                   children: [
-                                    const Text(
-                                        'Add a backend account for quick sign-in on this device.'),
-                                    const SizedBox(height: 16),
                                     TextFormField(
                                         initialValue: username,
                                         enabled: !busy,
                                         autocorrect: false,
                                         textCapitalization:
                                             TextCapitalization.none,
-                                        decoration: const InputDecoration(
-                                            labelText: 'Username'),
+                                        decoration: InputDecoration(
+                                            labelText: context.t('Username')),
                                         onChanged: (value) => username = value,
-                                        validator: (value) => value == null ||
-                                                value.trim().isEmpty
-                                            ? 'Enter the test account username.'
-                                            : value.trim().length > 50
-                                                ? 'Use at most 50 characters.'
-                                                : null),
+                                        validator: localizedValidator(
+                                            context,
+                                            (value) => value == null ||
+                                                    value.trim().isEmpty
+                                                ? 'Enter the test account username.'
+                                                : value.trim().length > 50
+                                                    ? 'Use at most 50 characters.'
+                                                    : null)),
                                     const SizedBox(height: 16),
                                     TextFormField(
                                         enabled: !busy,
@@ -59,21 +58,23 @@ Future<void> configureQuickLogin(
                                           FilteringTextInputFormatter.digitsOnly
                                         ],
                                         maxLength: 6,
-                                        decoration: const InputDecoration(
-                                            labelText: 'PIN', counterText: ''),
+                                        decoration: InputDecoration(
+                                            labelText: context.t('PIN'),
+                                            counterText: ''),
                                         onChanged: (value) => pin = value,
-                                        validator: (value) =>
-                                            RegExp(r'^\d{4,6}$')
+                                        validator: localizedValidator(
+                                            context,
+                                            (value) => RegExp(r'^\d{4,6}$')
                                                     .hasMatch(value ?? '')
                                                 ? null
-                                                : 'Enter a 4–6 digit PIN.'),
+                                                : 'Enter a 4–6 digit PIN.')),
                                     if (error != null)
                                       Notice(error!, error: true),
                                   ])))),
                   actions: [
                     TextButton(
                         onPressed: busy ? null : () => Navigator.pop(c),
-                        child: const Text('Cancel')),
+                        child: const AppText('Cancel')),
                     FilledButton(
                         onPressed: busy
                             ? null
@@ -96,6 +97,6 @@ Future<void> configureQuickLogin(
                                   }
                                 }
                               },
-                        child: Text(busy ? 'Saving…' : 'Save account')),
+                        child: AppText(busy ? 'Saving…' : 'Save account')),
                   ]))));
 }
