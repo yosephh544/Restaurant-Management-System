@@ -18,6 +18,7 @@ String _shiftTime(BuildContext context, dynamic value) {
 }
 
 Future<void> configureServer(BuildContext context, WidgetRef ref) async {
+  if (!developmentToolsEnabled) return;
   final controller = ref.read(sessionProvider.notifier);
   var fieldValue = controller.server;
   final value = await showDialog<String>(
@@ -207,14 +208,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                                       MainAxisAlignment.spaceBetween,
                                   children: [
                                     const LanguageChoice(compact: true),
-                                    TextButton.icon(
-                                        onPressed: _busy
-                                            ? null
-                                            : () =>
-                                                configureServer(context, ref),
-                                        icon:
-                                            const Icon(Icons.settings_ethernet),
-                                        label: const AppText('Server'))
+                                    if (developmentToolsEnabled)
+                                      TextButton.icon(
+                                          onPressed: _busy
+                                              ? null
+                                              : () =>
+                                                  configureServer(context, ref),
+                                          icon: const Icon(
+                                              Icons.settings_ethernet),
+                                          label: const AppText('Server'))
                                   ]),
                               const SizedBox(height: 20),
                               const Row(children: [
@@ -437,18 +439,20 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                         ])),
             const SizedBox(height: 20),
           ],
-          Card(
-              child: ListTile(
-                  contentPadding: const EdgeInsets.all(20),
-                  leading: const Icon(Icons.settings_ethernet),
-                  title: const AppText('Server settings'),
-                  subtitle: AppText(
-                      Uri.tryParse(ref.read(sessionProvider.notifier).server)
-                              ?.host ??
-                          ''),
-                  trailing: const Icon(Icons.chevron_right),
-                  onTap: _busy ? null : () => configureServer(context, ref))),
-          const SizedBox(height: 20),
+          if (developmentToolsEnabled) ...[
+            Card(
+                child: ListTile(
+                    contentPadding: const EdgeInsets.all(20),
+                    leading: const Icon(Icons.settings_ethernet),
+                    title: const AppText('Server settings'),
+                    subtitle: AppText(
+                        Uri.tryParse(ref.read(sessionProvider.notifier).server)
+                                ?.host ??
+                            ''),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: _busy ? null : () => configureServer(context, ref))),
+            const SizedBox(height: 20),
+          ],
           const LanguageChoice(),
           const SizedBox(height: 20),
           OutlinedButton.icon(

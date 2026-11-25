@@ -1,0 +1,8 @@
+{
+  "Server": "196.190.251.194",
+  "Database": "RestaurantManagementDb",
+  "BackupPath": "C:\\Program Files\\Microsoft SQL Server\\MSSQL16.MSSQLSERVER\\MSSQL\\Backup\\RestaurantManagementDb_before_order_cleanup_20261125_101519066.bak",
+  "BackupName": "RestaurantManagementDb_before_order_cleanup_20261125_101519066",
+  "Verified": true,
+  "VerifiedAtUtc": "2026-11-25T10:15:20.6487036Z"
+}

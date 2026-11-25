@@ -138,7 +138,7 @@ class _TicketCard extends StatelessWidget {
         OrderHeading(
             number: order.orderNumber,
             table: order.table,
-            takeaway: code(order.orderType) != 'DINE_IN',
+            takeaway: normalizeOrderType(order.orderType) != 'DINE_IN',
             takeout: code(order.orderType) == 'TAKEOUT',
             queuePosition: order.queuePosition,
             status: order.status,

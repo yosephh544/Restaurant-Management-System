@@ -39,7 +39,7 @@ adb reverse tcp:5012 tcp:5012
 flutter run --dart-define=API_BASE_URL=http://127.0.0.1:5012/api/v1
 ```
 
-The **Restaurant server** control on the sign-in screen can save another full API URL. A saved URL takes precedence over the build-time default. Changing servers signs out the current user and clears drafts and saved payment sessions for that account on this device.
+Debug builds show the **Server** control on the sign-in screen and **Server settings** in Profile. A saved URL takes precedence over the debug build-time default. Changing servers signs out the current user and clears drafts and saved payment sessions for that account on this device. Profile/release builds hide these controls, reject server changes, and use only the build-time `API_BASE_URL`, ignoring saved debug URLs.
 
 ## Accounts and supported workflows
 
@@ -122,12 +122,64 @@ Use focused tests when needed for behavior changes. APK builds run only on expli
 
 The tests use the encrypted staff profile and current backend contracts. They cover takeaway checkout/drafts, cash totals, receipt payments and recovery, cancelled prepaid refunds, stale payment protection, role restrictions, kitchen navigation, added-item notifications, daily tips, saved language switching, and narrow-phone layouts in Amharic. Camera scanning and live bank verification still require a device and configured receiving accounts on a reachable backend.
 
-HTTP is enabled only for Android debug builds. Release configuration requires a trusted HTTPS server:
+Profile/release builds require an explicit `API_BASE_URL` and an explicit profile
+key. They use the app's configured HTTP/HTTPS policy:
+
+For local release APKs, copy `config/production.example.json` to the ignored
+`config/production.json`, set the profile key to match the server, and run:
+
+```powershell
+./tool/build_release.ps1
+```
+
+This command validates both settings and passes them into the release build.
+Use `./tool/build_release.ps1 -ValidateOnly` to check the configuration without
+building. Signing an existing APK does not add missing build-time settings.
+An APK built without its server address or profile key must be rebuilt to fix
+the sign-in message “The app is not configured. Ask your manager for help.”
+
+The equivalent command with explicit build-time values is:
 
 ```bash
 flutter build apk --release --dart-define=API_BASE_URL=https://your-api.example/api/v1 --dart-define=RESPONSE_ENCRYPTION_KEY=your-profile-key
 ```
 
-`RESPONSE_ENCRYPTION_KEY` must match the server’s `ResponseEncryption:Key` (`ResponseEncryption__Key` environment variable). Debug builds default to the same development key supplied by the backend’s HTTP/HTTPS launch profiles; release builds require an explicit key. This is the profile response key, separate from the JWT signing key.
+`RESPONSE_ENCRYPTION_KEY` must match the server’s `ResponseEncryption:Key` (`ResponseEncryption__Key` environment variable). Only debug builds include the development server and profile key defaults. Profile/release builds require explicit values. This is the profile response key, separate from the JWT signing key.
 
-The starter application ID and debug signing setup remain in place. Configure your own application ID and release signing before distributing a production build.
+### PIN accepted but sign-in fails while loading the profile
+
+Sign-in makes two requests: `POST /api/v1/auth/pin-login`, then authenticated
+`GET /api/v1/auth/me`. If the first returns 200 and the second returns 500, the
+server accepted the credentials but failed to produce the encrypted staff profile.
+Changing the app's server address or PIN does not resolve this server failure.
+
+Check the API application log for `Unhandled exception for GET /api/v1/auth/me`.
+A missing profile key produces `ResponseEncryption:Key must be configured.`
+Both checked-in appsettings files leave this key empty; `dotnet run` supplies it
+through the development launch profile, which IIS does not use.
+
+Set `ResponseEncryption:Key` in the deployed server configuration, or set its
+`ResponseEncryption__Key` environment variable for the IIS application. Use the
+same value as the installed app's `RESPONSE_ENCRYPTION_KEY`, then restart the
+application or recycle its IIS application pool. For an existing debug APK built
+without a key override, its development value is defined in
+[`lib/core/profile.dart`](lib/core/profile.dart). Production builds and their
+server must use a separately configured key.
+
+When using the production web client, its `responseEncryptionKey` in
+[`Client/src/environments/environment.prod.ts`](../Client/src/environments/environment.prod.ts)
+must match the server and mobile build too. This production web value differs
+from the mobile debug default; pass the matching mobile value with
+`--dart-define=RESPONSE_ENCRYPTION_KEY=your-profile-key` when building or running
+the app.
+
+After the change, verify that both requests return 200 and the app can decrypt
+the profile. If `/auth/me` still returns 500, its application log contains the
+underlying exception. A key mismatch instead causes the app's account decoding
+error after `/auth/me` returns 200.
+
+Release builds use the keystore configured in the ignored
+`android/key.properties` file, with `storeFile`, `storePassword`, `keyAlias`, and
+`keyPassword`. Without that file, release builds use the existing Android debug
+signing key so local APKs remain installable. Configure your application ID and
+release keystore before distributing the app.

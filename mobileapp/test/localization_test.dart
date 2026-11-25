@@ -14,6 +14,17 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   const english = AppStrings(Locale('en'));
   const amharic = AppStrings(Locale('am'));
+  test('login server errors retain account-specific guidance in both languages',
+      () {
+    for (final message in [
+      'The server could not load your staff profile. Ask your manager to check the server configuration.',
+      'The server could not complete sign-in. Try again later or contact your manager.',
+    ]) {
+      expect(english.text(message), message);
+      expect(amharic.text(message), contains(RegExp('[\u1200-\u137F]')));
+      expect(amharic.text(message), isNot(message));
+    }
+  });
   test(
       'receipt errors distinguish earlier, future, missing and reused payments',
       () {

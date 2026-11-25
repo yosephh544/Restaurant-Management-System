@@ -63,6 +63,46 @@ void main() {
     expect(deps.vault.values, isEmpty);
     session.dispose();
   });
+  test('profile server failure identifies the failed login step', () async {
+    final deps = await setup();
+    deps.api.dio.httpClientAdapter = FakeAdapter((r) async {
+      if (r.uri.path.endsWith('/auth/pin-login')) {
+        return (status: 200, body: envelope(authJson()));
+      }
+      return (
+        status: 500,
+        body: {'success': false, 'message': 'Internal configuration details'}
+      );
+    });
+    final session = SessionController(deps.api, deps.vault, deps.prefs);
+    await expectLater(
+        session.login('phone', '1234'),
+        throwsA(isA<ApiException>()
+            .having((e) => e.status, 'status', 500)
+            .having((e) => e.message, 'message',
+                'The server could not load your staff profile. Ask your manager to check the server configuration.')
+            .having((e) => e.uncertain, 'uncertain', isFalse)));
+    expect(session.state.session, isNull);
+    expect(deps.vault.values, isEmpty);
+    session.dispose();
+  });
+  test('PIN login server failure does not ask staff to refresh an order',
+      () async {
+    final adapter = FakeAdapter((r) async => (
+          status: 503,
+          body: {'success': false, 'message': 'Internal SQL details'}
+        ));
+    final client =
+        ApiClient(testServer, transport: Dio()..httpClientAdapter = adapter);
+    await expectLater(
+        client.call('POST', 'auth/pin-login', public: true),
+        throwsA(isA<ApiException>()
+            .having((e) => e.status, 'status', 503)
+            .having((e) => e.message, 'message',
+                'The server could not complete sign-in. Try again later or contact your manager.')
+            .having((e) => e.uncertain, 'uncertain', isFalse)));
+    expect(adapter.requests, hasLength(1));
+  });
   test('decodes real status spellings, prices and page metadata', () {
     final order = RestaurantOrder.fromJson(
         orderJson(status: 'CancelledByKitchen', payment: 'PaymentInitiated'));

@@ -123,12 +123,12 @@ class _CartPageState extends ConsumerState<CartPage> {
               'This order cannot be changed in its current state.');
         }
         _table.text = _original!.table;
-        _orderType = code(_original!.orderType);
+        _orderType = normalizeOrderType(_original!.orderType);
       }
       if (draft != null) {
         _table.text = draft['table'] as String? ?? _table.text;
         if (draft['orderType'] != null) {
-          _orderType = code(draft['orderType'] as String);
+          _orderType = normalizeOrderType(draft['orderType'] as String);
         }
         _note.text = draft['note'] as String? ?? '';
         _uncertain = draft['uncertain'] == true;

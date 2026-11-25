@@ -151,6 +151,10 @@ const amharicTranslations = <String, String>{
   'Check your username and sign-in credentials.': 'የተጠቃሚ ስምዎን እና ፒንዎን ያረጋግጡ።',
   'Cannot reach the restaurant server. Check the connection and try again.':
       'ከአገልጋዩ ጋር መገናኘት አልተቻለም። ግንኙነትዎን ያረጋግጡ እና እንደገና ይሞክሩ።',
+  'The server could not load your staff profile. Ask your manager to check the server configuration.':
+      'አገልጋዩ የሰራተኛ መረጃዎን መጫን አልቻለም። አስተዳዳሪዎ የአገልጋዩን ቅንብሮች እንዲያረጋግጥ ይጠይቁ።',
+  'The server could not complete sign-in. Try again later or contact your manager.':
+      'አገልጋዩ መግባትን ማጠናቀቅ አልቻለም። ቆይተው ይሞክሩ ወይም አስተዳዳሪዎን ያነጋግሩ።',
   'Check the server connection.': 'የአገልጋዩን ግንኙነት ያረጋግጡ።',
   'Cannot read the server response. Check the server address.':
       'የአገልጋዩን ምላሽ ማንበብ አልተቻለም። አድራሻውን ያረጋግጡ።',

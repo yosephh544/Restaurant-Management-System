@@ -1,0 +1,4 @@
+{
+  "API_BASE_URL": "http://196.190.251.194:6066/api/v1",
+  "RESPONSE_ENCRYPTION_KEY": ""
+}

@@ -27,9 +27,6 @@ String normalizeServer(String input, {required bool allowHttp}) {
     throw const ApiException(
         'Enter a server URL ending in /api/v1, for example http://192.168.1.2:5012/api/v1.');
   }
-  if (!allowHttp && uri.scheme != 'https') {
-    throw const ApiException('Release builds require an HTTPS server.');
-  }
   return uri.toString();
 }
 
@@ -46,7 +43,8 @@ class ApiClient {
     dio.options.sendTimeout = const Duration(seconds: 20);
     dio.options.validateStatus = (_) => true;
   }
-  void setServer(String value) => dio.options.baseUrl = '$value/';
+  void setServer(String value) =>
+      dio.options.baseUrl = value.isEmpty ? '' : '$value/';
   Future<Json> call(String method, String path,
       {Json? body,
       Json? query,
@@ -97,9 +95,13 @@ class ApiClient {
     }
     if ((response.statusCode ?? 500) >= 500) {
       throw ApiException(
-          'The restaurant server could not finish this request. Refresh the current record before trying again.',
+          path == 'auth/me'
+              ? 'The server could not load your staff profile. Ask your manager to check the server configuration.'
+              : public && path.startsWith('auth/')
+                  ? 'The server could not complete sign-in. Try again later or contact your manager.'
+                  : 'The restaurant server could not finish this request. Refresh the current record before trying again.',
           status: response.statusCode,
-          uncertain: method != 'GET');
+          uncertain: method != 'GET' && !public);
     }
     if ((response.statusCode ?? 500) >= 400 || j['success'] == false) {
       final fields =

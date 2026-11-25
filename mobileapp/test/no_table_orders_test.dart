@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mobileapp/core/api.dart';
+import 'package:mobileapp/core/billing.dart';
 import 'package:mobileapp/core/models.dart';
 import 'package:mobileapp/core/session.dart';
 import 'backend_compatibility_test.dart' as fixture;
@@ -52,12 +53,13 @@ const configuredTable = {
   'status': 'Available',
 };
 
-Future<MemoryVault> saveDraft(String route, {String table = ''}) async {
+Future<MemoryVault> saveDraft(String route,
+    {String table = '', String orderType = 'DINE_IN'}) async {
   final vault = MemoryVault();
   await LocalWorkspace(vault, testServer, userId).saveDraft({
     'route': route,
     'table': table,
-    'orderType': 'DINE_IN',
+    'orderType': orderType,
     'note': 'Serve together',
     'lines': [
       {'item': menuJson(), 'quantity': 2, 'note': 'No chilli'}
@@ -67,6 +69,66 @@ Future<MemoryVault> saveDraft(String route, {String table = ''}) async {
 }
 
 void main() {
+  for (final entry in [
+    ('DINE_IN', 'DINE_IN', false, false, 'Table T12'),
+    ('DineIn', 'DINE_IN', false, false, 'Table T12'),
+    ('DINEIN', 'DINE_IN', false, false, 'Table T12'),
+    ('TAKEAWAY', 'TAKEAWAY', true, false, 'Takeaway'),
+    ('TAKEOUT', 'TAKEOUT', true, true, 'Takeout'),
+  ]) {
+    test(
+        '${entry.$1} retains its service type across orders, bills and tickets',
+        () {
+      final backend = DineInBackend();
+      final orderData = {
+        ...backend.order,
+        'tableNumber': 'T12',
+        'orderType': entry.$1,
+      };
+      final order = RestaurantOrder.fromJson(orderData);
+      final bill = TableBill.fromJson({
+        ...backend.bill,
+        'tableNumber': 'T12',
+        'orderType': entry.$1,
+      });
+      final ticketOrder = KitchenTicket.fromJson({
+        ...orderData,
+        'orderId': orderId,
+      }).asOrder();
+      expect(order.orderType, entry.$2);
+      expect(bill.orderType, entry.$2);
+      expect(ticketOrder.orderType, entry.$2);
+      expect(order.takeaway, entry.$3);
+      expect(bill.takeaway, entry.$3);
+      expect(ticketOrder.takeaway, entry.$3);
+      expect(order.takeout, entry.$4);
+      expect(bill.takeout, entry.$4);
+      expect(ticketOrder.takeout, entry.$4);
+      expect(order.locationLabel, entry.$5);
+      expect(bill.locationLabel, entry.$5);
+      expect(ticketOrder.locationLabel, entry.$5);
+    });
+  }
+  for (final view in [
+    ('Waiter', '/orders/$orderId', 'SERVED'),
+    ('Kitchen', '/queue', 'PENDING'),
+    ('Bartender', '/queue', 'PENDING'),
+  ]) {
+    testWidgets('${view.$1} shows a dine-in table instead of takeaway',
+        (tester) async {
+      final backend = DineInBackend();
+      backend.order['tableNumber'] = 'T12';
+      backend.order['orderStatus'] = view.$3;
+      await fixture.pumpMobile(tester, backend, view.$1, view.$2);
+      try {
+        expect(find.text('Table T12'), findsOneWidget);
+        expect(find.text('Takeaway'), findsNothing);
+        expect(tester.takeException(), isNull);
+      } finally {
+        await fixture.closeApp(tester);
+      }
+    });
+  }
   for (final hasConfiguredTables in [false, true]) {
     testWidgets(
         'dine-in draft requires a table when configured tables exist: $hasConfiguredTables',
@@ -119,13 +181,20 @@ void main() {
     }
   });
 
-  for (final sessionStatus in ['Active', 'BillRequested']) {
-    testWidgets('selected table still checks its $sessionStatus session',
+  for (final selection in [
+    ('Active', 'DINE_IN'),
+    ('Active', 'DINEIN'),
+    ('BillRequested', 'DINE_IN'),
+  ]) {
+    final sessionStatus = selection.$1;
+    testWidgets(
+        'restored ${selection.$2} checks its $sessionStatus table session',
         (tester) async {
       final backend = DineInBackend()
         ..tables = [configuredTable]
         ..tableSessionStatus = sessionStatus;
-      final vault = await saveDraft('/orders/new', table: 'T12');
+      final vault =
+          await saveDraft('/orders/new', table: 'T12', orderType: selection.$2);
       final deps = await fixture
           .pumpMobile(tester, backend, 'Waiter', '/orders/new', vault: vault);
       try {
@@ -139,6 +208,7 @@ void main() {
             .where((r) => r.method == 'POST' && r.uri.path.endsWith('/orders'));
         if (sessionStatus == 'Active') {
           expect(jsonObject(submissions.single.data)['tableNumber'], 'T12');
+          expect(jsonObject(submissions.single.data)['orderType'], 'DINE_IN');
         } else {
           expect(submissions, isEmpty);
           expect(find.textContaining('bill awaiting payment'), findsOneWidget);

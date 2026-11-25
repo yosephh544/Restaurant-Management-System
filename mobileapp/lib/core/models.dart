@@ -17,6 +17,11 @@ DateTime? date(dynamic value) {
 
 String code(String value) =>
     value.replaceAll(RegExp(r'[^a-zA-Z]'), '').toUpperCase();
+String normalizeOrderType(String value) {
+  final normalized = code(value);
+  return normalized == 'DINEIN' ? 'DINE_IN' : normalized;
+}
+
 String money(num value) =>
     'ETB ${NumberFormat('#,##0.00', 'en').format(value)}';
 // Display only: keep the full reference in requests, storage and payment records.
@@ -273,7 +278,7 @@ class RestaurantOrder {
       id: j['id'] as String,
       orderNumber: j['orderNumber'] as String,
       table: j['tableNumber'] as String,
-      orderType: j['orderType'] as String? ?? 'DINE_IN',
+      orderType: normalizeOrderType(j['orderType'] as String? ?? 'DINE_IN'),
       takeawayFee: number(j['takeawayFee']),
       queuePosition: (j['queuePosition'] as num?)?.toInt() ?? 0,
       waiterId: j['waiterId'] as String,
@@ -292,8 +297,9 @@ class RestaurantOrder {
           .toList());
   bool get paid => code(paymentStatus) == 'PAID';
   bool get takeout => code(orderType) == 'TAKEOUT';
+
   /// Table-less ticket (takeaway or takeout) that is billed and paid by order.
-  bool get takeaway => code(orderType) != 'DINE_IN';
+  bool get takeaway => normalizeOrderType(orderType) != 'DINE_IN';
   String get locationLabel => takeout
       ? 'Takeout'
       : takeaway
@@ -364,7 +370,7 @@ class KitchenTicket {
       orderId: j['orderId'] as String,
       orderNumber: j['orderNumber'] as String,
       table: j['tableNumber'] as String,
-      orderType: j['orderType'] as String? ?? 'DINE_IN',
+      orderType: normalizeOrderType(j['orderType'] as String? ?? 'DINE_IN'),
       queuePosition: (j['queuePosition'] as num?)?.toInt() ?? 0,
       waiterName: j['waiterName'] as String? ?? '',
       status: j['stationStatus'] as String? ?? j['orderStatus'] as String,

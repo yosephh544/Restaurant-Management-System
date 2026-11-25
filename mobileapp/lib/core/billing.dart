@@ -29,7 +29,7 @@ class TableBill {
   factory TableBill.fromJson(Json j) => TableBill(
       id: j['id'] as String,
       tableId: j['tableId'] as String?,
-      orderType: j['orderType'] as String? ?? 'DINE_IN',
+      orderType: normalizeOrderType(j['orderType'] as String? ?? 'DINE_IN'),
       table: j['tableNumber'] as String,
       billNumber: j['billNumber'] as String,
       status: j['status'] as String,
@@ -44,8 +44,9 @@ class TableBill {
       const ['REQUESTED', 'PAYMENTINITIATED'].contains(code(status));
   double get base => subtotal + tax - discount;
   bool get takeout => code(orderType) == 'TAKEOUT';
+
   /// Table-less bill (takeaway or takeout) that is paid by order.
-  bool get takeaway => code(orderType) != 'DINE_IN';
+  bool get takeaway => normalizeOrderType(orderType) != 'DINE_IN';
   String get locationLabel => takeout
       ? 'Takeout'
       : takeaway

@@ -5,8 +5,9 @@ import 'api.dart';
 import 'models.dart';
 
 const responseEncryptionKey = String.fromEnvironment('RESPONSE_ENCRYPTION_KEY',
-    defaultValue:
-        kReleaseMode ? '' : 'dev_only_profile_encryption_key_2026_rms_a91c');
+    defaultValue: kDebugMode
+        ? 'bGw/AmkqRg28jJBbPpTfzojFNahlxyOYXOgmKcZh+DLVB1bDjlCRriLZQpWEHssh'
+        : '');
 
 /// The backend packs each field as base64(nonce + ciphertext + GCM tag).
 Future<Staff> decodeStaffProfile(Json response, {String username = ''}) async {

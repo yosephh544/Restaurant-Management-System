@@ -9,8 +9,9 @@ import 'api.dart';
 import 'models.dart';
 import 'profile.dart';
 
-// Temporary testing shortcut. Never available in profile or release builds.
-const temporaryQuickLoginEnabled = kDebugMode;
+// Developer controls are compiled out of profile and release builds.
+const developmentToolsEnabled = kDebugMode;
+const temporaryQuickLoginEnabled = developmentToolsEnabled;
 
 abstract class Vault {
   Future<String?> read(String key);
@@ -110,9 +111,11 @@ final preferencesProvider = Provider<SharedPreferences>(
     (ref) => throw UnimplementedError('Preferences must be initialized.'));
 final vaultProvider = Provider<Vault>((ref) => SecureVault());
 const defaultServer = String.fromEnvironment('API_BASE_URL',
-    defaultValue: 'http://192.168.1.2:5012/api/v1');
+    defaultValue: kDebugMode ? 'http://196.190.251.194:6066/api/v1' : '');
 final apiClientProvider = Provider<ApiClient>((ref) => ApiClient(
-    ref.read(preferencesProvider).getString('server') ?? defaultServer));
+    developmentToolsEnabled
+        ? ref.read(preferencesProvider).getString('server') ?? defaultServer
+        : defaultServer));
 final restaurantApiProvider = Provider<RestaurantApi>(
     (ref) => RestaurantApi(ref.read(apiClientProvider)));
 final stationQueueRevisionProvider = StateProvider<int>((ref) => 0);
@@ -162,8 +165,8 @@ class SessionController extends StateNotifier<SessionState> {
   Future<void> restore() async {
     final generation = _generation;
     try {
-      normalizeServer(server, allowHttp: !kReleaseMode);
       if (!temporaryQuickLoginEnabled) await forgetQuickLogin();
+      normalizeServer(server, allowHttp: !kReleaseMode);
       final raw = await vault.read('session');
       if (!mounted || generation != _generation) return;
       if (raw != null) {
@@ -289,6 +292,10 @@ class SessionController extends StateNotifier<SessionState> {
     }
     api.authFailureMessage = null;
     final configuredServer = server;
+    if (configuredServer.isEmpty) {
+      throw const ApiException(
+          'The app is not configured. Ask your manager for help.');
+    }
     normalizeServer(configuredServer, allowHttp: !kReleaseMode);
     final tokens = await api.data('POST', 'auth/pin-login',
         public: true, body: {'username': username.trim(), 'pin': pin});
@@ -483,6 +490,10 @@ class SessionController extends StateNotifier<SessionState> {
   }
 
   Future<void> setServer(String value) async {
+    if (!developmentToolsEnabled) {
+      throw const ApiException(
+          'Server changes are only available in debug builds.');
+    }
     final normalized = normalizeServer(value, allowHttp: !kReleaseMode);
     if (normalized == server) return;
     await signOut();

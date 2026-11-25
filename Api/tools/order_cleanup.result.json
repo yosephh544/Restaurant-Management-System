@@ -1,0 +1,98 @@
+[
+  {
+    "TableName": "waiter_tips",
+    "DeletedRows": 1
+  },
+  {
+    "TableName": "payments",
+    "DeletedRows": 1
+  },
+  {
+    "TableName": "bill_audits",
+    "DeletedRows": 3
+  },
+  {
+    "TableName": "bill_items",
+    "DeletedRows": 4
+  },
+  {
+    "TableName": "bills",
+    "DeletedRows": 3
+  },
+  {
+    "TableName": "order_cancellations",
+    "DeletedRows": 1
+  },
+  {
+    "TableName": "order_items",
+    "DeletedRows": 8
+  },
+  {
+    "TableName": "orders",
+    "DeletedRows": 7
+  },
+  {
+    "TableName": "dining_sessions",
+    "DeletedRows": 4
+  },
+  {
+    "TableName": "users",
+    "BeforeCount": 6,
+    "AfterCount": 6
+  },
+  {
+    "TableName": "roles",
+    "BeforeCount": 7,
+    "AfterCount": 7
+  },
+  {
+    "TableName": "permissions",
+    "BeforeCount": 36,
+    "AfterCount": 36
+  },
+  {
+    "TableName": "role_permissions",
+    "BeforeCount": 138,
+    "AfterCount": 138
+  },
+  {
+    "TableName": "menu_categories",
+    "BeforeCount": 8,
+    "AfterCount": 8
+  },
+  {
+    "TableName": "menu_items",
+    "BeforeCount": 56,
+    "AfterCount": 56
+  },
+  {
+    "TableName": "restaurant_tables",
+    "BeforeCount": 12,
+    "AfterCount": 12
+  },
+  {
+    "TableName": "restaurant_settings",
+    "BeforeCount": 1,
+    "AfterCount": 1
+  },
+  {
+    "TableName": "shifts",
+    "BeforeCount": 3,
+    "AfterCount": 3
+  },
+  {
+    "TableName": "user_shifts",
+    "BeforeCount": 15,
+    "AfterCount": 15
+  },
+  {
+    "TableName": "shift_exceptions",
+    "BeforeCount": 0,
+    "AfterCount": 0
+  },
+  {
+    "TableName": "daily_number_sequences",
+    "BeforeCount": 4,
+    "AfterCount": 4
+  }
+]
