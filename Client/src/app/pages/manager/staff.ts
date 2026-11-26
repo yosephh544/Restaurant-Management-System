@@ -3,7 +3,7 @@ import { TranslatePipe } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
-import { dayKey, initials, money, ROLE_LABEL, StaffUser } from '../../core/models';
+import { dayKey, initials, money, PayoutStatus, PayState, ROLE_LABEL, Role, StaffUser } from '../../core/models';
 import { translate } from '../../core/i18n';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
@@ -97,7 +97,7 @@ import { Icon } from '../../shared/icon';
                   <td class="muted num">&#64;{{ member.username }}</td>
                   <td class="t-right num">{{ ordersToday(member) }}</td>
                   <td class="t-right num">
-                    @if (member.role === 'WAITER') {
+                    @if (member.role === Role.Waiter) {
                       <strong>{{ money(tipsFor(member.id)) }}</strong>
                     } @else {
                       <span class="muted">—</span>
@@ -110,7 +110,7 @@ import { Icon } from '../../shared/icon';
                   </td>
                   <td>
                     <div class="row" style="gap: 4px; justify-content: flex-end">
-                      @if (member.role === 'WAITER' && tipsFor(member.id) > 0) {
+                      @if (member.role === Role.Waiter && tipsFor(member.id) > 0) {
                         <button class="btn btn-sm btn-secondary" type="button" (click)="payTips(member)">{{ 'Pay tips' | t }}</button>
                       }
                       <button
@@ -118,7 +118,7 @@ import { Icon } from '../../shared/icon';
                         [class.btn-danger]="member.active"
                         [class.btn-secondary]="!member.active"
                         type="button"
-                        [disabled]="member.role === 'OWNER' || member.role === 'SUPERADMIN' || member.id === currentUserId"
+                        [disabled]="member.role === Role.Owner || member.role === Role.SuperAdmin || member.id === currentUserId"
                         (click)="toggle(member)"
                       >
                         {{ member.active ? ('Deactivate' | t) : ('Activate' | t) }}
@@ -153,20 +153,22 @@ export class StaffPage {
   protected readonly filter = signal<'ALL' | 'FLOOR' | 'INACTIVE'>('ALL');
 
   protected readonly currentUserId = this.auth.user()?.id ?? '';
-  protected readonly isOwner = computed(() => this.auth.user()?.role === 'OWNER' || this.auth.user()?.role === 'SUPERADMIN');
+  protected readonly Role = Role;
+
+  protected readonly isOwner = computed(() => this.auth.user()?.role === Role.Owner || this.auth.user()?.role === Role.SuperAdmin);
 
   protected readonly stats = computed(() => {
     const today = dayKey(new Date().toISOString());
-    const paidToday = this.store.payments().filter((p) => p.status === 'PAID' && dayKey(p.createdAt) === today);
+    const paidToday = this.store.payments().filter((p) => p.status === PayState.Paid && dayKey(p.createdAt) === today);
     return {
       total: this.store.users().length,
       active: this.store.users().filter((u) => u.active).length,
       onFloor: this.store
         .users()
-        .filter((u) => u.role === 'WAITER' && u.active)
+        .filter((u) => u.role === Role.Waiter && u.active)
         .filter((u) => this.store.orders().some((o) => o.waiterId === u.id && dayKey(o.createdAt) === today)).length,
       tipsToday: paidToday.reduce((sum, p) => sum + p.tip, 0),
-      unsettled: this.store.tips().filter((t) => t.payoutStatus === 'UNSETTLED').reduce((sum, t) => sum + t.amount, 0),
+      unsettled: this.store.tips().filter((t) => t.payoutStatus === PayoutStatus.Unsettled).reduce((sum, t) => sum + t.amount, 0),
       ordersToday: this.store.orders().filter((o) => dayKey(o.createdAt) === today).length,
     };
   });
@@ -176,7 +178,7 @@ export class StaffPage {
     return this.store
       .users()
       .filter((u) => this.filter() !== 'INACTIVE' || !u.active)
-      .filter((u) => this.filter() !== 'FLOOR' || u.role === 'WAITER' || u.role === 'KITCHEN' || u.role === 'BARTENDER')
+      .filter((u) => this.filter() !== 'FLOOR' || u.role === Role.Waiter || u.role === Role.Kitchen || u.role === Role.Bartender)
       .filter((u) => !query || `${u.name} ${u.username} ${u.phone ?? ''}`.toLowerCase().includes(query));
   });
 
@@ -190,7 +192,7 @@ export class StaffPage {
   }
 
   protected tipsFor(waiterId: string): number {
-    return this.store.tips().filter((t) => t.waiterId === waiterId && t.payoutStatus === 'UNSETTLED').reduce((sum, t) => sum + t.amount, 0);
+    return this.store.tips().filter((t) => t.waiterId === waiterId && t.payoutStatus === PayoutStatus.Unsettled).reduce((sum, t) => sum + t.amount, 0);
   }
 
   protected async payTips(member: StaffUser): Promise<void> {
@@ -203,7 +205,7 @@ export class StaffPage {
   }
 
   protected async toggle(member: StaffUser): Promise<void> {
-    if (member.role === 'OWNER' || member.role === 'SUPERADMIN' || member.id === this.currentUserId) {
+    if (member.role === Role.Owner || member.role === Role.SuperAdmin || member.id === this.currentUserId) {
       this.toast.show(translate('This account cannot be deactivated'), 'error');
       return;
     }

@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using AngleSharp.Html.Parser;
 using RestaurantManagement.Implementation.Dtos.Payment;
 using RestaurantManagement.Infrustructure.Common.Exceptions;
+using RestaurantManagement.Infrustructure.Enums;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
@@ -16,18 +17,18 @@ public static class BankReceiptParser
     {
         using var document = JsonDocument.Parse(json);
         var data = document.RootElement;
-        if (data.ValueKind != JsonValueKind.Object) throw Unreadable("CBE");
+        if (data.ValueKind != JsonValueKind.Object) throw Unreadable(WireFormat.BankCbe);
         string? Value(string key) => data.TryGetProperty(key, out var value) && value.ValueKind is JsonValueKind.String or JsonValueKind.Number
             ? value.ToString().Trim() : null;
         var amount = Money(Value("amountCredited")) ?? Money(Value("debitAmount"));
         var reference = Value("id");
         if (string.IsNullOrWhiteSpace(reference) || amount is null || amount <= 0 ||
-            string.IsNullOrWhiteSpace(Value("creditAccountNo"))) throw Unreadable("CBE");
+            string.IsNullOrWhiteSpace(Value("creditAccountNo"))) throw Unreadable(WireFormat.BankCbe);
         var date = data.TryGetProperty("dateTimes", out var dates) && dates.ValueKind == JsonValueKind.Array && dates.GetArrayLength() > 0
             ? Date(dates[0].ToString()) : null;
         var receipt = new BankReceipt
         {
-            Bank = "CBE", Reference = reference, ReceiptUrl = receiptUrl, Amount = amount.Value,
+            Bank = WireFormat.BankCbe, Reference = reference, ReceiptUrl = receiptUrl, Amount = amount.Value,
             Currency = Value("creditCurrency") ?? "ETB", PayerName = Value("debitAccountHolder"),
             ReceiverName = Value("creditAccountHolder"), ReceiverAccount = Value("creditAccountNo"),
             Status = Value("transactionStatus") ?? Value("status"), TransactionDate = date
@@ -39,7 +40,7 @@ public static class BankReceiptParser
     public static BankReceipt Telebirr(string html, string reference, string receiptUrl)
     {
         var document = new HtmlParser().ParseDocument(html);
-        if (document.DocumentElement?.TextContent.Contains("telebirr", StringComparison.OrdinalIgnoreCase) != true) throw Unreadable("TELEBIRR");
+        if (document.DocumentElement?.TextContent.Contains("telebirr", StringComparison.OrdinalIgnoreCase) != true) throw Unreadable(WireFormat.BankTelebirr);
         var rows = document.QuerySelectorAll("tr")
             .Select(row => row.QuerySelectorAll("td, th").Select(cell => Clean(cell.TextContent)).ToArray())
             .Where(row => row.Length > 0).ToArray();
@@ -90,12 +91,12 @@ public static class BankReceiptParser
         var amount = Money(Value("Settled Amount"));
         var bankAccount = Regex.Match(Value("Bank account number") ?? "", @"^([0-9*Xx]+)(?:\s+(.*))?$", RegexOptions.None, RegexDeadline);
         if (string.IsNullOrWhiteSpace(invoice) || amount is null || amount <= 0 ||
-            (string.IsNullOrWhiteSpace(Value("Credited party account no")) && !bankAccount.Success)) throw Unreadable("TELEBIRR");
+            (string.IsNullOrWhiteSpace(Value("Credited party account no")) && !bankAccount.Success)) throw Unreadable(WireFormat.BankTelebirr);
         if (!Clean(invoice).Equals(reference, StringComparison.OrdinalIgnoreCase))
             throw new ConflictException("Telebirr returned a different transaction reference.");
         var receipt = new BankReceipt
         {
-            Bank = "TELEBIRR", Reference = invoice.Trim().ToUpperInvariant(), ReceiptUrl = receiptUrl,
+            Bank = WireFormat.BankTelebirr, Reference = invoice.Trim().ToUpperInvariant(), ReceiptUrl = receiptUrl,
             Amount = amount.Value, PayerName = Value("Payer Name"), ReceiverName = Value("Credited Party name"),
             ReceiverAccount = Value("Credited party account no"), Status = Value("transaction status"),
             ReceiverBankAccount = bankAccount.Success ? bankAccount.Groups[1].Value : null,
@@ -108,25 +109,25 @@ public static class BankReceiptParser
 
     public static BankReceipt CbePdf(byte[] bytes, string reference, string receiptUrl)
     {
-        if (bytes.Length < 4 || System.Text.Encoding.ASCII.GetString(bytes, 0, 4) != "%PDF") throw Unreadable("CBE");
+        if (bytes.Length < 4 || System.Text.Encoding.ASCII.GetString(bytes, 0, 4) != "%PDF") throw Unreadable(WireFormat.BankCbe);
         using var document = PdfDocument.Open(bytes);
-        if (document.NumberOfPages > 20) throw Unreadable("CBE");
+        if (document.NumberOfPages > 20) throw Unreadable(WireFormat.BankCbe);
         var text = string.Join("\n", document.GetPages().Select(page => ContentOrderTextExtractor.GetText(page)));
         return CbePdfText(text, reference, receiptUrl);
     }
 
     public static BankReceipt CbePdfText(string text, string reference, string receiptUrl)
     {
-        if (!text.Contains("Commercial Bank of Ethiopia", StringComparison.OrdinalIgnoreCase)) throw Unreadable("CBE");
+        if (!text.Contains("Commercial Bank of Ethiopia", StringComparison.OrdinalIgnoreCase)) throw Unreadable(WireFormat.BankCbe);
         string? Capture(string pattern) => Regex.Match(text, pattern, RegexOptions.IgnoreCase, RegexDeadline) is { Success: true } match ? Clean(match.Groups[1].Value) : null;
         var accounts = Regex.Matches(text, @"Account\s*:?\s*([0-9*Xx]+)", RegexOptions.IgnoreCase, RegexDeadline).Select(m => m.Groups[1].Value).ToArray();
         var bankReference = Capture(@"Reference\s*No\.?\s*\(VAT\s*Invoice\s*No\)?\s*:?\s*([A-Za-z0-9]+)");
         var amount = Money(Capture(@"Transferred Amount\s*:?\s*([0-9,]+\.\d{2})\s*ETB"));
-        if (amount is null || amount <= 0 || bankReference is null || accounts.Length < 2) throw Unreadable("CBE");
+        if (amount is null || amount <= 0 || bankReference is null || accounts.Length < 2) throw Unreadable(WireFormat.BankCbe);
         if (!bankReference.Equals(reference, StringComparison.OrdinalIgnoreCase)) throw new ConflictException("CBE returned a different transaction reference.");
         var receipt = new BankReceipt
         {
-            Bank = "CBE", Reference = bankReference.ToUpperInvariant(), ReceiptUrl = receiptUrl, Amount = amount.Value,
+            Bank = WireFormat.BankCbe, Reference = bankReference.ToUpperInvariant(), ReceiptUrl = receiptUrl, Amount = amount.Value,
             PayerName = Capture(@"Payer\s*:?\s*(.*?)(?:\r?\n|Account|Receiver|$)"),
             ReceiverName = Capture(@"Receiver\s*:?\s*(.*?)(?:\r?\n|Account|Payment|$)"),
             ReceiverAccount = accounts[1], TransactionDate = Date(Capture(@"Payment Date & Time\s*:?\s*([^\r\n]+)"))

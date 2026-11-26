@@ -7,6 +7,7 @@ using RestaurantManagement.Infrustructure.Common.Exceptions;
 using RestaurantManagement.Infrustructure.Common.Extensions;
 using RestaurantManagement.Infrustructure.Common.Responses;
 using RestaurantManagement.Infrustructure.Data;
+using RestaurantManagement.Infrustructure.Enums;
 using RestaurantManagement.Infrustructure.Models.Orders;
 
 namespace RestaurantManagement.Implementation.Services.Issues;
@@ -106,7 +107,7 @@ public class IssueService : IIssueService
         OrderNumber = issue.Order.OrderNumber,
         TableNumber = issue.Order.TableNumber,
         Item = issue.OrderItem?.MenuItem?.Name ?? "Whole order",
-        Reason = issue.ReasonCode.ToString().ToUpperInvariant(),
+        Reason = issue.ReasonCode.ToWire(),
         Note = issue.ReasonNote,
         CreatedAt = issue.CreatedAt,
         IsResolved = issue.ResolvedAt.HasValue,

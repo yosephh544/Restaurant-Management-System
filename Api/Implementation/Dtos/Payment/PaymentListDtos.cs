@@ -1,4 +1,5 @@
 using RestaurantManagement.Infrustructure.Common.Requests;
+using RestaurantManagement.Infrustructure.Enums;
 
 namespace RestaurantManagement.Implementation.Dtos.Payment;
 
@@ -38,7 +39,7 @@ public class PaymentListItemResponse
     public string? ReceiptUrl { get; init; }
     public string? ReceiptReference { get; init; }
     public decimal? AmountPaid { get; init; }
-    public string VerificationStatus { get; init; } = "NOT_REQUIRED";
+    public string VerificationStatus { get; init; } = WireFormat.VerificationNotRequired;
     public decimal? VerifiedAmount { get; init; }
     public string? VerifiedPayerName { get; init; }
     public string? VerifiedBank { get; init; }

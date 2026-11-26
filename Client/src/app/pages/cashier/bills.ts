@@ -2,7 +2,7 @@ import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular
 import { TranslatePipe } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { ageLabel, Bill, dayKey, hasNoTable, money, orderTypeLabel } from '../../core/models';
+import { ageLabel, Bill, BillStatus, dayKey, hasNoTable, money, orderTypeLabel, PayState } from '../../core/models';
 import { Store } from '../../core/store';
 import { Icon } from '../../shared/icon';
 
@@ -53,9 +53,9 @@ import { Icon } from '../../shared/icon';
         <div class="card-head" style="flex-wrap: wrap">
           <div class="seg">
             <button type="button" [class.active]="filter() === 'ALL'" (click)="filter.set('ALL')">{{ 'All open' | t }}</button>
-            <button type="button" [class.active]="filter() === 'REQUESTED'" (click)="filter.set('REQUESTED')"> {{ 'Requested (' | t }}{{ requestedCount() }})
+            <button type="button" [class.active]="filter() === BillStatus.Requested" (click)="filter.set(BillStatus.Requested)"> {{ 'Requested (' | t }}{{ requestedCount() }})
             </button>
-            <button type="button" [class.active]="filter() === 'PAYMENTINITIATED'" (click)="filter.set('PAYMENTINITIATED')"> {{ 'Payment pending (' | t }}{{ initiatedCount() }})
+            <button type="button" [class.active]="filter() === BillStatus.PaymentInitiated" (click)="filter.set(BillStatus.PaymentInitiated)"> {{ 'Payment pending (' | t }}{{ initiatedCount() }})
             </button>
           </div>
           <div class="search">
@@ -75,10 +75,10 @@ import { Icon } from '../../shared/icon';
                 </div>
                 <div class="list-meta">
                   <strong>{{ money(bill.total) }} ETB</strong>
-                  <span>{{ bill.status === 'PAYMENTINITIATED' ? ('Payment pending' | t) : ('Awaiting payment' | t) }}</span>
+                  <span>{{ bill.status === BillStatus.PaymentInitiated ? ('Payment pending' | t) : ('Awaiting payment' | t) }}</span>
                 </div>
-                <span [class]="'pill ' + (bill.status === 'PAYMENTINITIATED' ? 'pill-amber' : 'pill-blue')">
-                  {{ bill.status === 'PAYMENTINITIATED' ? ('Payment pending' | t) : ('Requested' | t) }}
+                <span [class]="'pill ' + (bill.status === BillStatus.PaymentInitiated ? 'pill-amber' : 'pill-blue')">
+                  {{ bill.status === BillStatus.PaymentInitiated ? ('Payment pending' | t) : ('Requested' | t) }}
                 </span>
                 <app-icon name="chevron-right" style="color: var(--muted-2); font-size: 15px" />
               </a>
@@ -99,21 +99,23 @@ export class CashierBillsPage implements OnInit, OnDestroy {
   private readonly store = inject(Store);
   private timer: number | null = null;
 
+  protected readonly BillStatus = BillStatus;
+
   protected readonly money = money;
   protected readonly ageLabel = ageLabel;
   protected readonly hasNoTable = hasNoTable;
   protected readonly orderTypeLabel = orderTypeLabel;
-  protected readonly filter = signal<'ALL' | 'REQUESTED' | 'PAYMENTINITIATED'>('ALL');
+  protected readonly filter = signal<'ALL' | BillStatus>('ALL');
   protected readonly query = signal('');
 
   protected readonly openBills = computed(() => this.store.openBills());
-  protected readonly requestedCount = computed(() => this.openBills().filter((b) => b.status === 'REQUESTED').length);
-  protected readonly initiatedCount = computed(() => this.openBills().filter((b) => b.status === 'PAYMENTINITIATED').length);
+  protected readonly requestedCount = computed(() => this.openBills().filter((b) => b.status === BillStatus.Requested).length);
+  protected readonly initiatedCount = computed(() => this.openBills().filter((b) => b.status === BillStatus.PaymentInitiated).length);
   protected readonly outstanding = computed(() => this.openBills().reduce((sum, b) => sum + b.total, 0));
 
   protected readonly stats = computed(() => {
     const today = dayKey(new Date().toISOString());
-    const paid = this.store.payments().filter((p) => p.status === 'PAID' && dayKey(p.createdAt) === today);
+    const paid = this.store.payments().filter((p) => p.status === PayState.Paid && dayKey(p.createdAt) === today);
     return {
       collected: paid.reduce((sum, p) => sum + p.total, 0),
       tips: paid.reduce((sum, p) => sum + p.tip, 0),

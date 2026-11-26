@@ -30,6 +30,7 @@ import {
   Payment,
   PaymentStatus,
   PaymentStatusInfo,
+  PayoutStatus,
   Reports,
   roleFrom,
   SalesSummary,
@@ -37,8 +38,10 @@ import {
   ShiftDay,
   ShiftDefinition,
   StaffUser,
+  Station,
   StationReport,
   Table,
+  TableStatus,
   TipEntry,
   VerificationState,
   WaiterPerformance,
@@ -425,16 +428,18 @@ export class Store {
   readonly menu = computed<MenuItem[]>(() => this.menuCategories().flatMap((c) => c.items));
 
   readonly kitchenQueue = computed(() =>
-    this.kitchenTickets().filter((t) => t.status === 'PENDING' || t.status === 'PREPARING'),
+    this.kitchenTickets().filter((t) => t.status === OrderStatus.Pending || t.status === OrderStatus.Preparing),
   );
 
   readonly barQueue = computed(() =>
-    this.barTickets().filter((t) => t.status === 'PENDING' || t.status === 'PREPARING'),
+    this.barTickets().filter((t) => t.status === OrderStatus.Pending || t.status === OrderStatus.Preparing),
   );
 
-  readonly readyOrders = computed(() => this.orders().filter((o) => o.status === 'READY'));
+  readonly readyOrders = computed(() => this.orders().filter((o) => o.status === OrderStatus.Ready));
 
-  readonly openBills = computed(() => this.bills().filter((b) => b.status === 'REQUESTED' || b.status === 'PAYMENTINITIATED'));
+  readonly openBills = computed(
+    () => this.bills().filter((b) => b.status === BillStatus.Requested || b.status === BillStatus.PaymentInitiated),
+  );
 
   readonly openIssues = computed(() => this.issues().filter((i) => !i.resolved));
 
@@ -450,7 +455,9 @@ export class Store {
       cancelled: summary?.cancelledOrders ?? 0,
       outstanding: summary?.outstandingAmount ?? this.openBills().reduce((sum, b) => sum + b.total, 0),
       activeIssues: this.openIssues().length,
-      activeTickets: this.orders().filter((o) => o.status !== 'SERVED' && o.status !== 'CANCELLEDBYKITCHEN').length,
+      activeTickets: this.orders().filter(
+        (o) => o.status !== OrderStatus.Served && o.status !== OrderStatus.CancelledByKitchen,
+      ).length,
       avgPrep: this.reports().turnaround?.avgPrepMinutes ?? 0,
     };
   });
@@ -512,7 +519,7 @@ export class Store {
           number: t.number,
           name: t.name ?? undefined,
           capacity: t.capacity,
-          status: (t.status ?? '').toUpperCase(),
+          status: (t.status ?? '').toUpperCase() as TableStatus,
           active: t.isActive,
         })),
       );
@@ -566,7 +573,7 @@ export class Store {
         id: t.orderId,
         number: t.orderNumber,
         table: t.tableNumber,
-        orderType: t.orderType ?? 'DINE_IN',
+        orderType: t.orderType ?? OrderType.DineIn,
         queuePosition: t.queuePosition ?? 0,
         waiterName: t.waiterName,
         status: t.stationStatus,
@@ -630,7 +637,7 @@ export class Store {
           orderId: t.orderId,
           orderNumber: t.orderNumber,
           amount: t.tipAmount,
-          payoutStatus: t.payoutStatus,
+          payoutStatus: t.payoutStatus as PayoutStatus,
           createdAt: t.createdAt,
           paidOutAt: t.paidOutAt ?? undefined,
         })),
@@ -822,9 +829,9 @@ export class Store {
     });
   }
 
-  async loadStationReport(station: 'KITCHEN' | 'BAR', from: Date, to: Date): Promise<Result> {
+  async loadStationReport(station: Station, from: Date, to: Date): Promise<Result> {
     return this.guard(async () => {
-      const path = station === 'BAR' ? '/reports/bar' : '/reports/kitchen';
+      const path = station === Station.Bar ? '/reports/bar' : '/reports/kitchen';
       this.stationReport.set(await this.api.get<StationReport>(path, this.reportParams(from, to)));
     });
   }
@@ -893,11 +900,11 @@ export class Store {
   }
 
   pendingPaymentForBill(billId: string): Payment | undefined {
-    return this.payments().find((p) => p.billId === billId && p.status === 'INITIATED');
+    return this.payments().find((p) => p.billId === billId && p.status === PayState.Initiated);
   }
 
   paidPaymentForBill(billId: string): Payment | undefined {
-    return this.payments().find((p) => p.billId === billId && p.status === 'PAID');
+    return this.payments().find((p) => p.billId === billId && p.status === PayState.Paid);
   }
 
   orderForBill(bill: Bill | null | undefined): Order | undefined {
@@ -908,12 +915,14 @@ export class Store {
     const list = this.orders().filter((o) => o.waiterId === waiterId);
     if (scope === 'all') return list;
     return list
-      .filter((o) => o.status === 'PENDING' || o.status === 'PREPARING' || o.status === 'READY')
+      .filter(
+        (o) => o.status === OrderStatus.Pending || o.status === OrderStatus.Preparing || o.status === OrderStatus.Ready,
+      )
       .sort((a, b) => (a.queuePosition || 1e9) - (b.queuePosition || 1e9));
   }
 
   tipsFor(waiterId: string): TipEntry[] {
-    return this.tips().filter((t) => t.waiterId === waiterId && t.payoutStatus === 'UNSETTLED');
+    return this.tips().filter((t) => t.waiterId === waiterId && t.payoutStatus === PayoutStatus.Unsettled);
   }
 
   /* ------------------------------------------------------------------ */
@@ -924,11 +933,11 @@ export class Store {
     tableNumber: string | null,
     items: DraftLine[],
     notes = '',
-    orderType: OrderType = 'DINE_IN',
+    orderType: OrderType = OrderType.DineIn,
   ): Promise<Result<Order>> {
     return await this.guard(async () => {
       const created = await this.api.post<OrderDto>('/orders', {
-        tableNumber: orderType === 'DINE_IN' ? tableNumber : null,
+        tableNumber: orderType === OrderType.DineIn ? tableNumber : null,
         orderType,
         items: items.map((i) => ({ menuItemId: i.menuItemId, quantity: i.quantity, customerNotes: i.notes })),
         customerNotes: notes || null,
@@ -977,7 +986,7 @@ export class Store {
   /* Stations (kitchen + bar)                                            */
   /* ------------------------------------------------------------------ */
 
-  async kitchenStatus(orderId: string, status: 'PREPARING' | 'READY'): Promise<Result> {
+  async kitchenStatus(orderId: string, status: OrderStatus): Promise<Result> {
     return await this.guard(async () => {
       await this.api.patch(`/kitchen/orders/${orderId}/status`, { status });
       await Promise.all([this.loadKitchen(), this.loadOrders()]);
@@ -1000,18 +1009,18 @@ export class Store {
     });
   }
 
-  async barStatus(orderId: string, status: 'PREPARING' | 'READY'): Promise<Result> {
+  async barStatus(orderId: string, status: OrderStatus): Promise<Result> {
     return await this.guard(async () => {
       await this.api.patch(`/bar/orders/${orderId}/status`, { status });
       await Promise.all([this.loadBar(), this.loadOrders()]);
     });
   }
 
-  async readyItem(orderId: string, itemId: string, station: 'KITCHEN' | 'BAR'): Promise<Result> {
+  async readyItem(orderId: string, itemId: string, station: Station): Promise<Result> {
     return await this.guard(async () => {
-      const base = station === 'BAR' ? '/bar' : '/kitchen';
-      await this.api.patch(`${base}/orders/${orderId}/items/${itemId}/status`, { status: 'READY' });
-      await Promise.all([station === 'BAR' ? this.loadBar() : this.loadKitchen(), this.loadOrders()]);
+      const base = station === Station.Bar ? '/bar' : '/kitchen';
+      await this.api.patch(`${base}/orders/${orderId}/items/${itemId}/status`, { status: OrderStatus.Ready });
+      await Promise.all([station === Station.Bar ? this.loadBar() : this.loadKitchen(), this.loadOrders()]);
     });
   }
 
@@ -1398,7 +1407,7 @@ export class Store {
       id: o.id,
       number: o.orderNumber,
       table: o.tableNumber,
-      orderType: o.orderType ?? 'DINE_IN',
+      orderType: o.orderType ?? OrderType.DineIn,
       takeawayFee: o.takeawayFee ?? 0,
       queuePosition: o.queuePosition ?? 0,
       waiterId: o.waiterId,
@@ -1440,7 +1449,7 @@ export class Store {
       sessionId: b.diningSessionId,
       tableId: b.tableId ?? undefined,
       table: b.tableNumber,
-      orderType: b.orderType ?? 'DINE_IN',
+      orderType: b.orderType ?? OrderType.DineIn,
       number: b.billNumber,
       subtotal: b.subtotal,
       tax: b.taxTotal,
@@ -1492,7 +1501,7 @@ export class Store {
       amountPaid: p.amountPaid ?? undefined,
       orderStatus: p.orderStatus ?? undefined,
       orderPaymentStatus: p.orderPaymentStatus ?? undefined,
-      verification: p.verificationStatus ?? 'NOT_REQUIRED',
+      verification: p.verificationStatus ?? VerificationState.NotRequired,
       verifiedAmount: p.verifiedAmount ?? undefined,
       verifiedPayer: p.verifiedPayerName ?? undefined,
       verifiedBank: p.verifiedBank ?? undefined,

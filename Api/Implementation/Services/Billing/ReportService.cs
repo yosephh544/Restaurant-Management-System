@@ -4,6 +4,7 @@ using RestaurantManagement.Implementation.Interfaces.Billing;
 using RestaurantManagement.Implementation.Interfaces.Common;
 using RestaurantManagement.Infrustructure.Common.Exceptions;
 using RestaurantManagement.Infrustructure.Data;
+using RestaurantManagement.Infrustructure.Enums;
 using RestaurantManagement.Infrustructure.Enums.Billing;
 using RestaurantManagement.Infrustructure.Enums.Orders;
 using RestaurantManagement.Infrustructure.Models.Billing;
@@ -148,14 +149,6 @@ public class ReportService : IReportService
         return aggregate;
     }
 
-    private static string ToReasonCode(CancellationReasonCode code) => code switch
-    {
-        CancellationReasonCode.OutOfStock => "OUT_OF_STOCK",
-        CancellationReasonCode.EquipmentIssue => "EQUIPMENT_ISSUE",
-        CancellationReasonCode.PrepDelay => "PREP_DELAY",
-        _ => "OTHER"
-    };
-
     public async Task<SalesSummaryResponse> GetSalesSummaryAsync(ReportDateRangeRequest request, CancellationToken ct = default)
     {
         var orders = await ApplyOrderRange(_dbContext.Orders.AsNoTracking(), request).ToListAsync(ct);
@@ -279,14 +272,9 @@ public class ReportService : IReportService
                 OrderId = o.Id,
                 OrderNumber = o.OrderNumber,
                 TableNumber = o.TableNumber,
-                OrderType = o.OrderType switch
-                {
-                    OrderType.Takeaway => "TAKEAWAY",
-                    OrderType.Takeout => "TAKEOUT",
-                    _ => "DINE_IN"
-                },
-                OrderStatus = o.OrderStatus.ToString().ToUpperInvariant(),
-                PaymentStatus = o.PaymentStatus.ToString().ToUpperInvariant(),
+                OrderType = o.OrderType.ToWire(),
+                OrderStatus = o.OrderStatus.ToWire(),
+                PaymentStatus = o.PaymentStatus.ToWire(),
                 WaiterId = o.WaiterId,
                 WaiterName = o.Waiter?.FullName ?? "Unknown",
                 BillNumber = billNumber,
@@ -490,7 +478,7 @@ public class ReportService : IReportService
 
         return new StationReportResponse
         {
-            Station = station.ToString().ToUpperInvariant(),
+            Station = station.ToWire(),
             TotalOrders = items.Select(i => i.OrderId).Distinct().Count(),
             TotalItems = items.Count,
             ItemsReady = items.Count(i => i.ReadyAt.HasValue),
@@ -560,7 +548,7 @@ public class ReportService : IReportService
             .GroupBy(c => c.ReasonCode)
             .Select(g => new CancellationReportItem
             {
-                ReasonCode = ToReasonCode(g.Key),
+                ReasonCode = g.Key.ToWire(),
                 Count = g.Count(),
                 LostRevenue = Math.Round(g.Sum(LostRevenueFor), 2),
                 ReordersCreated = g.Count(c => c.ReplacementOrderId.HasValue)

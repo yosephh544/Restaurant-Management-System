@@ -7,6 +7,7 @@ using RestaurantManagement.Infrustructure.Common.Constants;
 using RestaurantManagement.Infrustructure.Common.Exceptions;
 using RestaurantManagement.Infrustructure.Common.Extensions;
 using RestaurantManagement.Infrustructure.Data;
+using RestaurantManagement.Infrustructure.Enums;
 using RestaurantManagement.Infrustructure.Enums.Billing;
 using RestaurantManagement.Infrustructure.Enums.Orders;
 using RestaurantManagement.Infrustructure.Models.Billing;
@@ -473,7 +474,7 @@ public class BillingService : IBillingService
             TableId = bill.DiningSession.TableId,
             TableNumber = bill.DiningSession.Table?.Number
                 ?? bill.DiningSession.Orders.Select(o => o.TableNumber).FirstOrDefault(n => !string.IsNullOrWhiteSpace(n))
-                ?? (orderType == "TAKEOUT" ? "Takeout" : "Takeaway"),
+                ?? (orderType == WireFormat.Takeout ? "Takeout" : "Takeaway"),
             // Table-less sessions are takeaway/takeout tickets, including adopted legacy rows.
             OrderType = orderType,
             BillNumber = bill.BillNumber,
@@ -483,7 +484,7 @@ public class BillingService : IBillingService
             TipAmount = bill.TipAmount,
             GrandTotal = bill.GrandTotal,
             PricesIncludeTax = bill.DiningSession.Orders.Select(o => (bool?)o.PricesIncludeTax).FirstOrDefault() ?? false,
-            Status = bill.Status.ToString().ToUpperInvariant(),
+            Status = bill.Status.ToWire(),
             CreatedAt = bill.CreatedAt,
             PaidAt = bill.PaidAt,
             Items = bill.Items.Select(i => new BillItemResponse
@@ -505,12 +506,12 @@ public class BillingService : IBillingService
     private static string ResolveSessionOrderType(DiningSession session)
     {
         if (session.TableId.HasValue)
-            return "DINE_IN";
+            return OrderType.DineIn.ToWire();
 
         return session.Orders.Select(o => o.OrderType).FirstOrDefault() switch
         {
-            OrderType.Takeout => "TAKEOUT",
-            _ => "TAKEAWAY"
+            OrderType.Takeout => OrderType.Takeout.ToWire(),
+            _ => OrderType.Takeaway.ToWire()
         };
     }
 }

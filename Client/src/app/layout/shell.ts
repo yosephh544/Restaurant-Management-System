@@ -4,7 +4,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { filter, map } from 'rxjs';
 import { AuthService, ROLE_HOME } from '../core/auth.service';
 import { I18nService, locale, TranslatePipe } from '../core/i18n';
-import { initials, MyShift, ROLE_LABEL, Role } from '../core/models';
+import { initials, MyShift, Role, ROLE_LABEL } from '../core/models';
 import { NotificationService } from '../core/notification.service';
 import { PasswordResetService } from '../core/password-reset.service';
 import { Store } from '../core/store';
@@ -285,7 +285,7 @@ export class Shell implements OnDestroy {
     const queue = this.store.kitchenQueue().length;
     const bills = this.store.openBills().length;
 
-    if (role === 'WAITER') {
+    if (role === Role.Waiter) {
       return [
         {
           label: t('Workspace'),
@@ -299,7 +299,7 @@ export class Shell implements OnDestroy {
       ];
     }
 
-    if (role === 'KITCHEN') {
+    if (role === Role.Kitchen) {
       return [
         {
           label: t('Workspace'),
@@ -311,7 +311,7 @@ export class Shell implements OnDestroy {
       ];
     }
 
-    if (role === 'BARTENDER') {
+    if (role === Role.Bartender) {
       return [
         {
           label: t('Workspace'),
@@ -323,7 +323,7 @@ export class Shell implements OnDestroy {
       ];
     }
 
-    if (role === 'CASHIER') {
+    if (role === Role.Cashier) {
       return [
         {
           label: t('Workspace'),
@@ -336,7 +336,7 @@ export class Shell implements OnDestroy {
       ];
     }
 
-    if (role === 'OWNER' || role === 'SUPERADMIN') {
+    if (role === Role.Owner || role === Role.SuperAdmin) {
       return [
         {
           label: t('Workspace'),
@@ -414,7 +414,7 @@ export class Shell implements OnDestroy {
 
   protected readonly activeSection = computed<NavSection | undefined>(() => {
     const role = this.user()?.role;
-    if (role !== 'OWNER' && role !== 'SUPERADMIN') return undefined;
+    if (role !== Role.Owner && role !== Role.SuperAdmin) return undefined;
     return this.ownerSections().find((section) => section.tabs?.some((tab) => this.matches(tab.path)));
   });
 
@@ -426,7 +426,7 @@ export class Shell implements OnDestroy {
 
   protected isSectionActive(item: NavItem): boolean {
     const role = this.user()?.role;
-    if (role !== 'OWNER' && role !== 'SUPERADMIN') return this.matches(item.path);
+    if (role !== Role.Owner && role !== Role.SuperAdmin) return this.matches(item.path);
     const section = this.ownerSections().find((entry) => (entry.tabs?.[0]?.path ?? entry.path) === item.path);
     if (!section) return this.matches(item.path);
     return this.matches(section.path) || (section.tabs ?? []).some((tab) => this.matches(tab.path));

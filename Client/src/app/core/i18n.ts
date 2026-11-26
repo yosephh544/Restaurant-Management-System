@@ -879,7 +879,7 @@ const AM: Record<string, string> = {
   'All events': 'ሁሉም ክስተቶች',
   'Transfers': 'ዝውውሮች',
   'Super Admin': 'ሱፐር አድሚን',
-  'Super Admin always has full access': 'ሱፐር አድሚን ሁልጊዜ ሙሉ መዳረሻ አለው',
+  'Restaurant roles': 'የምግብ ቤቱ ሚናዎች',
   'Platform control': 'የመድረክ ቁጥጥር',
   'Everything owners can do': 'ባለቤቶች የሚሰሩት ሁሉ',
   'Manage owner and staff accounts': 'የባለቤትና የሠራተኛ መለያዎችን ማስተዳደር',

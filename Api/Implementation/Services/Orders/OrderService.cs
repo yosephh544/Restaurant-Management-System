@@ -8,6 +8,7 @@ using RestaurantManagement.Infrustructure.Common.Exceptions;
 using RestaurantManagement.Infrustructure.Common.Extensions;
 using RestaurantManagement.Infrustructure.Common.Responses;
 using RestaurantManagement.Infrustructure.Data;
+using RestaurantManagement.Infrustructure.Enums;
 using RestaurantManagement.Infrustructure.Enums.Billing;
 using RestaurantManagement.Infrustructure.Enums.Menu;
 using RestaurantManagement.Infrustructure.Enums.Orders;
@@ -395,13 +396,7 @@ public class OrderService : IOrderService
         var createReq = new CreateOrderRequest
         {
             TableNumber = request.TableNumber,
-            OrderType = request.OrderType
-                ?? (originalOrder.OrderType switch
-                {
-                    OrderType.Takeaway => "TAKEAWAY",
-                    OrderType.Takeout => "TAKEOUT",
-                    _ => "DINE_IN"
-                }),
+            OrderType = request.OrderType ?? originalOrder.OrderType.ToWire(),
             CustomerNotes = request.CustomerNotes ?? $"Replacement for {originalOrder.OrderNumber}",
             Items = request.Items
         };
@@ -554,20 +549,9 @@ public class OrderService : IOrderService
         order.OrderStatus = OrderStatus.Pending;
     }
 
-    private static OrderType ParseOrderType(string? value) => value?.Trim().ToUpperInvariant() switch
-    {
-        null or "" or "DINE_IN" or "DINEIN" or "DINE-IN" => OrderType.DineIn,
-        "TAKEAWAY" or "TAKE-AWAY" => OrderType.Takeaway,
-        "TAKEOUT" or "TAKE_OUT" or "TAKE-OUT" => OrderType.Takeout,
-        _ => throw new ValidationException("OrderType", "OrderType must be DINE_IN, TAKEAWAY or TAKEOUT.")
-    };
-
-    private static string ToApiValue(OrderType orderType) => orderType switch
-    {
-        OrderType.Takeaway => "TAKEAWAY",
-        OrderType.Takeout => "TAKEOUT",
-        _ => "DINE_IN"
-    };
+    private static OrderType ParseOrderType(string? value) => WireFormat.TryParseOrderType(value, out var orderType)
+        ? orderType
+        : throw new ValidationException("OrderType", "OrderType must be DINE_IN, TAKEAWAY or TAKEOUT.");
 
     private async Task<Dictionary<Guid, int>> GetQueuePositionsAsync(CancellationToken ct)
     {
@@ -590,14 +574,14 @@ public class OrderService : IOrderService
         Id = order.Id,
         OrderNumber = order.OrderNumber,
         TableNumber = order.TableNumber,
-        OrderType = ToApiValue(order.OrderType),
+        OrderType = order.OrderType.ToWire(),
         TakeawayFee = order.TakeawayFee,
         QueuePosition = queuePosition,
         WaiterId = order.WaiterId,
         WaiterName = order.Waiter?.FullName ?? "Unknown",
         ParentOrderId = order.ParentOrderId,
-        OrderStatus = order.OrderStatus.ToString().ToUpperInvariant(),
-        PaymentStatus = order.PaymentStatus.ToString().ToUpperInvariant(),
+        OrderStatus = order.OrderStatus.ToWire(),
+        PaymentStatus = order.PaymentStatus.ToWire(),
         Subtotal = order.Subtotal,
         TaxTotal = order.TaxTotal,
         TipAmount = order.TipAmount,
@@ -619,8 +603,8 @@ public class OrderService : IOrderService
             UnitPrice = i.UnitPrice,
             TaxRate = i.TaxRate,
             CustomerNotes = i.CustomerNotes,
-            ItemStatus = i.ItemStatus.ToString().ToUpperInvariant(),
-            Station = i.PreparationStation.ToString().ToUpperInvariant(),
+            ItemStatus = i.ItemStatus.ToWire(),
+            Station = i.PreparationStation.ToWire(),
             CreatedAt = i.CreatedAt,
             ServedAt = i.ServedAt
         }).ToList()

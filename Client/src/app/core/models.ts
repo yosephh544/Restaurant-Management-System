@@ -1,15 +1,31 @@
 import { locale, translate } from './i18n';
+import {
+  BillStatus,
+  IssueReason,
+  ItemStatus,
+  OrderStatus,
+  OrderType,
+  PayMethod,
+  PayState,
+  PaymentStatus,
+  PayoutStatus,
+  Role,
+  ShiftExceptionKind,
+  Station,
+  TableStatus,
+  VerificationState,
+} from './enums';
 
-export type Role = 'SUPERADMIN' | 'OWNER' | 'MANAGER' | 'CASHIER' | 'WAITER' | 'KITCHEN' | 'BARTENDER';
+export * from './enums';
 
 export const ROLE_LABEL: Record<Role, string> = {
-  SUPERADMIN: 'Super Admin',
-  OWNER: 'Owner',
-  MANAGER: 'Manager',
-  CASHIER: 'Cashier',
-  WAITER: 'Waiter',
-  KITCHEN: 'Kitchen',
-  BARTENDER: 'Bartender',
+  [Role.SuperAdmin]: 'Super Admin',
+  [Role.Owner]: 'Owner',
+  [Role.Manager]: 'Manager',
+  [Role.Cashier]: 'Cashier',
+  [Role.Waiter]: 'Waiter',
+  [Role.Kitchen]: 'Kitchen',
+  [Role.Bartender]: 'Bartender',
 };
 
 export function roleLabel(role: Role | string): string {
@@ -18,7 +34,7 @@ export function roleLabel(role: Role | string): string {
 
 export function roleFrom(value: string | null | undefined): Role {
   const normalized = (value ?? '').trim().toUpperCase();
-  return normalized in ROLE_LABEL ? (normalized as Role) : 'WAITER';
+  return normalized in ROLE_LABEL ? (normalized as Role) : Role.Waiter;
 }
 
 export interface StaffUser {
@@ -74,7 +90,7 @@ export interface ShiftException {
   fullName: string;
   shiftId: string;
   shiftName: string;
-  kind: 'OFF' | 'EXTRA';
+  kind: ShiftExceptionKind;
   note?: string;
 }
 
@@ -130,18 +146,6 @@ export function shiftDayLabel(key: string): string {
 }
 
 
-export type OrderStatus = 'PENDING' | 'PREPARING' | 'READY' | 'SERVED' | 'CANCELLEDBYKITCHEN';
-export type PaymentStatus =
-  | 'UNPAID'
-  | 'PAYMENTINITIATED'
-  | 'PAID'
-  | 'RETRACTED'
-  | 'TRANSFERRED'
-  | 'REFUNDPENDING'
-  | 'REFUNDED';
-export type ItemStatus = 'ACTIVE' | 'PREPARED' | 'CANCELLED' | 'SERVED';
-export type OrderType = 'DINE_IN' | 'TAKEAWAY' | 'TAKEOUT';
-
 export interface OrderLine {
   id: string;
   itemId: string;
@@ -191,8 +195,6 @@ export interface DiningSession {
   closedAt?: string;
 }
 
-export type BillStatus = 'DRAFT' | 'REQUESTED' | 'PAYMENTINITIATED' | 'PAID' | 'VOIDED' | 'REFUNDED';
-
 export interface BillItem {
   id: string;
   orderId: string;
@@ -222,32 +224,28 @@ export interface Bill {
   items: BillItem[];
 }
 
-export type PayMethod = 'CASH' | 'QR_SCAN' | 'PHONE_PUSH' | 'TELEBIRR' | 'CBE';
-export type PayState = 'INITIATED' | 'PAID' | 'FAILED' | 'RETRACTED' | 'TRANSFERRED' | 'REFUNDED';
-export type VerificationState = 'NOT_REQUIRED' | 'UNVERIFIED' | 'VERIFIED' | 'FAILED';
-
 export const PAY_STATE_LABEL: Record<PayState, string> = {
-  INITIATED: 'Initiated',
-  PAID: 'Paid',
-  FAILED: 'Failed',
-  RETRACTED: 'Retracted',
-  TRANSFERRED: 'Transferred',
-  REFUNDED: 'Refunded',
+  [PayState.Initiated]: 'Initiated',
+  [PayState.Paid]: 'Paid',
+  [PayState.Failed]: 'Failed',
+  [PayState.Retracted]: 'Retracted',
+  [PayState.Transferred]: 'Transferred',
+  [PayState.Refunded]: 'Refunded',
 };
 
 export const METHOD_LABEL: Record<PayMethod, string> = {
-  CASH: 'Cash',
-  QR_SCAN: 'QR scan',
-  PHONE_PUSH: 'Phone push',
-  TELEBIRR: 'Telebirr',
-  CBE: 'CBE',
+  [PayMethod.Cash]: 'Cash',
+  [PayMethod.QrScan]: 'QR scan',
+  [PayMethod.PhonePush]: 'Phone push',
+  [PayMethod.Telebirr]: 'Telebirr',
+  [PayMethod.Cbe]: 'CBE',
 };
 
 export const VERIFICATION_LABEL: Record<VerificationState, string> = {
-  NOT_REQUIRED: 'Not required',
-  UNVERIFIED: 'Unverified',
-  VERIFIED: 'Verified',
-  FAILED: 'Verification failed',
+  [VerificationState.NotRequired]: 'Not required',
+  [VerificationState.Unverified]: 'Unverified',
+  [VerificationState.Verified]: 'Verified',
+  [VerificationState.Failed]: 'Verification failed',
 };
 
 export function payStateLabel(status: PayState): string {
@@ -313,7 +311,7 @@ export interface TipEntry {
   orderId: string;
   orderNumber: string;
   amount: number;
-  payoutStatus: 'UNSETTLED' | 'PAIDOUT' | string;
+  payoutStatus: PayoutStatus;
   createdAt: string;
   paidOutAt?: string;
 }
@@ -394,7 +392,7 @@ export interface Table {
   number: string;
   name?: string;
   capacity: number;
-  status: string;
+  status: TableStatus;
   active: boolean;
 }
 
@@ -422,17 +420,16 @@ export interface KitchenTicket {
   items: KitchenTicketItem[];
 }
 
-export type IssueReason = 'OUT_OF_STOCK' | 'EQUIPMENT_ISSUE' | 'PREP_DELAY' | 'OTHER';
-
 export const ISSUE_LABEL: Record<IssueReason, string> = {
-  OUT_OF_STOCK: 'Out of stock',
-  EQUIPMENT_ISSUE: 'Equipment issue',
-  PREP_DELAY: 'Prep delay',
-  OTHER: 'Other',
+  [IssueReason.OutOfStock]: 'Out of stock',
+  [IssueReason.EquipmentIssue]: 'Equipment issue',
+  [IssueReason.PrepDelay]: 'Prep delay',
+  [IssueReason.Other]: 'Other',
 };
 
 export function issueLabel(reason: string): string {
-  const normalized = reason === 'EQUIPMENT' ? 'EQUIPMENT_ISSUE' : reason === 'DELAY' ? 'PREP_DELAY' : reason;
+  const normalized =
+    reason === 'EQUIPMENT' ? IssueReason.EquipmentIssue : reason === 'DELAY' ? IssueReason.PrepDelay : reason;
   return translate(ISSUE_LABEL[normalized as IssueReason] ?? reason);
 }
 
@@ -616,7 +613,7 @@ export interface StationDailyPoint {
 }
 
 export interface StationReport {
-  station: 'KITCHEN' | 'BAR' | string;
+  station: Station;
   totalOrders: number;
   totalItems: number;
   itemsReady: number;
@@ -697,13 +694,13 @@ export function initials(name: string): string {
 
 export function statusTone(status: OrderStatus): string {
   switch (status) {
-    case 'PENDING':
+    case OrderStatus.Pending:
       return 'amber';
-    case 'PREPARING':
+    case OrderStatus.Preparing:
       return 'orange';
-    case 'READY':
+    case OrderStatus.Ready:
       return 'green';
-    case 'SERVED':
+    case OrderStatus.Served:
       return 'blue';
     default:
       return 'grey';
@@ -712,15 +709,15 @@ export function statusTone(status: OrderStatus): string {
 
 export function orderStatusLabel(status: OrderStatus): string {
   switch (status) {
-    case 'PENDING':
+    case OrderStatus.Pending:
       return translate('Pending');
-    case 'PREPARING':
+    case OrderStatus.Preparing:
       return translate('Preparing');
-    case 'READY':
+    case OrderStatus.Ready:
       return translate('Ready');
-    case 'SERVED':
+    case OrderStatus.Served:
       return translate('Served');
-    case 'CANCELLEDBYKITCHEN':
+    case OrderStatus.CancelledByKitchen:
       return translate('Cancelled');
     default:
       return status;
@@ -729,19 +726,19 @@ export function orderStatusLabel(status: OrderStatus): string {
 
 export function paymentStatusLabel(status: PaymentStatus): string {
   switch (status) {
-    case 'UNPAID':
+    case PaymentStatus.Unpaid:
       return translate('Unpaid');
-    case 'PAYMENTINITIATED':
+    case PaymentStatus.PaymentInitiated:
       return translate('Payment pending');
-    case 'PAID':
+    case PaymentStatus.Paid:
       return translate('Paid');
-    case 'RETRACTED':
+    case PaymentStatus.Retracted:
       return translate('Retracted');
-    case 'TRANSFERRED':
+    case PaymentStatus.Transferred:
       return translate('Transferred');
-    case 'REFUNDPENDING':
+    case PaymentStatus.RefundPending:
       return translate('Refund pending');
-    case 'REFUNDED':
+    case PaymentStatus.Refunded:
       return translate('Refunded');
     default:
       return status;
@@ -750,14 +747,14 @@ export function paymentStatusLabel(status: PaymentStatus): string {
 
 export function paymentTone(status: PayState): string {
   switch (status) {
-    case 'PAID':
+    case PayState.Paid:
       return 'pill-green';
-    case 'INITIATED':
+    case PayState.Initiated:
       return 'pill-amber';
-    case 'REFUNDED':
-    case 'FAILED':
+    case PayState.Refunded:
+    case PayState.Failed:
       return 'pill-red';
-    case 'TRANSFERRED':
+    case PayState.Transferred:
       return 'pill-blue';
     default:
       return 'pill-grey';
@@ -765,19 +762,19 @@ export function paymentTone(status: PayState): string {
 }
 
 export function billIsOpen(bill: Bill | undefined | null): boolean {
-  return !!bill && (bill.status === 'REQUESTED' || bill.status === 'PAYMENTINITIATED');
+  return !!bill && (bill.status === BillStatus.Requested || bill.status === BillStatus.PaymentInitiated);
 }
 
 export function isTakeaway(order: Order | KitchenTicket | Bill | null | undefined): boolean {
-  return order?.orderType === 'TAKEAWAY';
+  return order?.orderType === OrderType.Takeaway;
 }
 
 export function isTakeout(order: Order | KitchenTicket | Bill | null | undefined): boolean {
-  return order?.orderType === 'TAKEOUT';
+  return order?.orderType === OrderType.Takeout;
 }
 
 export function hasNoTable(order: Order | KitchenTicket | Bill | null | undefined): boolean {
-  return !!order && order.orderType !== 'DINE_IN';
+  return !!order && order.orderType !== OrderType.DineIn;
 }
 
 export function orderTypeLabel(order: Order | KitchenTicket | Bill | null | undefined): string {

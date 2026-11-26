@@ -8,13 +8,18 @@ import {
   hasNoTable,
   isTakeaway,
   issueLabel,
+  ItemStatus,
   METHOD_LABEL,
   money,
   orderStatusLabel,
-  orderTypeLabel,
   OrderStatus,
+  orderTypeLabel,
+  PayMethod,
+  PaymentStatus,
+  PayState,
   paymentStatusLabel,
   statusTone,
+  VerificationState,
 } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
@@ -61,10 +66,10 @@ import { PaySheet } from '../../shared/pay-sheet';
             }
             @if (canPay()) {
               <button class="btn btn-primary" type="button" (click)="showPay.set(true)">
-                <app-icon name="cash" /> {{ o.paymentStatus === 'PAYMENTINITIATED' ? ('Payment pending' | t) : ('Take payment' | t) }}
+                <app-icon name="cash" /> {{ o.paymentStatus === PaymentStatus.PaymentInitiated ? ('Payment pending' | t) : ('Take payment' | t) }}
               </button>
             }
-            @if (o.status === 'CANCELLEDBYKITCHEN') {
+            @if (o.status === OrderStatus.CancelledByKitchen) {
               @if (replacement(); as r) {
                 <a class="btn btn-secondary" [routerLink]="['/waiter/orders', r.id]">
                   <app-icon name="receipt" /> {{ 'Replaced by #' | t }}{{ r.number }}
@@ -77,7 +82,7 @@ import { PaySheet } from '../../shared/pay-sheet';
           </div>
         </div>
 
-        @if (o.status === 'CANCELLEDBYKITCHEN') {
+        @if (o.status === OrderStatus.CancelledByKitchen) {
           <div class="pending-box" style="background: var(--red-soft); border-color: var(--red-line); margin-bottom: 16px">
             <div class="row">
               <app-icon name="alert-circle" style="color: var(--red)" />
@@ -138,9 +143,9 @@ import { PaySheet } from '../../shared/pay-sheet';
               }
               <div class="bill-lines">
                 @for (line of o.lines; track line.id) {
-                  <div class="bill-line" [style.opacity]="line.status === 'CANCELLED' ? 0.45 : 1">
+                  <div class="bill-line" [style.opacity]="line.status === ItemStatus.Cancelled ? 0.45 : 1">
                     <div>
-                      <strong [style.text-decoration]="line.status === 'CANCELLED' ? 'line-through' : 'none'">
+                      <strong [style.text-decoration]="line.status === ItemStatus.Cancelled ? 'line-through' : 'none'">
                         {{ line.name }}
                       </strong>
                       @if (line.nameAm) {
@@ -151,21 +156,21 @@ import { PaySheet } from '../../shared/pay-sheet';
                         @if (!o.pricesIncludeTax) {
                           · {{ 'tax' | t }} {{ line.taxRate }}%
                         }
-                        @if (line.status === 'CANCELLED') {
+                        @if (line.status === ItemStatus.Cancelled) {
                           · <span style="color: var(--red)">{{ 'cancelled' | t }}</span>
-                        } @else if (line.status === 'SERVED') {
+                        } @else if (line.status === ItemStatus.Served) {
                           · <span style="color: var(--blue)">{{ 'served' | t }}</span>
                           @if (line.servedAt) {
                             {{ clock(line.servedAt) }}
                           }
-                        } @else if (line.status === 'PREPARED') {
+                        } @else if (line.status === ItemStatus.Prepared) {
                           · <span style="color: var(--green)">{{ 'prepared' | t }}</span>
                         }
                       </div>
                       @if (line.notes) {
                         <div class="line-note">{{ line.notes }}</div>
                       }
-                      @if (line.status === 'PREPARED') {
+                      @if (line.status === ItemStatus.Prepared) {
                         <button class="btn btn-sm btn-primary" type="button" style="margin-top: 6px"
                                 [disabled]="!!serving()" (click)="serveLine(line.id)">
                           <app-icon name="check" /> {{ serving() === line.id ? ('Working…' | t) : ('Serve' | t) }}
@@ -208,7 +213,7 @@ import { PaySheet } from '../../shared/pay-sheet';
               </div>
 
               @if (payment(); as p) {
-                @if (p.status === 'PAID') {
+                @if (p.status === PayState.Paid) {
                   <div class="amount-cell" style="background: var(--green-soft); border-color: var(--green-line)">
                     <span style="color: var(--green)">{{ 'Collected' | t }}</span>
                     <strong style="color: var(--green)">{{ money(p.total) }} ETB</strong>
@@ -219,8 +224,8 @@ import { PaySheet } from '../../shared/pay-sheet';
                     @if (isDigitalMethod(p.method)) {
                       <div class="between small">
                         <span class="muted">{{ 'Verification' | t }}</span>
-                        <span class="strong" [style.color]="p.verification === 'VERIFIED' ? 'var(--green)' : 'var(--amber)'">
-                          {{ p.verification === 'VERIFIED' ? ('Verified with the bank' | t) : ('Unverified' | t) }}
+                        <span class="strong" [style.color]="p.verification === VerificationState.Verified ? 'var(--green)' : 'var(--amber)'">
+                          {{ p.verification === VerificationState.Verified ? ('Verified with the bank' | t) : ('Unverified' | t) }}
                         </span>
                       </div>
                       @if (p.verifiedPayer) {
@@ -234,7 +239,7 @@ import { PaySheet } from '../../shared/pay-sheet';
                       <app-icon name="receipt" /> {{ 'Open bank receipt' | t }}
                     </a>
                   }
-                } @else if (p.status === 'INITIATED') {
+                } @else if (p.status === PayState.Initiated) {
                   <div class="pending-box" style="margin-top: 0">
                     <div class="row">
                       <app-icon name="clock" />
@@ -245,19 +250,19 @@ import { PaySheet } from '../../shared/pay-sheet';
                     </div>
                   </div>
                   <button class="btn btn-secondary btn-block mt-3" type="button" (click)="showPay.set(true)"> {{ 'Open payment sheet' | t }} </button>
-                } @else if (p.status === 'REFUNDED') {
+                } @else if (p.status === PayState.Refunded) {
                   <div class="amount-cell" style="background: var(--red-soft); border-color: var(--red-line)">
                     <span style="color: var(--red)">{{ 'Refunded' | t }}</span>
                     <strong style="color: var(--red)">{{ money(p.total) }} ETB</strong>
                   </div>
-                } @else if (p.status === 'TRANSFERRED') {
+                } @else if (p.status === PayState.Transferred) {
                   <div class="amount-cell" style="background: var(--blue-soft); border-color: var(--blue-line)">
                     <span style="color: var(--blue)">{{ 'Transferred' | t }}</span>
                     <strong style="color: var(--blue)">{{ money(p.total) }} ETB</strong>
                   </div>
                 }
               } @else if (canPay()) {
-                <p class="small muted" style="margin-bottom: 10px"> {{ 'The food is' | t }} {{ o.status === 'READY' ? ('ready at the pass' | t) : ('served' | t) }}{{ '. Collect payment now.' | t }} </p>
+                <p class="small muted" style="margin-bottom: 10px"> {{ 'The food is' | t }} {{ o.status === OrderStatus.Ready ? ('ready at the pass' | t) : ('served' | t) }}{{ '. Collect payment now.' | t }} </p>
                 <button class="btn btn-primary btn-block" type="button" (click)="showPay.set(true)">
                   <app-icon name="cash" /> {{ 'Take payment' | t }} </button>
               } @else {
@@ -365,6 +370,12 @@ export class OrderDetailPage implements OnInit {
   private readonly toast = inject(ToastService);
 
   protected readonly id = this.route.snapshot.paramMap.get('id') ?? '';
+  protected readonly ItemStatus = ItemStatus;
+  protected readonly OrderStatus = OrderStatus;
+  protected readonly PaymentStatus = PaymentStatus;
+  protected readonly VerificationState = VerificationState;
+  protected readonly PayState = PayState;
+
   protected readonly money = money;
   protected readonly clock = clock;
   protected readonly ageLabel = ageLabel;
@@ -388,8 +399,8 @@ export class OrderDetailPage implements OnInit {
     if (!order) return undefined;
     const bill = this.store.bills().find((b) => b.items.some((i) => i.orderId === order.id));
     return (
-      (bill ? this.store.paymentsForBill(bill.id).find((p) => p.status !== 'RETRACTED') : undefined) ??
-      this.store.payments().find((p) => p.orderId === order.id && p.status !== 'RETRACTED')
+      (bill ? this.store.paymentsForBill(bill.id).find((p) => p.status !== PayState.Retracted) : undefined) ??
+      this.store.payments().find((p) => p.orderId === order.id && p.status !== PayState.Retracted)
     );
   });
 
@@ -408,10 +419,10 @@ export class OrderDetailPage implements OnInit {
     const order = this.order();
     if (!order) return false;
     return (
-      (order.status === 'READY' || order.status === 'SERVED') &&
-      order.paymentStatus !== 'PAID' &&
-      order.paymentStatus !== 'REFUNDED' &&
-      order.paymentStatus !== 'TRANSFERRED'
+      (order.status === OrderStatus.Ready || order.status === OrderStatus.Served) &&
+      order.paymentStatus !== PaymentStatus.Paid &&
+      order.paymentStatus !== PaymentStatus.Refunded &&
+      order.paymentStatus !== PaymentStatus.Transferred
     );
   });
 
@@ -419,26 +430,26 @@ export class OrderDetailPage implements OnInit {
     const order = this.order();
     if (!order) return false;
     return (
-      (order.status === 'PENDING' || order.status === 'PREPARING' || order.status === 'READY') &&
-      order.paymentStatus === 'UNPAID'
+      (order.status === OrderStatus.Pending || order.status === OrderStatus.Preparing || order.status === OrderStatus.Ready) &&
+      order.paymentStatus === PaymentStatus.Unpaid
     );
   });
 
   protected readonly activeLines = computed(
-    () => this.order()?.lines.filter((line) => line.status !== 'CANCELLED') ?? [],
+    () => this.order()?.lines.filter((line) => line.status !== ItemStatus.Cancelled) ?? [],
   );
 
   protected readonly readyCount = computed(
-    () => this.activeLines().filter((line) => line.status === 'PREPARED' || line.status === 'SERVED').length,
+    () => this.activeLines().filter((line) => line.status === ItemStatus.Prepared || line.status === ItemStatus.Served).length,
   );
 
   protected readonly allPrepared = computed(() => {
     const lines = this.activeLines();
-    return lines.length > 0 && lines.every((line) => line.status === 'PREPARED' || line.status === 'SERVED');
+    return lines.length > 0 && lines.every((line) => line.status === ItemStatus.Prepared || line.status === ItemStatus.Served);
   });
 
   protected readonly canServeAll = computed(() =>
-    this.activeLines().some((line) => line.status === 'PREPARED'),
+    this.activeLines().some((line) => line.status === ItemStatus.Prepared),
   );
 
   protected readonly steps = computed(() => {
@@ -476,13 +487,13 @@ export class OrderDetailPage implements OnInit {
 
   protected paymentPill(): string {
     switch (this.order()?.paymentStatus) {
-      case 'PAID':
+      case PaymentStatus.Paid:
         return 'pill-green';
-      case 'PAYMENTINITIATED':
+      case PaymentStatus.PaymentInitiated:
         return 'pill-amber';
-      case 'REFUNDED':
+      case PaymentStatus.Refunded:
         return 'pill-red';
-      case 'TRANSFERRED':
+      case PaymentStatus.Transferred:
         return 'pill-blue';
       default:
         return 'pill-grey';
@@ -494,7 +505,7 @@ export class OrderDetailPage implements OnInit {
   }
 
   protected isDigitalMethod(method: string): boolean {
-    return method === 'TELEBIRR' || method === 'CBE';
+    return method === PayMethod.Telebirr || method === PayMethod.Cbe;
   }
 
   protected cancelSummary(): string {
@@ -544,7 +555,7 @@ export class OrderDetailPage implements OnInit {
   protected async reorder(): Promise<void> {
     const order = this.order();
     if (!order || this.busy()) return;
-    const live = order.lines.filter((l) => l.status !== 'CANCELLED');
+    const live = order.lines.filter((l) => l.status !== ItemStatus.Cancelled);
     const source = live.length ? live : order.lines;
     if (!source.length) {
       this.toast.show(translate('This ticket has no items to reorder'), 'error');

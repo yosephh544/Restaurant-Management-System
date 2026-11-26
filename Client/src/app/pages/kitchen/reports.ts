@@ -1,12 +1,12 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { TranslatePipe, translate } from '../../core/i18n';
+import { Station } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
 
 type Period = 'today' | 'week' | 'month';
-type Station = 'KITCHEN' | 'BAR';
 
 @Component({
   selector: 'app-station-reports',
@@ -15,8 +15,8 @@ type Station = 'KITCHEN' | 'BAR';
     <div class="page">
       <div class="page-head">
         <div>
-          <div class="eyebrow">{{ (station() === 'BAR' ? 'Bar' : 'Kitchen') | t }}</div>
-          <h1 class="page-title">{{ (station() === 'BAR' ? 'Bar performance' : 'Kitchen performance') | t }}</h1>
+          <div class="eyebrow">{{ (station() === Station.Bar ? 'Bar' : 'Kitchen') | t }}</div>
+          <h1 class="page-title">{{ (station() === Station.Bar ? 'Bar performance' : 'Kitchen performance') | t }}</h1>
           <p class="page-sub">{{ 'Tickets you handled, items prepared and turnaround time.' | t }}</p>
         </div>
         <div class="head-actions">
@@ -131,12 +131,14 @@ export class StationReportsPage implements OnInit {
   private readonly toast = inject(ToastService);
 
   protected readonly period = signal<Period>('today');
+  protected readonly Station = Station;
+
   protected readonly station = signal<Station>(
-    (this.route.snapshot.data['station'] as Station | undefined) ?? 'KITCHEN',
+    (this.route.snapshot.data['station'] as Station | undefined) ?? Station.Kitchen,
   );
   protected readonly report = computed(() => this.store.stationReport());
   protected readonly queueCount = computed(() =>
-    this.station() === 'BAR' ? this.store.barQueue().length : this.store.kitchenQueue().length,
+    this.station() === Station.Bar ? this.store.barQueue().length : this.store.kitchenQueue().length,
   );
 
   async ngOnInit(): Promise<void> {

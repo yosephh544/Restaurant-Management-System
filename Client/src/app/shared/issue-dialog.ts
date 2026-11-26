@@ -1,7 +1,7 @@
 import { Component, computed, inject, input, output, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../core/i18n';
 import { FormsModule } from '@angular/forms';
-import { ISSUE_LABEL, IssueReason, KitchenTicket } from '../core/models';
+import { ISSUE_LABEL, IssueReason, ItemStatus, KitchenTicket, PaymentStatus, Station } from '../core/models';
 import { Store } from '../core/store';
 import { ToastService } from '../core/toast.service';
 import { Icon } from './icon';
@@ -66,7 +66,7 @@ import { Icon } from './icon';
             </div>
           </div>
 
-          @if (ticket().paymentStatus === 'PAID') {
+          @if (ticket().paymentStatus === PaymentStatus.Paid) {
             <div class="pending-box mt-3" style="background: var(--amber-soft); border-color: var(--amber-line)">
               <div class="row" style="align-items: flex-start">
                 <app-icon name="cash" style="color: var(--amber)" />
@@ -95,26 +95,28 @@ import { Icon } from './icon';
   `,
 })
 export class IssueDialog {
+  protected readonly PaymentStatus = PaymentStatus;
+
   private readonly store = inject(Store);
   private readonly toast = inject(ToastService);
 
   readonly ticket = input.required<KitchenTicket>();
-  readonly station = input<'KITCHEN' | 'BAR'>('KITCHEN');
+  readonly station = input<Station>(Station.Kitchen);
   readonly closed = output<void>();
 
   protected readonly reasons: { value: IssueReason; label: string }[] = [
-    { value: 'OUT_OF_STOCK', label: ISSUE_LABEL.OUT_OF_STOCK },
-    { value: 'EQUIPMENT_ISSUE', label: ISSUE_LABEL.EQUIPMENT_ISSUE },
-    { value: 'PREP_DELAY', label: ISSUE_LABEL.PREP_DELAY },
-    { value: 'OTHER', label: ISSUE_LABEL.OTHER },
+    { value: IssueReason.OutOfStock, label: ISSUE_LABEL[IssueReason.OutOfStock] },
+    { value: IssueReason.EquipmentIssue, label: ISSUE_LABEL[IssueReason.EquipmentIssue] },
+    { value: IssueReason.PrepDelay, label: ISSUE_LABEL[IssueReason.PrepDelay] },
+    { value: IssueReason.Other, label: ISSUE_LABEL[IssueReason.Other] },
   ];
 
   protected readonly scope = signal<'ITEM' | 'ORDER'>('ITEM');
-  protected readonly reason = signal<IssueReason>('OUT_OF_STOCK');
+  protected readonly reason = signal<IssueReason>(IssueReason.OutOfStock);
   protected readonly note = signal('');
   protected readonly error = signal('');
   protected readonly busy = signal(false);
-  protected readonly openItems = computed(() => this.ticket().items.filter((i) => i.status !== 'CANCELLED'));
+  protected readonly openItems = computed(() => this.ticket().items.filter((i) => i.status !== ItemStatus.Cancelled));
   protected readonly itemOverride = signal<string | null>(null);
   protected readonly itemId = computed(
     () => this.itemOverride() ?? this.openItems()[0]?.id ?? this.ticket().items[0]?.id ?? '',
@@ -131,7 +133,7 @@ export class IssueDialog {
     }
 
     this.busy.set(true);
-    const result = this.station() === 'BAR'
+    const result = this.station() === Station.Bar
       ? await this.store.cancelBar(ticket.id, this.reason(), this.note().trim(), orderItemId)
       : await this.store.cancelKitchen(ticket.id, this.reason(), this.note().trim(), orderItemId);
     this.busy.set(false);

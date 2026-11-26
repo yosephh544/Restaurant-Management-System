@@ -1,7 +1,8 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { ApiService } from './api.service';
+import { PasswordResetStatus } from './enums';
 
-export type PasswordResetStatus = 'PENDING' | 'APPROVED' | 'COMPLETED' | 'CANCELLED';
+export { PasswordResetStatus };
 
 export interface PasswordResetRow {
   id: string;
@@ -37,7 +38,7 @@ export class PasswordResetService {
 
   readonly rows = signal<PasswordResetRow[]>([]);
   readonly loading = signal(false);
-  readonly pendingCount = computed(() => this.rows().filter((row) => row.status === 'PENDING').length);
+  readonly pendingCount = computed(() => this.rows().filter((row) => row.status === PasswordResetStatus.Pending).length);
 
   async load(): Promise<void> {
     this.loading.set(true);
@@ -51,7 +52,7 @@ export class PasswordResetService {
   async approve(id: string): Promise<ResetActionResult> {
     try {
       const approved = await this.api.post<ApprovedResetCode>(`/auth/password-resets/${id}/approve`);
-      this.patch(id, { status: 'APPROVED', approvedAt: new Date().toISOString(), codeExpiresAt: approved.codeExpiresAt });
+      this.patch(id, { status: PasswordResetStatus.Approved, approvedAt: new Date().toISOString(), codeExpiresAt: approved.codeExpiresAt });
       return { ok: true, approved };
     } catch (error) {
       return { ok: false, error: this.api.message(error) };

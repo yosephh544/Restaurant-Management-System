@@ -1,6 +1,6 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { locale, TranslatePipe, translate } from '../../core/i18n';
-import { CancellationItem, money, OrderReportItem, PaymentStatus, SalesSummary, StationReport } from '../../core/models';
+import { CancellationItem, IssueReason, money, OrderReportItem, OrderStatus, OrderType, PaymentStatus, SalesSummary, Station, StationReport } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon, IconName } from '../../shared/icon';
@@ -226,7 +226,7 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
                     <tr>
                       <td>
                         <strong>#{{ row.orderNumber }}</strong>
-                        <div class="tiny muted">{{ row.tableNumber }} · {{ row.orderType === 'TAKEOUT' ? ('Takeout' | t) : row.orderType === 'TAKEAWAY' ? ('Takeaway' | t) : ('Dine-in' | t) }}</div>
+                        <div class="tiny muted">{{ row.tableNumber }} · {{ row.orderType === OrderType.Takeout ? ('Takeout' | t) : row.orderType === OrderType.Takeaway ? ('Takeaway' | t) : ('Dine-in' | t) }}</div>
                       </td>
                       <td>{{ row.waiterName }}</td>
                       <td><span [class]="'pill pill-' + orderTone(row.orderStatus) + ' no-dot'">{{ orderLabel(row.orderStatus) }}</span></td>
@@ -403,7 +403,7 @@ type OrderFilter = 'all' | 'unpaid' | 'pending' | 'paid' | 'refunded';
           <div class="split">
             @for (station of stationCards(); track station.station) {
               <div class="card card-pad">
-                <div class="card-title">{{ station.station === 'BAR' ? ('Bar performance' | t) : ('Kitchen performance' | t) }}</div>
+                <div class="card-title">{{ station.station === Station.Bar ? ('Bar performance' | t) : ('Kitchen performance' | t) }}</div>
                 <div class="card-sub" style="margin-bottom: 14px">{{ 'Orders and items handled by this station.' | t }}</div>
                 <div class="stack">
                   <div class="between small"><span class="muted">{{ 'Orders handled' | t }}</span><span class="strong">{{ station.totalOrders }}</span></div>
@@ -484,7 +484,7 @@ export class ReportsPage implements OnInit {
   }
 
   protected readonly avgPaidOrder = computed(() => {
-    const paid = this.orderRows().filter((row) => row.paymentStatus === 'PAID');
+    const paid = this.orderRows().filter((row) => row.paymentStatus === PaymentStatus.Paid);
     if (!paid.length) return 0;
     const total = paid.reduce((sum, row) => sum + row.collectedAmount, 0);
     return Math.round((total / paid.length) * 100) / 100;
@@ -519,13 +519,13 @@ export class ReportsPage implements OnInit {
     return this.orderRows().filter((row) => {
       switch (filter) {
         case 'unpaid':
-          return row.paymentStatus === 'UNPAID' || row.paymentStatus === 'RETRACTED';
+          return row.paymentStatus === PaymentStatus.Unpaid || row.paymentStatus === PaymentStatus.Retracted;
         case 'pending':
-          return row.paymentStatus === 'PAYMENTINITIATED';
+          return row.paymentStatus === PaymentStatus.PaymentInitiated;
         case 'paid':
-          return row.paymentStatus === 'PAID';
+          return row.paymentStatus === PaymentStatus.Paid;
         case 'refunded':
-          return row.paymentStatus === 'REFUNDED' || row.paymentStatus === 'REFUNDPENDING';
+          return row.paymentStatus === PaymentStatus.Refunded || row.paymentStatus === PaymentStatus.RefundPending;
         default:
           return true;
       }
@@ -536,30 +536,33 @@ export class ReportsPage implements OnInit {
     [this.kitchenStation(), this.barStation()].filter((station): station is StationReport => !!station),
   );
 
-  protected orderTone(status: string): string {
+  protected readonly OrderType = OrderType;
+  protected readonly Station = Station;
+
+  protected orderTone(status: OrderStatus): string {
     switch (status) {
-      case 'SERVED':
+      case OrderStatus.Served:
         return 'green';
-      case 'READY':
+      case OrderStatus.Ready:
         return 'blue';
-      case 'PREPARING':
+      case OrderStatus.Preparing:
         return 'amber';
-      case 'CANCELLEDBYKITCHEN':
+      case OrderStatus.CancelledByKitchen:
         return 'red';
       default:
         return 'grey';
     }
   }
 
-  protected orderLabel(status: string, localize = true): string {
+  protected orderLabel(status: OrderStatus, localize = true): string {
     const label =
-      status === 'SERVED'
+      status === OrderStatus.Served
         ? 'Served'
-        : status === 'READY'
+        : status === OrderStatus.Ready
           ? 'Ready'
-          : status === 'PREPARING'
+          : status === OrderStatus.Preparing
             ? 'Preparing'
-            : status === 'CANCELLEDBYKITCHEN'
+            : status === OrderStatus.CancelledByKitchen
               ? 'Cancelled'
               : 'Pending';
     return localize ? translate(label) : label;
@@ -567,14 +570,14 @@ export class ReportsPage implements OnInit {
 
   protected paymentTone(status: PaymentStatus): string {
     switch (status) {
-      case 'PAID':
+      case PaymentStatus.Paid:
         return 'green';
-      case 'PAYMENTINITIATED':
+      case PaymentStatus.PaymentInitiated:
         return 'amber';
-      case 'REFUNDPENDING':
-      case 'REFUNDED':
+      case PaymentStatus.RefundPending:
+      case PaymentStatus.Refunded:
         return 'red';
-      case 'TRANSFERRED':
+      case PaymentStatus.Transferred:
         return 'blue';
       default:
         return 'grey';
@@ -583,17 +586,17 @@ export class ReportsPage implements OnInit {
 
   protected paymentLabel(status: PaymentStatus, localize = true): string {
     const label =
-      status === 'PAID'
+      status === PaymentStatus.Paid
         ? 'Paid'
-        : status === 'PAYMENTINITIATED'
+        : status === PaymentStatus.PaymentInitiated
           ? 'Pending payment'
-          : status === 'REFUNDPENDING'
+          : status === PaymentStatus.RefundPending
             ? 'Refund pending'
-            : status === 'REFUNDED'
+            : status === PaymentStatus.Refunded
               ? 'Refunded'
-              : status === 'TRANSFERRED'
+              : status === PaymentStatus.Transferred
                 ? 'Transferred'
-                : status === 'RETRACTED'
+                : status === PaymentStatus.Retracted
                   ? 'Retracted'
                   : 'Unpaid';
     return localize ? translate(label) : label;
@@ -608,13 +611,14 @@ export class ReportsPage implements OnInit {
     });
   }
 
-  protected reasonLabel(reason: string, localize = true): string {
+  protected reasonLabel(reasonCode: string, localize = true): string {
+    const reason = reasonCode as IssueReason;
     const label =
-      reason === 'OUT_OF_STOCK'
+      reason === IssueReason.OutOfStock
         ? 'Out of stock'
-        : reason === 'EQUIPMENT_ISSUE'
+        : reason === IssueReason.EquipmentIssue
           ? 'Equipment issue'
-          : reason === 'PREP_DELAY'
+          : reason === IssueReason.PrepDelay
             ? 'Prep delay'
             : 'Other';
     return localize ? translate(label) : label;
@@ -862,7 +866,7 @@ export class ReportsPage implements OnInit {
           title: t('Kitchen & bar'),
           head: [t('Station'), t('Orders handled'), t('Items handled'), t('Items ready'), t('Items in progress'), t('Avg. preparation'), t('Avg. pickup')],
           rows: this.stationCards().map((station) => [
-            station.station === 'BAR' ? t('Bar') : t('Kitchen'),
+            station.station === Station.Bar ? t('Bar') : t('Kitchen'),
             String(station.totalOrders),
             String(station.totalItems),
             String(station.itemsReady),

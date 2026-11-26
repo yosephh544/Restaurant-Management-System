@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using RestaurantManagement.Implementation.Dtos.Payment;
 using RestaurantManagement.Infrustructure.Common.Exceptions;
+using RestaurantManagement.Infrustructure.Enums;
 using RestaurantManagement.Infrustructure.Models.Configuration;
 
 namespace RestaurantManagement.Implementation.Services.Payment;
@@ -10,11 +11,11 @@ public static class ReceiptRecipient
 {
     public static void Validate(BankReceipt receipt, RestaurantSettings? settings)
     {
-        var expected = receipt.Bank == "CBE" ? settings?.CbeAccountNumber : settings?.TelebirrNumber;
+        var expected = receipt.Bank == WireFormat.BankCbe ? settings?.CbeAccountNumber : settings?.TelebirrNumber;
         if (string.IsNullOrWhiteSpace(expected))
             throw new ServiceUnavailableException(receipt.Bank, "the restaurant's receiving account is not configured.");
-        var matches = Matches(receipt.ReceiverAccount, expected, receipt.ReceiverName, settings?.AccountHolderName, receipt.Bank == "TELEBIRR");
-        if (!matches && receipt.Bank == "TELEBIRR" && !string.IsNullOrWhiteSpace(settings?.CbeAccountNumber))
+        var matches = Matches(receipt.ReceiverAccount, expected, receipt.ReceiverName, settings?.AccountHolderName, receipt.Bank == WireFormat.BankTelebirr);
+        if (!matches && receipt.Bank == WireFormat.BankTelebirr && !string.IsNullOrWhiteSpace(settings?.CbeAccountNumber))
             matches = Matches(receipt.ReceiverBankAccount, settings.CbeAccountNumber, receipt.ReceiverBankAccountName, settings.AccountHolderName);
         if (!matches)
             throw new ConflictException("The bank receipt does not identify the restaurant's receiving account. Check the recipient and use a receipt that shows the receiving account.");

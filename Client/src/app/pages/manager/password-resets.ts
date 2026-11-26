@@ -1,6 +1,6 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
-import { clock, initials, ROLE_LABEL, Role, roleLabel, shortDate } from '../../core/models';
+import { clock, initials, PasswordResetStatus, ROLE_LABEL, Role, roleLabel, shortDate } from '../../core/models';
 import { PasswordResetRow, PasswordResetService } from '../../core/password-reset.service';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -69,7 +69,7 @@ interface ShownCode {
                     }
                     <span>· {{ shortDate(row.requestedAt) }} {{ clock(row.requestedAt) }}</span>
                   </div>
-                  @if (row.status === 'APPROVED' && row.codeExpiresAt) {
+                  @if (row.status === PasswordResetStatus.Approved && row.codeExpiresAt) {
                     <div class="tiny muted" style="margin-top: 3px">
                       {{ 'Code expires' | t }} {{ shortDate(row.codeExpiresAt) }} {{ clock(row.codeExpiresAt) }}
                       @if (row.approvedByName) {
@@ -79,7 +79,7 @@ interface ShownCode {
                   }
                 </div>
                 <div class="reset-actions">
-                  @if (row.status === 'PENDING') {
+                  @if (row.status === PasswordResetStatus.Pending) {
                     <button class="btn btn-sm btn-primary" type="button" [disabled]="busyId() === row.id" (click)="approve(row)">
                       <app-icon name="check" /> {{ 'Approve' | t }}
                     </button>
@@ -147,8 +147,10 @@ export class PasswordResetsPage implements OnInit, OnDestroy {
 
   private timer?: ReturnType<typeof setInterval>;
 
-  protected readonly waitingCount = computed(() => this.resets.rows().filter((row) => row.status === 'PENDING').length);
-  protected readonly approvedCount = computed(() => this.resets.rows().filter((row) => row.status === 'APPROVED').length);
+  protected readonly PasswordResetStatus = PasswordResetStatus;
+
+  protected readonly waitingCount = computed(() => this.resets.rows().filter((row) => row.status === PasswordResetStatus.Pending).length);
+  protected readonly approvedCount = computed(() => this.resets.rows().filter((row) => row.status === PasswordResetStatus.Approved).length);
 
   async ngOnInit(): Promise<void> {
     await this.refresh();
@@ -172,11 +174,11 @@ export class PasswordResetsPage implements OnInit, OnDestroy {
   }
 
   protected statusLabel(row: PasswordResetRow): string {
-    return row.status === 'PENDING' ? translate('Waiting') : translate('Approved');
+    return row.status === PasswordResetStatus.Pending ? translate('Waiting') : translate('Approved');
   }
 
   protected statusPill(row: PasswordResetRow): string {
-    return row.status === 'PENDING' ? 'pill-amber' : 'pill-green';
+    return row.status === PasswordResetStatus.Pending ? 'pill-amber' : 'pill-green';
   }
 
   protected async approve(row: PasswordResetRow): Promise<void> {

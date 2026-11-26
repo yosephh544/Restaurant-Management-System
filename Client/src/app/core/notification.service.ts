@@ -1,6 +1,6 @@
 import { computed, inject, Injectable, signal } from '@angular/core';
 import { translate } from './i18n';
-import { KitchenTicket, Order, Role } from './models';
+import { KitchenTicket, Order, OrderStatus, Role, Station } from './models';
 import { SessionService } from './session.service';
 import { Store } from './store';
 import { ToastAction, ToastService, ToastTone } from './toast.service';
@@ -92,10 +92,10 @@ export class NotificationService {
       this.orderStates.set(order.id, order.status);
     }
     for (const ticket of this.store.kitchenTickets()) {
-      this.stationStates.set(this.stationKey('KITCHEN', ticket.id), ticket.status);
+      this.stationStates.set(this.stationKey(Station.Kitchen, ticket.id), ticket.status);
     }
     for (const ticket of this.store.barTickets()) {
-      this.stationStates.set(this.stationKey('BAR', ticket.id), ticket.status);
+      this.stationStates.set(this.stationKey(Station.Bar, ticket.id), ticket.status);
     }
   }
 
@@ -104,19 +104,19 @@ export class NotificationService {
     this.polling = true;
     try {
       const role = this.role();
-      if (role === 'WAITER' && this.session.hasPermission('orders.view')) {
+      if (role === Role.Waiter && this.session.hasPermission('orders.view')) {
         await this.store.loadOrders();
         this.detectWaiterChanges();
         return;
       }
-      if (role === 'KITCHEN' && this.session.hasPermission('kitchen.view')) {
+      if (role === Role.Kitchen && this.session.hasPermission('kitchen.view')) {
         await this.store.loadKitchen();
-        this.detectStationChanges('KITCHEN');
+        this.detectStationChanges(Station.Kitchen);
         return;
       }
-      if (role === 'BARTENDER' && this.session.hasPermission('bar.view')) {
+      if (role === Role.Bartender && this.session.hasPermission('bar.view')) {
         await this.store.loadBar();
-        this.detectStationChanges('BAR');
+        this.detectStationChanges(Station.Bar);
       }
     } finally {
       this.polling = false;
@@ -136,7 +136,7 @@ export class NotificationService {
       }
       if (previous === order.status) continue;
 
-      if (previous === 'READY') {
+      if (previous === OrderStatus.Ready) {
         this.toast.dismissKey(`WAITER-ready-${order.id}`);
       }
       this.notifyWaiterStatus(order);
@@ -145,7 +145,7 @@ export class NotificationService {
 
   private notifyWaiterStatus(order: Order): void {
     const link: ToastAction = { label: translate('Open order'), path: `/waiter/orders/${order.id}` };
-    if (order.status === 'PREPARING') {
+    if (order.status === OrderStatus.Preparing) {
       this.push({
         title: translate('Order update'),
         message: translate('Order #{number} for table {table} is being prepared.', {
@@ -155,7 +155,7 @@ export class NotificationService {
         tone: 'info',
         link,
       });
-    } else if (order.status === 'READY') {
+    } else if (order.status === OrderStatus.Ready) {
       this.push({
         title: translate('Order ready'),
         message: translate('Order #{number} for table {table} is ready — pick it up.', {
@@ -165,7 +165,7 @@ export class NotificationService {
         tone: 'alert',
         link,
       });
-    } else if (order.status === 'CANCELLEDBYKITCHEN') {
+    } else if (order.status === OrderStatus.CancelledByKitchen) {
       this.push({
         title: translate('Order cancelled'),
         message: translate('Order #{number} for table {table} was cancelled by the kitchen.', {
@@ -178,8 +178,8 @@ export class NotificationService {
     }
   }
 
-  private detectStationChanges(station: 'KITCHEN' | 'BAR'): void {
-    const tickets = station === 'KITCHEN' ? this.store.kitchenTickets() : this.store.barTickets();
+  private detectStationChanges(station: Station): void {
+    const tickets = station === Station.Kitchen ? this.store.kitchenTickets() : this.store.barTickets();
     const prefix = `${station}:`;
     const seen = new Set<string>();
 
@@ -189,17 +189,17 @@ export class NotificationService {
       const previous = this.stationStates.get(key);
       this.stationStates.set(key, ticket.status);
       if (previous !== undefined) {
-        if (previous === 'PENDING' && ticket.status !== 'PENDING') {
+        if (previous === OrderStatus.Pending && ticket.status !== OrderStatus.Pending) {
           this.toast.dismissKey(`${station}-accept-${ticket.id}`);
         }
-        if (previous === 'PREPARING' && ticket.status !== 'PREPARING') {
+        if (previous === OrderStatus.Preparing && ticket.status !== OrderStatus.Preparing) {
           this.toast.dismissKey(`${station}-prep-${ticket.id}`);
         }
         continue;
       }
 
       this.push({
-        title: station === 'KITCHEN' ? translate('New kitchen ticket') : translate('New bar ticket'),
+        title: station === Station.Kitchen ? translate('New kitchen ticket') : translate('New bar ticket'),
         message: translate('Order #{number} · Table {table}. Accept it to start preparing.', {
           number: ticket.number,
           table: ticket.table,
@@ -207,7 +207,7 @@ export class NotificationService {
         tone: 'alert',
         link: {
           label: translate('Open ticket'),
-          path: station === 'KITCHEN' ? `/kitchen/${ticket.id}` : `/bar/${ticket.id}`,
+          path: station === Station.Kitchen ? `/kitchen/${ticket.id}` : `/bar/${ticket.id}`,
         },
       });
     }
@@ -226,19 +226,19 @@ export class NotificationService {
     const role = this.role();
     const now = Date.now();
 
-    if (role === 'WAITER') {
+    if (role === Role.Waiter) {
       this.escalateWaiterReadyOrders(now);
       return;
     }
-    if (role === 'KITCHEN' || role === 'BARTENDER') {
-      this.escalateStationTickets(role === 'KITCHEN' ? 'KITCHEN' : 'BAR', now);
+    if (role === Role.Kitchen || role === Role.Bartender) {
+      this.escalateStationTickets(role === Role.Kitchen ? Station.Kitchen : Station.Bar, now);
     }
   }
 
   private escalateWaiterReadyOrders(now: number): void {
     const waiterId = this.session.user()?.id ?? '';
     for (const order of this.store.orders()) {
-      if (order.waiterId !== waiterId || order.status !== 'READY' || !order.readyAt) continue;
+      if (order.waiterId !== waiterId || order.status !== OrderStatus.Ready || !order.readyAt) continue;
       const readyAt = Date.parse(order.readyAt);
       if (!Number.isFinite(readyAt)) continue;
       const minutes = Math.floor((now - readyAt) / 60000);
@@ -257,17 +257,17 @@ export class NotificationService {
     }
   }
 
-  private escalateStationTickets(station: 'KITCHEN' | 'BAR', now: number): void {
+  private escalateStationTickets(station: Station, now: number): void {
     const tickets: KitchenTicket[] =
-      station === 'KITCHEN' ? this.store.kitchenTickets() : this.store.barTickets();
+      station === Station.Kitchen ? this.store.kitchenTickets() : this.store.barTickets();
 
     for (const ticket of tickets) {
       const createdAt = Date.parse(ticket.createdAt);
       if (!Number.isFinite(createdAt)) continue;
       const minutes = Math.floor((now - createdAt) / 60000);
-      const path = station === 'KITCHEN' ? `/kitchen/${ticket.id}` : `/bar/${ticket.id}`;
+      const path = station === Station.Kitchen ? `/kitchen/${ticket.id}` : `/bar/${ticket.id}`;
 
-      if (ticket.status === 'PENDING' && minutes >= ACCEPT_DEADLINE_MINUTES) {
+      if (ticket.status === OrderStatus.Pending && minutes >= ACCEPT_DEADLINE_MINUTES) {
         this.push({
           key: `${station}-accept-${ticket.id}`,
           title: translate('Ticket needs attention'),
@@ -279,7 +279,7 @@ export class NotificationService {
           tone: 'alert',
           link: { label: translate('Open ticket'), path },
         });
-      } else if (ticket.status === 'PREPARING' && minutes >= PREP_DEADLINE_MINUTES) {
+      } else if (ticket.status === OrderStatus.Preparing && minutes >= PREP_DEADLINE_MINUTES) {
         this.push({
           key: `${station}-prep-${ticket.id}`,
           title: translate('Ticket overdue'),
@@ -359,7 +359,7 @@ export class NotificationService {
     return this.session.user()?.role ?? null;
   }
 
-  private stationKey(station: 'KITCHEN' | 'BAR', id: string): string {
+  private stationKey(station: Station, id: string): string {
     return `${station}:${id}`;
   }
 

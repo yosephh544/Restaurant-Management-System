@@ -7,6 +7,7 @@ using RestaurantManagement.Implementation.Dtos.Payment;
 using RestaurantManagement.Implementation.Interfaces.Payment;
 using RestaurantManagement.Infrustructure.Common.Constants;
 using RestaurantManagement.Infrustructure.Common.Requests;
+using RestaurantManagement.Infrustructure.Enums;
 
 namespace RestaurantManagement.Api.Controllers.Payment;
 
@@ -33,7 +34,7 @@ public class PaymentsController : ApiControllerBase
     public async Task<IActionResult> InitiatePayment([FromBody] InitiatePaymentRequest request, CancellationToken ct)
     {
         var payment = await _paymentService.InitiatePaymentAsync(request, ct);
-        var message = payment.Method == "CASH"
+        var message = payment.Method == WireFormat.PaymentCash
             ? $"Cash payment accepted. Change due: {payment.ChangeGiven:0.00} ETB."
             : "Payment session initiated.";
         return OkResponse(payment, message);

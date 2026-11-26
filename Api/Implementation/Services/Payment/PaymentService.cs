@@ -12,6 +12,7 @@ using RestaurantManagement.Infrustructure.Common.Extensions;
 using RestaurantManagement.Infrustructure.Common.Requests;
 using RestaurantManagement.Infrustructure.Common.Responses;
 using RestaurantManagement.Infrustructure.Data;
+using RestaurantManagement.Infrustructure.Enums;
 using RestaurantManagement.Infrustructure.Enums.Billing;
 using RestaurantManagement.Infrustructure.Enums.Orders;
 using RestaurantManagement.Infrustructure.Models.Billing;
@@ -228,13 +229,9 @@ public class PaymentService : IPaymentService
         return MapPaymentToResponse(payment, representativeOrder.OrderNumber, qrData);
     }
 
-    private static PaymentMethod ParseMethod(string method) => method.Trim().ToUpperInvariant() switch
-    {
-        "CASH" => PaymentMethod.Cash,
-        "QR_SCAN" => PaymentMethod.QrScan,
-        "PHONE_PUSH" or "USSD" => PaymentMethod.PhonePush,
-        _ => throw new ValidationException("Method", "Method must be CASH, QR_SCAN, PHONE_PUSH, or USSD.")
-    };
+    private static PaymentMethod ParseMethod(string method) => WireFormat.TryParsePaymentMethod(method, out var parsed)
+        ? parsed
+        : throw new ValidationException("Method", "Method must be CASH, QR_SCAN, PHONE_PUSH, or USSD.");
 
     /// <summary>
     /// A table can be served by more than one waiter, so a waiter may settle it when they
@@ -291,9 +288,9 @@ public class PaymentService : IPaymentService
         var settings = await _dbContext.RestaurantSettings.AsNoTracking().FirstOrDefaultAsync(ct);
         var receipt = await _bankReceiptVerifier.VerifyAsync(bankRequest, settings?.CbeAccountNumber, ct);
         if (receipt.Bank != input.Bank) throw new ConflictException("The bank returned a receipt for a different payment method.");
-        BankReceiptParser.Validate(receipt, requireStatus: receipt.Bank == "TELEBIRR");
+        BankReceiptParser.Validate(receipt, requireStatus: receipt.Bank == WireFormat.BankTelebirr);
         ReceiptRecipient.Validate(receipt, settings);
-        var method = receipt.Bank == "CBE" ? PaymentMethod.Cbe : PaymentMethod.Telebirr;
+        var method = receipt.Bank == WireFormat.BankCbe ? PaymentMethod.Cbe : PaymentMethod.Telebirr;
         var duplicate = await _dbContext.Payments.AsNoTracking().AnyAsync(p => p.Method == method
             && (p.ReceiptReference == receipt.Reference || p.ReceiptUrl == receipt.ReceiptUrl)
             && (p.Status == PaymentGatewayStatus.Paid || p.Status == PaymentGatewayStatus.Refunded || p.Status == PaymentGatewayStatus.Transferred), ct);
@@ -307,7 +304,7 @@ public class PaymentService : IPaymentService
             Currency = receipt.Currency,
             PayerName = receipt.PayerName,
             Bank = receipt.Bank,
-            BankName = receipt.Bank == "CBE" ? "Commercial Bank of Ethiopia" : "Telebirr",
+            BankName = receipt.Bank == WireFormat.BankCbe ? "Commercial Bank of Ethiopia" : "Telebirr",
             ReceiptStatus = receipt.Status,
             TransactionDate = receipt.TransactionDate,
             Message = duplicate ? "This bank receipt has already been used for another payment."
@@ -400,9 +397,9 @@ public class PaymentService : IPaymentService
         if (!WaiterMayCollect(session, bill, session.Orders.ToList(), initiatorId))
             throw new ForbiddenException("You can only collect payment for your own orders or table sessions.");
         var settings = await _dbContext.RestaurantSettings.AsNoTracking().FirstOrDefaultAsync(ct);
-        var method = input.Bank == "CBE" ? PaymentMethod.Cbe : PaymentMethod.Telebirr;
+        var method = input.Bank == WireFormat.BankCbe ? PaymentMethod.Cbe : PaymentMethod.Telebirr;
         var suffix = input.AccountSuffix ?? new string((settings?.CbeAccountNumber ?? "").Where(char.IsAsciiDigit).TakeLast(8).ToArray());
-        var sourceUrl = input.Bank == "TELEBIRR" ? $"https://transactioninfo.ethiotelecom.et/receipt/{Uri.EscapeDataString(input.Reference)}"
+        var sourceUrl = input.Bank == WireFormat.BankTelebirr ? $"https://transactioninfo.ethiotelecom.et/receipt/{Uri.EscapeDataString(input.Reference)}"
             : input.Legacy ? $"https://apps.cbe.com.et:100/?id={Uri.EscapeDataString(input.Reference)}{suffix}"
             : $"https://mbreciept.cbe.com.et/{Uri.EscapeDataString(input.Reference)}";
         if (bill.Status == BillStatus.Paid)
@@ -419,7 +416,7 @@ public class PaymentService : IPaymentService
 
         var receipt = await _bankReceiptVerifier.VerifyAsync(bankRequest, settings?.CbeAccountNumber, ct);
         if (receipt.Bank != input.Bank) throw new ConflictException("The bank returned a receipt for a different payment method.");
-        BankReceiptParser.Validate(receipt, requireStatus: receipt.Bank == "TELEBIRR");
+        BankReceiptParser.Validate(receipt, requireStatus: receipt.Bank == WireFormat.BankTelebirr);
         ReceiptRecipient.Validate(receipt, settings);
         // Payment can precede bill generation. SQL stores these existing timestamps in UTC.
         var startedAtUtc = billOrders.Select(o => o.CreatedAt).Append(session.OpenedAt).Min();
@@ -614,7 +611,7 @@ public class PaymentService : IPaymentService
         {
             PaymentId = payment.Id,
             OrderId = payment.OrderId,
-            Status = payment.Status.ToString().ToUpperInvariant(),
+            Status = payment.Status.ToWire(),
             IsSettled = payment.Status == PaymentGatewayStatus.Paid,
             TotalAmount = payment.TotalAmount,
             SettledAt = payment.SettledAt
@@ -926,7 +923,7 @@ public class PaymentService : IPaymentService
             OrderId = t.OrderId,
             OrderNumber = t.Order?.OrderNumber ?? "ORD",
             TipAmount = t.TipAmount,
-            PayoutStatus = t.PayoutStatus.ToString(),
+            PayoutStatus = t.PayoutStatus.ToWire(),
             CreatedAt = t.CreatedAt,
             PaidOutAt = t.PaidOutAt
         }).ToList();
@@ -952,11 +949,8 @@ public class PaymentService : IPaymentService
         if (!string.IsNullOrWhiteSpace(request.Method))
         {
             var normalized = request.Method.Trim().ToUpperInvariant();
-            if (normalized is "QR" or "QR_SCAN") query = query.Where(p => p.Method == PaymentMethod.QrScan);
-            else if (normalized is "PHONE" or "PHONE_PUSH" or "USSD") query = query.Where(p => p.Method == PaymentMethod.PhonePush);
-            else if (normalized == "CASH") query = query.Where(p => p.Method == PaymentMethod.Cash);
-            else if (normalized == "TELEBIRR") query = query.Where(p => p.Method == PaymentMethod.Telebirr);
-            else if (normalized == "CBE") query = query.Where(p => p.Method == PaymentMethod.Cbe);
+            if (WireFormat.TryParsePaymentMethod(normalized, out var method))
+                query = query.Where(p => p.Method == method);
         }
 
         if (!string.IsNullOrWhiteSpace(request.Verification) &&
@@ -993,20 +987,20 @@ public class PaymentService : IPaymentService
             BillNumber = p.Bill?.BillNumber,
             WaiterId = p.Order.WaiterId,
             WaiterName = p.Order.Waiter?.FullName,
-            Method = ToApiMethod(p.Method),
+            Method = p.Method.ToWire(),
             BaseAmount = p.BaseAmount,
             TipAmount = p.TipAmount,
             TotalAmount = p.TotalAmount,
-            Status = p.Status.ToString().ToUpperInvariant(),
-            OrderStatus = p.Order.OrderStatus.ToString().ToUpperInvariant(),
-            OrderPaymentStatus = p.Order.PaymentStatus.ToString().ToUpperInvariant(),
+            Status = p.Status.ToWire(),
+            OrderStatus = p.Order.OrderStatus.ToWire(),
+            OrderPaymentStatus = p.Order.PaymentStatus.ToWire(),
             AmountTendered = p.AmountTendered,
             ChangeGiven = p.ChangeGiven,
             CustomerPhone = p.CustomerPhone,
             ReceiptUrl = p.ReceiptUrl,
             ReceiptReference = p.ReceiptReference,
             AmountPaid = p.AmountPaid,
-            VerificationStatus = ToApiVerification(p.VerificationStatus),
+            VerificationStatus = p.VerificationStatus.ToWire(),
             VerifiedAmount = p.VerifiedAmount,
             VerifiedPayerName = p.VerifiedPayerName,
             VerifiedBank = p.VerifiedBank,
@@ -1040,7 +1034,7 @@ public class PaymentService : IPaymentService
             OrderId = t.OrderId,
             OrderNumber = t.Order?.OrderNumber ?? string.Empty,
             TipAmount = t.TipAmount,
-            PayoutStatus = t.PayoutStatus.ToString().ToUpperInvariant(),
+            PayoutStatus = t.PayoutStatus.ToWire(),
             CreatedAt = t.CreatedAt,
             PaidOutAt = t.PaidOutAt
         }).ToList();
@@ -1092,42 +1086,24 @@ public class PaymentService : IPaymentService
         }
     }
 
-    private static string ToApiMethod(PaymentMethod method) => method switch
-    {
-        PaymentMethod.Cash => "CASH",
-        PaymentMethod.QrScan => "QR_SCAN",
-        PaymentMethod.PhonePush => "PHONE_PUSH",
-        PaymentMethod.Telebirr => "TELEBIRR",
-        PaymentMethod.Cbe => "CBE",
-        _ => method.ToString().ToUpperInvariant()
-    };
-
-    private static string ToApiVerification(PaymentVerificationStatus status) => status switch
-    {
-        PaymentVerificationStatus.Verified => "VERIFIED",
-        PaymentVerificationStatus.Unverified => "UNVERIFIED",
-        PaymentVerificationStatus.Failed => "FAILED",
-        _ => "NOT_REQUIRED"
-    };
-
     private static PaymentResponse MapPaymentToResponse(PaymentEntity p, string orderNumber, string? qrData = null) => new()
     {
         Id = p.Id,
         BillId = p.BillId,
         OrderId = p.OrderId,
         OrderNumber = orderNumber,
-        Method = ToApiMethod(p.Method),
+        Method = p.Method.ToWire(),
         BaseAmount = p.BaseAmount,
         TipAmount = p.TipAmount,
         TotalAmount = p.TotalAmount,
-        Status = p.Status.ToString().ToUpperInvariant(),
+        Status = p.Status.ToWire(),
         QrData = qrData,
         AmountTendered = p.AmountTendered,
         ChangeGiven = p.ChangeGiven,
         ReceiptUrl = p.ReceiptUrl,
         ReceiptReference = p.ReceiptReference,
         AmountPaid = p.AmountPaid,
-        VerificationStatus = ToApiVerification(p.VerificationStatus),
+        VerificationStatus = p.VerificationStatus.ToWire(),
         VerifiedAmount = p.VerifiedAmount,
         VerifiedPayerName = p.VerifiedPayerName,
         VerifiedBank = p.VerifiedBank,

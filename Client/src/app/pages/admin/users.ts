@@ -49,7 +49,7 @@ interface UserDraft {
         <div class="stat-card">
           <div class="stat-icon"><app-icon name="users" /></div>
           <div class="stat-label">{{ 'Accounts' | t }}</div>
-          <div class="stat-value">{{ store.users().length }}</div>
+          <div class="stat-value">{{ staffUsers().length }}</div>
           <div class="stat-foot">{{ 'All staff accounts' | t }}</div>
         </div>
         <div class="stat-card">
@@ -68,7 +68,7 @@ interface UserDraft {
           <div class="stat-icon" style="background: var(--blue-soft); color: var(--blue)"><app-icon name="shield" /></div>
           <div class="stat-label">{{ 'Roles in use' | t }}</div>
           <div class="stat-value">{{ rolesInUse() }}</div>
-          <div class="stat-foot">{{ 'Super Admin always has full access' | t }}</div>
+          <div class="stat-foot">{{ 'Restaurant roles' | t }}</div>
         </div>
       </div>
 
@@ -121,7 +121,7 @@ interface UserDraft {
                         }
                       </div>
                       <span class="tiny muted">{{ shiftSummary(member.defaultShifts) }}</span>
-                    } @else if (member.role === 'MANAGER') {
+                    } @else if (member.role === Role.Manager) {
                       <span class="pill pill-blue no-dot">{{ 'Any time' | t }}</span>
                     } @else {
                       <span class="pill pill-amber">{{ 'Not assigned' | t }}</span>
@@ -241,7 +241,7 @@ interface UserDraft {
               </div>
               @if (!isAdminRole(draft.role)) {
                 <div class="field" style="grid-column: 1 / -1">
-                  <label class="label"> {{ 'Default shifts' | t }} {{ draft.role === 'MANAGER' ? ('(optional)' | t) : '' }} </label>
+                  <label class="label"> {{ 'Default shifts' | t }} {{ draft.role === Role.Manager ? ('(optional)' | t) : '' }} </label>
                   <div class="shift-picker">
                     @for (shift of activeShifts(); track shift.id) {
                       <label class="shift-option" [class.checked]="draft.shiftIds.includes(shift.id)">
@@ -261,7 +261,7 @@ interface UserDraft {
                     <p class="tiny muted" style="margin: 6px 0 0">{{ 'No active shifts are configured yet.' | t }}</p>
                   }
                   <p class="tiny muted" style="margin: 6px 0 0">
-                    @if (draft.role === 'MANAGER') {
+                    @if (draft.role === Role.Manager) {
                       {{ 'Leave all unchecked so this manager can sign in at any time. Selecting shifts restricts their sign-in to those windows.' | t }}
                     } @else {
                       {{ 'Select every shift this staff member works. They can sign in within any selected window (15 minutes early to 60 minutes late).' | t }}
@@ -337,6 +337,8 @@ export class UsersPage {
   protected readonly modalOpen = signal(false);
   protected readonly editingId = signal<string | null>(null);
   protected readonly passwordUnlocked = signal(false);
+  protected readonly Role = Role;
+
   protected readonly showPassword = signal(false);
   protected readonly error = signal('');
   protected readonly busy = signal(false);
@@ -344,59 +346,57 @@ export class UsersPage {
   protected readonly activeShifts = computed(() => this.store.shifts().filter((shift) => shift.isActive));
 
   private readonly roleRank: Record<Role, number> = {
-    SUPERADMIN: 0,
-    OWNER: 1,
-    MANAGER: 2,
-    CASHIER: 3,
-    WAITER: 4,
-    KITCHEN: 4,
-    BARTENDER: 4,
+    [Role.SuperAdmin]: 0,
+    [Role.Owner]: 1,
+    [Role.Manager]: 2,
+    [Role.Cashier]: 3,
+    [Role.Waiter]: 4,
+    [Role.Kitchen]: 4,
+    [Role.Bartender]: 4,
   };
 
-  protected readonly roleOptions: Role[] =
-    this.auth.user()?.role === 'SUPERADMIN'
-      ? ['SUPERADMIN', 'OWNER', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN', 'BARTENDER']
-      : ['OWNER', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN', 'BARTENDER'];
+  protected readonly roleOptions: Role[] = [
+    Role.Owner,
+    Role.Manager,
+    Role.Cashier,
+    Role.Waiter,
+    Role.Kitchen,
+    Role.Bartender,
+  ];
 
   protected readonly roleCards: RoleCard[] = [
     {
-      role: 'SUPERADMIN',
-      icon: 'shield',
-      blurb: 'Platform control',
-      can: ['Everything owners can do', 'Manage owner and staff accounts', 'Performance, reporting and settings'],
-    },
-    {
-      role: 'OWNER',
+      role: Role.Owner,
       icon: 'shield',
       blurb: 'Full control',
       can: ['Everything managers can do', 'Create users and assign roles', 'Restaurant and payment settings'],
     },
     {
-      role: 'MANAGER',
+      role: Role.Manager,
       icon: 'chart',
       blurb: 'Floor and reporting',
       can: ['Dashboard, reports and audit', 'Menu and staff availability', 'Refunds and payment transfers'],
     },
     {
-      role: 'CASHIER',
+      role: Role.Cashier,
       icon: 'bill',
       blurb: 'Bills and payments',
       can: ['Open bills and collect payment', 'Cash, QR and phone payments', 'Refund or transfer settled bills'],
     },
     {
-      role: 'WAITER',
+      role: Role.Waiter,
       icon: 'utensils',
       blurb: 'Tables and tickets',
       can: ['Create orders and add items', 'See only their own tickets', 'Take payment and reorder cancellations'],
     },
     {
-      role: 'KITCHEN',
+      role: Role.Kitchen,
       icon: 'table',
       blurb: 'Preparation',
       can: ['Kitchen board and ticket details', 'Accept and mark ready', 'Report unavailable items'],
     },
     {
-      role: 'BARTENDER',
+      role: Role.Bartender,
       icon: 'glass',
       blurb: 'Drinks and bar',
       can: ['Bar board and drink tickets', 'Accept and mark drinks ready', 'Report unavailable drinks'],
@@ -405,14 +405,16 @@ export class UsersPage {
 
   protected draft: UserDraft = this.blank();
 
-  protected readonly activeCount = computed(() => this.store.users().filter((u) => u.active).length);
-  protected readonly waiterCount = computed(() => this.store.users().filter((u) => u.role === 'WAITER').length);
-  protected readonly rolesInUse = computed(() => new Set(this.store.users().map((u) => u.role)).size);
+  // The SuperAdmin is a platform account, not restaurant staff.
+  protected readonly staffUsers = computed(() => this.store.users().filter((u) => u.role !== Role.SuperAdmin));
+
+  protected readonly activeCount = computed(() => this.staffUsers().filter((u) => u.active).length);
+  protected readonly waiterCount = computed(() => this.staffUsers().filter((u) => u.role === Role.Waiter).length);
+  protected readonly rolesInUse = computed(() => new Set(this.staffUsers().map((u) => u.role)).size);
 
   protected readonly rows = computed(() => {
     const query = this.query().trim().toLowerCase();
-    return this.store
-      .users()
+    return this.staffUsers()
       .filter((u) => this.roleFilter() === 'ALL' || u.role === this.roleFilter())
       .filter((u) => !query || `${u.name} ${u.username} ${u.phone ?? ''}`.toLowerCase().includes(query));
   });
@@ -470,7 +472,7 @@ export class UsersPage {
       shiftIds:
         this.isAdminRole(role)
           ? []
-          : this.draft.shiftIds.length || role === 'MANAGER'
+          : this.draft.shiftIds.length || role === Role.Manager
             ? this.draft.shiftIds
             : fallbackShift
               ? [fallbackShift]
@@ -521,7 +523,7 @@ export class UsersPage {
       this.error.set(translate('Set a password for this account so the member can sign in.'));
       return;
     }
-    if (!this.isAdminRole(this.draft.role) && this.draft.role !== 'MANAGER' && !this.draft.shiftIds.length) {
+    if (!this.isAdminRole(this.draft.role) && this.draft.role !== Role.Manager && !this.draft.shiftIds.length) {
       this.error.set(translate('Choose at least one default shift for this staff member.'));
       return;
     }
@@ -553,11 +555,11 @@ export class UsersPage {
   }
 
   protected needsPassword(role: Role): boolean {
-    return this.isAdminRole(role) || role === 'MANAGER' || role === 'CASHIER';
+    return this.isAdminRole(role) || role === Role.Manager || role === Role.Cashier;
   }
 
   protected isAdminRole(role: Role): boolean {
-    return role === 'SUPERADMIN' || role === 'OWNER';
+    return role === Role.SuperAdmin || role === Role.Owner;
   }
 
   protected canManage(member: StaffUser): boolean {
@@ -584,7 +586,7 @@ export class UsersPage {
       name: '',
       username: '',
       phone: '',
-      role: 'WAITER',
+      role: Role.Waiter,
       password: '',
       pin: '',
       shiftIds: this.activeShifts().length ? [this.activeShifts()[0].id] : [],

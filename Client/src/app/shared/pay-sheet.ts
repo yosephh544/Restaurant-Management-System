@@ -13,7 +13,7 @@ import {
 import { TranslatePipe, translate } from '../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { Bill, METHOD_LABEL, money, PayMethod, Payment, payStateLabel } from '../core/models';
+import { Bill, METHOD_LABEL, money, PayMethod, PayState, Payment, payStateLabel, VerificationState } from '../core/models';
 import { Store } from '../core/store';
 import { ToastService } from '../core/toast.service';
 import { Icon } from './icon';
@@ -57,7 +57,7 @@ import { Icon } from './icon';
               <p>{{ methodLabel(p.method) }} · {{ p.tip > 0 ? ('includes ' | t) + money(p.tip) + (' ETB tip' | t) : ('no tip' | t) }}</p>
             </div>
 
-            @if (p.method === 'CASH') {
+            @if (p.method === PayMethod.Cash) {
               <div class="amount-box">
                 <div class="amount-cell">
                   <span>{{ 'Tendered' | t }}</span>
@@ -73,13 +73,13 @@ import { Icon } from './icon';
             @if (isDigitalMethod(p.method)) {
               <div class="pending-box" style="margin-top: 12px">
                 <div class="row" style="align-items: flex-start">
-                  <app-icon [name]="p.verification === 'VERIFIED' ? 'check-circle' : 'alert-circle'" />
+                  <app-icon [name]="p.verification === VerificationState.Verified ? 'check-circle' : 'alert-circle'" />
                   <div style="flex: 1">
                     <strong>
-                      {{ p.verification === 'VERIFIED' ? ('Verified with the bank' | t) : ('Saved without verification' | t) }}
+                      {{ p.verification === VerificationState.Verified ? ('Verified with the bank' | t) : ('Saved without verification' | t) }}
                     </strong>
                     <p>
-                      @if (p.verification === 'VERIFIED') {
+                      @if (p.verification === VerificationState.Verified) {
                         {{ 'The receipt is stored on this order for the cashier and owner.' | t }}
                         @if (p.verifiedPayer) {
                           {{ 'Payer' | t }}: {{ p.verifiedPayer }}.
@@ -125,7 +125,7 @@ import { Icon } from './icon';
                 <div>
                   <strong>{{ methodLabel(p.method) }} {{ 'payment requested' | t }}</strong>
                   <p>
-                    @if (p.method === 'QR_SCAN') {
+                    @if (p.method === PayMethod.QrScan) {
                       {{ 'Present the QR payload below to the customer. This screen checks the provider for settlement.' | t }}
                     } @else {
                       {{ 'A prompt was sent to' | t }} {{ p.phone || ('the customer' | t) }}{{ '. Ask the customer to approve it.' | t }}
@@ -169,7 +169,7 @@ import { Icon } from './icon';
               </div>
             </div>
 
-            @if (method() === 'CASH') {
+            @if (method() === PayMethod.Cash) {
               <div class="pending-box" style="margin-top: 12px">
                 <div class="row">
                   <app-icon name="cash" />
@@ -184,16 +184,16 @@ import { Icon } from './icon';
             <div class="field mt-3">
               <span class="label">{{ 'Payment method' | t }}</span>
               <div class="method-grid">
-                <button class="method-btn" type="button" [class.active]="method() === 'CASH'" [disabled]="!settings().cash" (click)="method.set('CASH')">
+                <button class="method-btn" type="button" [class.active]="method() === PayMethod.Cash" [disabled]="!settings().cash" (click)="method.set(PayMethod.Cash)">
                   <app-icon name="cash" /> {{ 'Cash' | t }} </button>
-                <button class="method-btn" type="button" [class.active]="method() === 'TELEBIRR'" (click)="method.set('TELEBIRR')">
+                <button class="method-btn" type="button" [class.active]="method() === PayMethod.Telebirr" (click)="method.set(PayMethod.Telebirr)">
                   <app-icon name="phone" /> {{ 'Telebirr' | t }} </button>
-                <button class="method-btn" type="button" [class.active]="method() === 'CBE'" (click)="method.set('CBE')">
+                <button class="method-btn" type="button" [class.active]="method() === PayMethod.Cbe" (click)="method.set(PayMethod.Cbe)">
                   <app-icon name="card" /> {{ 'CBE' | t }} </button>
               </div>
             </div>
 
-            @if (method() === 'CASH') {
+            @if (method() === PayMethod.Cash) {
               <div class="field mt-3">
                 <label class="label" for="tendered">{{ 'Cash tendered' | t }}</label>
                 <div class="row">
@@ -310,7 +310,7 @@ import { Icon } from './icon';
                 <span class="hint">{{ 'Scan the transaction QR on the customer phone after they pay; the link is stored with the payment.' | t }}</span>
               </div>
 
-              @if (method() === 'CBE') {
+              @if (method() === PayMethod.Cbe) {
                 <div class="field mt-3">
                   <label class="label" for="txn">{{ 'Transaction number' | t }}</label>
                   <input
@@ -336,11 +336,11 @@ import { Icon } from './icon';
           <div class="modal-foot">
             <button class="btn btn-ghost" type="button" (click)="close()">{{ 'Cancel' | t }}</button>
             <button class="btn btn-primary" type="button" [disabled]="busy() || (isDigital() && digitalShort() > 0)" (click)="submit()">
-              <app-icon [name]="method() === 'CASH' ? 'cash' : method() === 'TELEBIRR' ? 'phone' : 'card'" />
+              <app-icon [name]="method() === PayMethod.Cash ? 'cash' : method() === PayMethod.Telebirr ? 'phone' : 'card'" />
               {{
                 busy()
                   ? ('Working…' | t)
-                  : method() === 'CASH'
+                  : method() === PayMethod.Cash
                     ? ('Take cash payment' | t)
                     : ('Verify and record' | t)
               }}
@@ -375,10 +375,13 @@ export class PaySheet implements OnInit {
   readonly settled = output<Payment>();
 
   protected readonly money = money;
+  protected readonly PayMethod = PayMethod;
+  protected readonly PayState = PayState;
+  protected readonly VerificationState = VerificationState;
   protected readonly payStateLabel = payStateLabel;
   protected readonly settings = this.store.settings;
 
-  protected readonly method = signal<PayMethod>('CASH');
+  protected readonly method = signal<PayMethod>(PayMethod.Cash);
   protected readonly transferred = signal<number | null>(null);
   protected readonly tendered = signal<number | null>(null);
   // Kept for the dormant gateway (PHONE_PUSH) path; the current sheet only exposes cash and transfers.
@@ -424,13 +427,13 @@ export class PaySheet implements OnInit {
   );
 
   protected readonly isDigital = computed(
-    () => this.method() === 'TELEBIRR' || this.method() === 'CBE',
+    () => this.method() === PayMethod.Telebirr || this.method() === PayMethod.Cbe,
   );
 
   protected readonly isTakeawayRef = computed(() => this.tableNumber().toLowerCase() === 'takeaway');
 
   protected readonly accountNumber = computed(() =>
-    this.method() === 'TELEBIRR' ? this.settings().telebirr : this.method() === 'CBE' ? this.settings().cbe : '',
+    this.method() === PayMethod.Telebirr ? this.settings().telebirr : this.method() === PayMethod.Cbe ? this.settings().cbe : '',
   );
 
   constructor() {
@@ -449,7 +452,7 @@ export class PaySheet implements OnInit {
   }
 
   protected isDigitalMethod(method: PayMethod | string): boolean {
-    return method === 'TELEBIRR' || method === 'CBE';
+    return method === PayMethod.Telebirr || method === PayMethod.Cbe;
   }
 
   protected setTransferred(value: number | string | null): void {
@@ -461,7 +464,7 @@ export class PaySheet implements OnInit {
     const bill = this.bill();
     if (!bill || this.busy()) return;
 
-    if (this.method() === 'CASH') {
+    if (this.method() === PayMethod.Cash) {
       const tendered = this.tendered() ?? this.total();
       if (tendered < this.total()) {
         this.error.set(translate('Cash tendered is less than the amount due.'));
@@ -481,11 +484,11 @@ export class PaySheet implements OnInit {
         );
         return;
       }
-      if (this.method() === 'TELEBIRR' && !receipt) {
+      if (this.method() === PayMethod.Telebirr && !receipt) {
         this.error.set(translate("Scan the customer's Telebirr receipt QR before recording the payment."));
         return;
       }
-      if (this.method() === 'CBE' && !receipt && !transaction) {
+      if (this.method() === PayMethod.Cbe && !receipt && !transaction) {
         this.error.set(translate("Scan the CBE receipt or enter its transaction number."));
         return;
       }
@@ -503,8 +506,8 @@ export class PaySheet implements OnInit {
       : await this.store.initiatePayment({
           billId: bill.id,
           method: this.method(),
-          customerPhone: this.method() === 'PHONE_PUSH' ? this.phone : undefined,
-          amountTendered: this.method() === 'CASH' ? this.tendered() ?? this.total() : undefined,
+          customerPhone: this.method() === PayMethod.PhonePush ? this.phone : undefined,
+          amountTendered: this.method() === PayMethod.Cash ? this.tendered() ?? this.total() : undefined,
         });
     this.busy.set(false);
 
@@ -513,13 +516,13 @@ export class PaySheet implements OnInit {
       return;
     }
 
-    if (result.data.status === 'PAID') {
+    if (result.data.status === PayState.Paid) {
       this.paid.set(result.data);
       this.settled.emit(result.data);
       this.toast.show(
         this.isDigitalMethod(result.data.method)
           ? translate(
-              result.data.verification === 'VERIFIED'
+              result.data.verification === VerificationState.Verified
                 ? 'Payment verified and recorded'
                 : 'Payment recorded without verification',
             )
@@ -530,7 +533,7 @@ export class PaySheet implements OnInit {
 
     this.pending.set(result.data);
     this.startPolling();
-    this.toast.show(translate(this.method() === 'QR_SCAN' ? 'QR payment requested' : 'Payment prompt sent'));
+    this.toast.show(translate(this.method() === PayMethod.QrScan ? 'QR payment requested' : 'Payment prompt sent'));
   }
 
   protected async checkStatus(): Promise<void> {
@@ -546,7 +549,7 @@ export class PaySheet implements OnInit {
       this.finish(this.store.payment(payment.id) ?? payment);
       return;
     }
-    if (info.status !== 'INITIATED') {
+    if (info.status !== PayState.Initiated) {
       this.pending.set(null);
       this.stopPolling();
       this.error.set(translate('Payment {status}. Choose another method.', { status: translate(info.status) }));

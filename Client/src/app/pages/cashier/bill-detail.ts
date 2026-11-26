@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { ageLabel, Bill, BillStatus, billIsOpen, clock, hasNoTable, isTakeaway, methodLabel as paymentMethodLabel, money, orderStatusLabel, orderTypeLabel, Payment } from '../../core/models';
+import { ageLabel, Bill, BillStatus, billIsOpen, clock, hasNoTable, isTakeaway, methodLabel as paymentMethodLabel, money, OrderStatus, orderStatusLabel, orderTypeLabel, PayMethod, Payment, PayState, VerificationState } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { ConfirmDialog } from '../../shared/confirm-dialog';
@@ -152,18 +152,18 @@ import { PaySheet } from '../../shared/pay-sheet';
                     <div class="pending-box" style="margin-top: 12px">
                       <div class="row" style="align-items: flex-start">
                         <app-icon
-                          [name]="p.verification === 'VERIFIED' ? 'check-circle' : 'alert-circle'"
-                          [style.color]="p.verification === 'VERIFIED' ? 'var(--green)' : 'var(--amber)'"
+                          [name]="p.verification === VerificationState.Verified ? 'check-circle' : 'alert-circle'"
+                          [style.color]="p.verification === VerificationState.Verified ? 'var(--green)' : 'var(--amber)'"
                         />
                         <div>
-                          <strong [style.color]="p.verification === 'VERIFIED' ? 'var(--green)' : 'var(--amber)'">
-                            {{ p.verification === 'VERIFIED' ? ('Verified with the bank' | t) : ('Unverified transfer' | t) }}
+                          <strong [style.color]="p.verification === VerificationState.Verified ? 'var(--green)' : 'var(--amber)'">
+                            {{ p.verification === VerificationState.Verified ? ('Verified with the bank' | t) : ('Unverified transfer' | t) }}
                           </strong>
                           <p>
                             @if (p.verifiedPayer) {
                               {{ 'Payer' | t }}: {{ p.verifiedPayer }} ·
                             }
-                            {{ (p.verification === 'VERIFIED' ? p.verificationNote : '') || ('Review the receipt before releasing tips.' | t) }}
+                            {{ (p.verification === VerificationState.Verified ? p.verificationNote : '') || ('Review the receipt before releasing tips.' | t) }}
                           </p>
                         </div>
                       </div>
@@ -177,7 +177,7 @@ import { PaySheet } from '../../shared/pay-sheet';
 
                   <div class="stack mt-3">
                     <div class="between small"><span class="muted">{{ 'Tip' | t }}</span><span class="strong">{{ money(p.tip) }} ETB</span></div>
-                    @if (p.method === 'CASH') {
+                    @if (p.method === PayMethod.Cash) {
                       <div class="between small"><span class="muted">{{ 'Tendered' | t }}</span><span class="strong">{{ money(p.tendered ?? 0) }} ETB</span></div>
                       <div class="between small"><span class="muted">{{ 'Change' | t }}</span><span class="strong">{{ money(p.change ?? 0) }} ETB</span></div>
                     }
@@ -345,6 +345,12 @@ export class BillDetailPage implements OnInit {
   private readonly toast = inject(ToastService);
 
   protected readonly id = this.route.snapshot.paramMap.get('id') ?? '';
+  protected readonly BillStatus = BillStatus;
+  protected readonly OrderStatus = OrderStatus;
+  protected readonly PayMethod = PayMethod;
+  protected readonly PayState = PayState;
+  protected readonly VerificationState = VerificationState;
+
   protected readonly money = money;
   protected readonly clock = clock;
   protected readonly ageLabel = ageLabel;
@@ -376,7 +382,7 @@ export class BillDetailPage implements OnInit {
 
   protected readonly paid = computed(() => {
     const payment = this.payment();
-    return payment?.status === 'PAID' ? payment : undefined;
+    return payment?.status === PayState.Paid ? payment : undefined;
   });
 
   protected readonly pending = computed(() => this.store.pendingPaymentForBill(this.id));
@@ -415,59 +421,59 @@ export class BillDetailPage implements OnInit {
   protected billLabel(): string {
     const status = this.bill()?.status;
     const labels: Record<BillStatus, string> = {
-      DRAFT: 'Draft',
-      REQUESTED: 'Awaiting payment',
-      PAYMENTINITIATED: 'Payment pending',
-      PAID: 'Paid',
-      VOIDED: 'Voided',
-      REFUNDED: 'Refunded',
+      [BillStatus.Draft]: 'Draft',
+      [BillStatus.Requested]: 'Awaiting payment',
+      [BillStatus.PaymentInitiated]: 'Payment pending',
+      [BillStatus.Paid]: 'Paid',
+      [BillStatus.Voided]: 'Voided',
+      [BillStatus.Refunded]: 'Refunded',
     };
     return translate(status ? labels[status] : 'Open');
   }
 
   protected billPill(): string {
     const status = this.bill()?.status;
-    return status === 'PAID'
+    return status === BillStatus.Paid
       ? 'pill-green'
-      : status === 'PAYMENTINITIATED'
+      : status === BillStatus.PaymentInitiated
         ? 'pill-amber'
-        : status === 'VOIDED' || status === 'REFUNDED'
+        : status === BillStatus.Voided || status === BillStatus.Refunded
           ? 'pill-red'
           : 'pill-blue';
   }
 
   protected payLabel(payment: Payment): string {
     return translate(
-      payment.status === 'PAID'
+      payment.status === PayState.Paid
         ? 'Payment settled'
-        : payment.status === 'INITIATED'
+        : payment.status === PayState.Initiated
           ? 'Payment pending'
-          : payment.status === 'REFUNDED'
+          : payment.status === PayState.Refunded
             ? 'Refunded'
-            : payment.status === 'TRANSFERRED'
+            : payment.status === PayState.Transferred
               ? 'Transferred'
-              : payment.status === 'RETRACTED'
+              : payment.status === PayState.Retracted
                 ? 'Retracted'
                 : 'Failed',
     );
   }
 
   protected payPill(payment: Payment): string {
-    return payment.status === 'PAID'
+    return payment.status === PayState.Paid
       ? 'pill-green'
-      : payment.status === 'INITIATED'
+      : payment.status === PayState.Initiated
         ? 'pill-amber'
-        : payment.status === 'TRANSFERRED'
+        : payment.status === PayState.Transferred
           ? 'pill-blue'
           : 'pill-red';
   }
 
-  protected methodLabel(method: string): string {
+  protected methodLabel(method: PayMethod): string {
     return paymentMethodLabel(method);
   }
 
-  protected isDigitalMethod(method: string): boolean {
-    return method === 'TELEBIRR' || method === 'CBE';
+  protected isDigitalMethod(method: PayMethod): boolean {
+    return method === PayMethod.Telebirr || method === PayMethod.Cbe;
   }
 
   protected itemCount(): number {

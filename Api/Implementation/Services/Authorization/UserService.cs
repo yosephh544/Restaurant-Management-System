@@ -47,6 +47,9 @@ public class UserService : IUserService
         if (!RoleHierarchy.CanAssign(ActorRole, roleName))
             throw new ForbiddenException($"You cannot create a {roleName} account.");
 
+        if (string.Equals(roleName, Roles.SuperAdmin, StringComparison.OrdinalIgnoreCase))
+            throw new ValidationException("Role", "The SuperAdmin account is created once during setup and cannot be duplicated.");
+
         var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == roleName && r.IsActive, ct)
             ?? throw new ValidationException("Role", "Role does not exist or is inactive.");
 
@@ -83,6 +86,7 @@ public class UserService : IUserService
         var query = _dbContext.Users.AsNoTracking()
             .Include(u => u.RoleEntity)
             .Include(u => u.ShiftAssignments).ThenInclude(a => a.Shift)
+            .Where(u => u.RoleEntity == null ? u.Role != UserRole.SuperAdmin : u.RoleEntity.Name != Roles.SuperAdmin)
             .AsQueryable();
         if (!string.IsNullOrWhiteSpace(request.Role))
             query = query.Where(u => u.RoleEntity != null && u.RoleEntity.Name == request.Role);
@@ -146,6 +150,9 @@ public class UserService : IUserService
 
             if (!RoleHierarchy.CanAssign(ActorRole, roleName))
                 throw new ForbiddenException($"You cannot assign the {roleName} role.");
+
+            if (string.Equals(roleName, Roles.SuperAdmin, StringComparison.OrdinalIgnoreCase))
+                throw new ValidationException("Role", "The SuperAdmin role cannot be assigned.");
 
             var role = await _dbContext.Roles.FirstOrDefaultAsync(r => r.Name == roleName && r.IsActive, ct)
                 ?? throw new ValidationException("Role", "Role does not exist or is inactive.");

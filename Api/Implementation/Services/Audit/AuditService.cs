@@ -4,6 +4,8 @@ using RestaurantManagement.Implementation.Interfaces.Audit;
 using RestaurantManagement.Infrustructure.Common.Pagination;
 using RestaurantManagement.Infrustructure.Common.Responses;
 using RestaurantManagement.Infrustructure.Data;
+using RestaurantManagement.Infrustructure.Enums;
+using RestaurantManagement.Infrustructure.Enums.Identity;
 using RestaurantManagement.Infrustructure.Enums.Billing;
 using RestaurantManagement.Infrustructure.Enums.Orders;
 using RestaurantManagement.Infrustructure.Models.Identity;
@@ -42,10 +44,10 @@ public class AuditService : IAuditService
             events.Add(Event($"order-created-{order.Id}", order.CreatedAt, actor, role, "Order created", reference, "order"));
 
             if (order.PreparingAt.HasValue)
-                events.Add(Event($"order-preparing-{order.Id}", order.PreparingAt.Value, "Kitchen", "KITCHEN", "Preparation started", reference, "order"));
+                events.Add(Event($"order-preparing-{order.Id}", order.PreparingAt.Value, "Kitchen", UserRole.Kitchen.ToWire(), "Preparation started", reference, "order"));
 
             if (order.ReadyAt.HasValue)
-                events.Add(Event($"order-ready-{order.Id}", order.ReadyAt.Value, "Kitchen", "KITCHEN", "Order marked ready", reference, "order"));
+                events.Add(Event($"order-ready-{order.Id}", order.ReadyAt.Value, "Kitchen", UserRole.Kitchen.ToWire(), "Order marked ready", reference, "order"));
 
             if (order.ServedAt.HasValue)
                 events.Add(Event($"order-served-{order.Id}", order.ServedAt.Value, actor, role, "Order served", reference, "order"));
@@ -107,17 +109,17 @@ public class AuditService : IAuditService
         var menuItems = await _dbContext.MenuItems.AsNoTracking().ToListAsync(ct);
         foreach (var item in menuItems)
         {
-            events.Add(Event($"menu-created-{item.Id}", item.CreatedAt, "System", "MANAGER", "Menu item created", item.Name, "menu"));
+            events.Add(Event($"menu-created-{item.Id}", item.CreatedAt, "System", UserRole.Manager.ToWire(), "Menu item created", item.Name, "menu"));
             if (item.UpdatedAt.HasValue)
-                events.Add(Event($"menu-updated-{item.Id}", item.UpdatedAt.Value, "System", "MANAGER", "Menu item updated", item.Name, "menu"));
+                events.Add(Event($"menu-updated-{item.Id}", item.UpdatedAt.Value, "System", UserRole.Manager.ToWire(), "Menu item updated", item.Name, "menu"));
         }
 
         foreach (var user in users.Values)
         {
             if (user.Id == Guid.Empty) continue;
-            events.Add(Event($"staff-created-{user.Id}", user.CreatedAt, "System", "MANAGER", "Staff account created", $"{user.FullName} · {RoleName(user)}", "staff"));
+            events.Add(Event($"staff-created-{user.Id}", user.CreatedAt, "System", UserRole.Manager.ToWire(), "Staff account created", $"{user.FullName} · {RoleName(user)}", "staff"));
             if (user.UpdatedAt.HasValue)
-                events.Add(Event($"staff-updated-{user.Id}", user.UpdatedAt.Value, "System", "MANAGER", "Staff account updated", $"{user.FullName} · {RoleName(user)}", "staff"));
+                events.Add(Event($"staff-updated-{user.Id}", user.UpdatedAt.Value, "System", UserRole.Manager.ToWire(), "Staff account updated", $"{user.FullName} · {RoleName(user)}", "staff"));
         }
 
         var billAudits = await _dbContext.BillAudits.AsNoTracking().ToListAsync(ct);
@@ -125,7 +127,7 @@ public class AuditService : IAuditService
         {
             var actor = users.TryGetValue(audit.ActorId, out var user) ? user.FullName : "System";
             var kind = audit.Action.Contains("Refund", StringComparison.OrdinalIgnoreCase) ? "refund" : "payment";
-            events.Add(Event($"bill-audit-{audit.Id}", audit.CreatedAt, actor, users.TryGetValue(audit.ActorId, out var actorUser) ? RoleName(actorUser) : "MANAGER", Humanize(audit.Action), audit.Details ?? string.Empty, kind));
+            events.Add(Event($"bill-audit-{audit.Id}", audit.CreatedAt, actor, users.TryGetValue(audit.ActorId, out var actorUser) ? RoleName(actorUser) : UserRole.Manager.ToWire(), Humanize(audit.Action), audit.Details ?? string.Empty, kind));
         }
 
         var filtered = events.AsEnumerable();
@@ -163,7 +165,7 @@ public class AuditService : IAuditService
     };
 
     private static string RoleName(User? user) =>
-        user?.Role.ToString().ToUpperInvariant() ?? "MANAGER";
+        user?.Role.ToWire() ?? UserRole.Manager.ToWire();
 
     private static string Humanize(string action)
     {

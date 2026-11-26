@@ -10,6 +10,7 @@ import {
   ShiftColumn,
   ShiftDay,
   ShiftDefinition,
+  ShiftExceptionKind,
   ShiftStaff,
   shiftRange,
 } from '../../core/models';
@@ -177,8 +178,8 @@ interface ShiftDraft {
                       <td><strong>{{ exception.fullName }}</strong></td>
                       <td>{{ exception.shiftName }}</td>
                       <td>
-                        <span [class]="'pill no-dot ' + (exception.kind === 'OFF' ? 'pill-amber' : 'pill-blue')">
-                          {{ exception.kind === 'OFF' ? ('Marked off' | t) : ('Cover added' | t) }}
+                        <span [class]="'pill no-dot ' + (exception.kind === ShiftExceptionKind.Off ? 'pill-amber' : 'pill-blue')">
+                          {{ exception.kind === ShiftExceptionKind.Off ? ('Marked off' | t) : ('Cover added' | t) }}
                         </span>
                       </td>
                       <td class="muted">{{ exception.note || '—' }}</td>
@@ -502,6 +503,8 @@ export class ShiftsPage implements OnInit {
   protected readonly store = inject(Store);
   private readonly toast = inject(ToastService);
 
+  protected readonly ShiftExceptionKind = ShiftExceptionKind;
+
   protected readonly initials = initials;
   protected readonly shiftRange = shiftRange;
   protected readonly selectedDate = signal(localDateKey(new Date()));
@@ -564,7 +567,7 @@ export class ShiftsPage implements OnInit {
 
     return this.store
       .users()
-      .filter((user) => user.active && user.role !== 'OWNER' && user.role !== 'SUPERADMIN' && !alreadyOnShift.has(user.id))
+      .filter((user) => user.active && user.role !== Role.Owner && user.role !== Role.SuperAdmin && !alreadyOnShift.has(user.id))
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((user) => ({ id: user.id, name: user.name, role: translate(ROLE_LABEL[user.role]) }));
   });
@@ -581,7 +584,7 @@ export class ShiftsPage implements OnInit {
     const onShift = new Set(column.staff.map((member) => member.userId));
     const incoming = this.store
       .users()
-      .filter((user) => user.active && user.role !== 'OWNER' && user.role !== 'SUPERADMIN' && !onShift.has(user.id))
+      .filter((user) => user.active && user.role !== Role.Owner && user.role !== Role.SuperAdmin && !onShift.has(user.id))
       .sort((a, b) => a.name.localeCompare(b.name))
       .map((user) => ({ id: user.id, name: user.name, role: translate(ROLE_LABEL[user.role]) }));
 

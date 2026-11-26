@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { clock, hasNoTable, isTakeaway, KitchenTicket, orderTypeLabel } from '../../core/models';
+import { clock, hasNoTable, isTakeaway, ItemStatus, KitchenTicket, OrderStatus, orderTypeLabel, PaymentStatus, Station } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -26,7 +26,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
               } @else {
                 <span class="ticket-table">{{ 'Table' | t }} {{ t.table }}</span>
               }
-              <span [class]="'pill ' + (t.status === 'PENDING' ? 'pill-amber' : t.status === 'PREPARING' ? 'pill-orange' : 'pill-green')">
+              <span [class]="'pill ' + (t.status === OrderStatus.Pending ? 'pill-amber' : t.status === OrderStatus.Preparing ? 'pill-orange' : 'pill-green')">
                 {{ statusLabel(t) }}
               </span>
               @if (t.queuePosition === 1) {
@@ -38,19 +38,19 @@ import { IssueDialog } from '../../shared/issue-dialog';
               {{ '· opened' | t }} {{ clock(t.createdAt) }} · {{ elapsed() }} {{ 'min on the board' | t }} </p>
           </div>
           <div class="head-actions">
-            @if (t.status === 'PENDING' || t.status === 'PREPARING') {
+            @if (t.status === OrderStatus.Pending || t.status === OrderStatus.Preparing) {
               <button class="btn btn-secondary" type="button" (click)="showIssue.set(true)">
                 <app-icon name="alert" /> {{ 'Report issue' | t }} </button>
-              @if (t.status === 'PENDING' || hasActiveItems()) {
+              @if (t.status === OrderStatus.Pending || hasActiveItems()) {
                 <button class="btn btn-primary" type="button" [disabled]="busy()" (click)="advance()">
-                  <app-icon name="check" /> {{ busy() ? ('Working…' | t) : t.status === 'PENDING' ? ('Accept ticket' | t) : ('Ready all' | t) }}
+                  <app-icon name="check" /> {{ busy() ? ('Working…' | t) : t.status === OrderStatus.Pending ? ('Accept ticket' | t) : ('Ready all' | t) }}
                 </button>
               }
             }
           </div>
         </div>
 
-        @if (t.status === 'READY') {
+        @if (t.status === OrderStatus.Ready) {
           <div class="pending-box" style="background: var(--green-soft); border-color: var(--green-line); margin-bottom: 16px">
             <div class="row">
               <app-icon name="check-circle" style="color: var(--green)" />
@@ -78,7 +78,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
                   <div class="row">
                     <span class="ticket-qty" style="width: 28px; height: 28px; font-size: 12px">{{ item.qty }}</span>
                     <div>
-                      <strong [style.text-decoration]="item.status === 'CANCELLED' ? 'line-through' : 'none'" [style.opacity]="item.status === 'CANCELLED' ? 0.5 : 1">
+                      <strong [style.text-decoration]="item.status === ItemStatus.Cancelled ? 'line-through' : 'none'" [style.opacity]="item.status === ItemStatus.Cancelled ? 0.5 : 1">
                         {{ item.name }}
                       </strong>
                       @if (item.nameAm) {
@@ -90,8 +90,8 @@ import { IssueDialog } from '../../shared/issue-dialog';
                     </div>
                   </div>
                   <div class="row" style="gap: 10px">
-                    <span class="tiny muted">{{ item.status === 'CANCELLED' ? ('Removed' | t) : item.status === 'PREPARED' ? ('Prepared' | t) : isBar ? ('To prepare' | t) : ('To cook' | t) }}</span>
-                    @if (item.status === 'ACTIVE' && t.status !== 'PENDING') {
+                    <span class="tiny muted">{{ item.status === ItemStatus.Cancelled ? ('Removed' | t) : item.status === ItemStatus.Prepared ? ('Prepared' | t) : isBar ? ('To prepare' | t) : ('To cook' | t) }}</span>
+                    @if (item.status === ItemStatus.Active && t.status !== OrderStatus.Pending) {
                       <button class="btn btn-sm btn-primary" type="button"
                               [disabled]="itemBusy() === item.id"
                               (click)="readyItem(item)">
@@ -118,7 +118,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
                 }
                 <div class="between small"><span class="muted">{{ 'Sent' | t }}</span><span class="strong">{{ clock(t.createdAt) }}</span></div>
                 <div class="between small"><span class="muted">{{ 'Elapsed' | t }}</span><span class="strong">{{ elapsed() }} {{ 'min' | t }}</span></div>
-                <div class="between small"><span class="muted">{{ 'Payment' | t }}</span><span class="strong">{{ t.paymentStatus === 'PAID' ? ('Paid' | t) : ('Open' | t) }}</span></div>
+                <div class="between small"><span class="muted">{{ 'Payment' | t }}</span><span class="strong">{{ t.paymentStatus === PaymentStatus.Paid ? ('Paid' | t) : ('Open' | t) }}</span></div>
               </div>
             </div>
 
@@ -135,7 +135,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
       </div>
 
       @if (showIssue()) {
-        <app-issue-dialog [ticket]="t" [station]="isBar ? 'BAR' : 'KITCHEN'" (closed)="showIssue.set(false)" />
+        <app-issue-dialog [ticket]="t" [station]="isBar ? Station.Bar : Station.Kitchen" (closed)="showIssue.set(false)" />
       }
     } @else {
       <div class="page">
@@ -155,7 +155,12 @@ export class KitchenTicketPage implements OnInit, OnDestroy {
   private readonly toast = inject(ToastService);
 
   protected readonly id = this.route.snapshot.paramMap.get('id') ?? '';
-  protected readonly isBar = this.route.snapshot.data['station'] === 'BAR';
+  protected readonly PaymentStatus = PaymentStatus;
+  protected readonly ItemStatus = ItemStatus;
+  protected readonly OrderStatus = OrderStatus;
+  protected readonly Station = Station;
+
+  protected readonly isBar = this.route.snapshot.data['station'] === Station.Bar;
   protected readonly stationPath = this.isBar ? '/bar' : '/kitchen';
   protected readonly clock = clock;
   protected readonly isTakeaway = isTakeaway;
@@ -173,7 +178,7 @@ export class KitchenTicketPage implements OnInit, OnDestroy {
   });
 
   protected readonly hasActiveItems = computed(
-    () => this.ticket()?.items.some((item) => item.status === 'ACTIVE') ?? false,
+    () => this.ticket()?.items.some((item) => item.status === ItemStatus.Active) ?? false,
   );
 
   async ngOnInit(): Promise<void> {
@@ -191,18 +196,18 @@ export class KitchenTicketPage implements OnInit, OnDestroy {
   }
 
   protected statusLabel(ticket: KitchenTicket): string {
-    return translate(ticket.status === 'PENDING' ? 'New' : ticket.status === 'PREPARING' ? 'Preparing' : 'Ready');
+    return translate(ticket.status === OrderStatus.Pending ? 'New' : ticket.status === OrderStatus.Preparing ? 'Preparing' : 'Ready');
   }
 
   protected async advance(): Promise<void> {
     const ticket = this.ticket();
     if (!ticket || this.busy()) return;
-    if (ticket.status === 'PREPARING' && !this.hasActiveItems()) {
+    if (ticket.status === OrderStatus.Preparing && !this.hasActiveItems()) {
       this.toast.show(translate('Every item on this ticket is already ready.'), 'error');
       return;
     }
     this.busy.set(true);
-    const next: 'PREPARING' | 'READY' = ticket.status === 'PENDING' ? 'PREPARING' : 'READY';
+    const next = ticket.status === OrderStatus.Pending ? OrderStatus.Preparing : OrderStatus.Ready;
     const result = this.isBar
       ? await this.store.barStatus(ticket.id, next)
       : await this.store.kitchenStatus(ticket.id, next);
@@ -214,7 +219,7 @@ export class KitchenTicketPage implements OnInit, OnDestroy {
     const ticket = this.ticket();
     if (!ticket || this.itemBusy()) return;
     this.itemBusy.set(item.id);
-    const result = await this.store.readyItem(ticket.id, item.id, this.isBar ? 'BAR' : 'KITCHEN');
+    const result = await this.store.readyItem(ticket.id, item.id, this.isBar ? Station.Bar : Station.Kitchen);
     this.itemBusy.set(null);
     if (!result.ok) this.toast.show(result.error, 'error');
   }

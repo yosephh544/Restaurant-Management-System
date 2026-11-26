@@ -2,7 +2,7 @@ import { Component, computed, inject, OnInit } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { Router, RouterLink } from '@angular/router';
 import { AuthService } from '../../core/auth.service';
-import { ageLabel, Issue, issueLabel, money, Order } from '../../core/models';
+import { ageLabel, Issue, issueLabel, ItemStatus, money, Order, OrderStatus } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -163,7 +163,7 @@ export class WaiterIssuesPage implements OnInit {
       .filter(
         (o) =>
           o.waiterId === this.waiterId &&
-          o.status === 'CANCELLEDBYKITCHEN' &&
+          o.status === OrderStatus.CancelledByKitchen &&
           !this.store.orders().some((child) => child.parentOrderId === o.id),
       ),
   );
@@ -186,7 +186,7 @@ export class WaiterIssuesPage implements OnInit {
         .filter(
           (o) =>
             o.waiterId === this.waiterId &&
-            o.status === 'CANCELLEDBYKITCHEN' &&
+            o.status === OrderStatus.CancelledByKitchen &&
             this.store.orders().some((child) => child.parentOrderId === o.id),
         ).length,
   );
@@ -209,7 +209,7 @@ export class WaiterIssuesPage implements OnInit {
   }
 
   protected async reorder(order: Order): Promise<void> {
-    const live = order.lines.filter((l) => l.status !== 'CANCELLED');
+    const live = order.lines.filter((l) => l.status !== ItemStatus.Cancelled);
     const source = live.length ? live : order.lines;
     if (!source.length) {
       this.toast.show(translate('This ticket has no items to reorder'), 'error');

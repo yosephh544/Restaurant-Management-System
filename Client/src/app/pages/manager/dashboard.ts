@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { locale, TranslatePipe, translate } from '../../core/i18n';
 import { RouterLink } from '@angular/router';
-import { ageLabel, dayKey, Issue, issueLabel, money } from '../../core/models';
+import { ageLabel, dayKey, Issue, issueLabel, money, OrderStatus, PayState } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon, IconName } from '../../shared/icon';
@@ -242,10 +242,10 @@ export class ManagerDashboardPage {
   protected readonly metrics = computed(() => {
     const today = dayKey(new Date().toISOString());
     const todaysOrders = this.store.orders().filter((o) => dayKey(o.createdAt) === today);
-    const paidToday = this.store.payments().filter((p) => p.status === 'PAID' && dayKey(p.settledAt ?? p.createdAt) === today);
+    const paidToday = this.store.payments().filter((p) => p.status === PayState.Paid && dayKey(p.settledAt ?? p.createdAt) === today);
     const refundedToday = this.store
       .payments()
-      .filter((p) => p.status === 'REFUNDED' && dayKey(p.createdAt) === today);
+      .filter((p) => p.status === PayState.Refunded && dayKey(p.createdAt) === today);
     const collected = paidToday.reduce((sum, p) => sum + p.total, 0);
     return {
       orders: todaysOrders.length,
@@ -262,7 +262,7 @@ export class ManagerDashboardPage {
   protected readonly activity = computed(() => this.store.audit().slice(0, 5));
 
   protected readonly series = computed(() => {
-    const paid = this.store.payments().filter((p) => p.status === 'PAID');
+    const paid = this.store.payments().filter((p) => p.status === PayState.Paid);
     if (this.range() === 'today') {
       const start = new Date();
       start.setHours(0, 0, 0, 0);
@@ -303,7 +303,7 @@ export class ManagerDashboardPage {
     const cutoff = start.getTime() - (days - 1) * 86400000;
     return this.store
       .payments()
-      .filter((p) => p.status === 'PAID' && new Date(p.createdAt).getTime() >= cutoff).length;
+      .filter((p) => p.status === PayState.Paid && new Date(p.createdAt).getTime() >= cutoff).length;
   });
 
   protected readonly points = computed(() => {
@@ -336,7 +336,7 @@ export class ManagerDashboardPage {
   protected readonly performance = computed(() => {
     const served = this.store
       .orders()
-      .filter((o) => o.status === 'SERVED' && o.preparingAt && o.readyAt && o.servedAt);
+      .filter((o) => o.status === OrderStatus.Served && o.preparingAt && o.readyAt && o.servedAt);
     const prep = served.length
       ? Math.round(
           served.reduce(
@@ -373,8 +373,8 @@ export class ManagerDashboardPage {
   });
 
   protected readonly floor = computed(() => ({
-    pending: this.store.orders().filter((o) => o.status === 'PENDING').length,
-    preparing: this.store.orders().filter((o) => o.status === 'PREPARING').length,
+    pending: this.store.orders().filter((o) => o.status === OrderStatus.Pending).length,
+    preparing: this.store.orders().filter((o) => o.status === OrderStatus.Preparing).length,
     ready: this.store.readyOrders().length,
     bills: this.store.openBills().length,
   }));

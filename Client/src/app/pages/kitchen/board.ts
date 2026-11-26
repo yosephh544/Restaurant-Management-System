@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnDestroy, OnInit, signal } from '@angular/core';
 import { locale, TranslatePipe, translate } from '../../core/i18n';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { hasNoTable, isTakeaway, KitchenTicket, orderTypeLabel } from '../../core/models';
+import { hasNoTable, isTakeaway, ItemStatus, KitchenTicket, OrderStatus, orderTypeLabel, Station } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -85,7 +85,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
                   <div class="ticket-item">
                     <span class="ticket-qty">{{ item.qty }}</span>
                     <div style="flex: 1">
-                      <span [style.text-decoration]="item.status === 'CANCELLED' ? 'line-through' : 'none'" [style.opacity]="item.status === 'CANCELLED' ? 0.45 : 1">
+                      <span [style.text-decoration]="item.status === ItemStatus.Cancelled ? 'line-through' : 'none'" [style.opacity]="item.status === ItemStatus.Cancelled ? 0.45 : 1">
                         {{ item.name }}
                       </span>
                       @if (item.nameAm) {
@@ -95,11 +95,11 @@ import { IssueDialog } from '../../shared/issue-dialog';
                         <div class="tiny" style="color: var(--amber)">{{ item.notes }}</div>
                       }
                     </div>
-                    @if (item.status === 'CANCELLED') {
+                    @if (item.status === ItemStatus.Cancelled) {
                       <span class="tiny muted">{{ 'Removed' | t }}</span>
-                    } @else if (item.status === 'PREPARED') {
+                    } @else if (item.status === ItemStatus.Prepared) {
                       <span class="pill pill-green no-dot">{{ 'Ready' | t }}</span>
-                    } @else if (ticket.status !== 'PENDING') {
+                    } @else if (ticket.status !== OrderStatus.Pending) {
                       <button class="btn btn-sm btn-primary" type="button"
                               [disabled]="itemBusy() === item.id"
                               (click)="readyItem(ticket, item)">
@@ -111,12 +111,12 @@ import { IssueDialog } from '../../shared/issue-dialog';
               </div>
 
               <div class="ticket-actions">
-                @if (ticket.status === 'PENDING') {
+                @if (ticket.status === OrderStatus.Pending) {
                   <button class="btn btn-primary btn-block" type="button" [disabled]="busy() === ticket.id" (click)="advance(ticket)">
                     <app-icon name="check" />
                     {{ busy() === ticket.id ? ('Working…' | t) : ('Accept' | t) }}
                   </button>
-                } @else if (ticket.status === 'PREPARING' && hasActive(ticket)) {
+                } @else if (ticket.status === OrderStatus.Preparing && hasActive(ticket)) {
                   <button class="btn btn-primary btn-block" type="button" [disabled]="busy() === ticket.id" (click)="readyAll(ticket)">
                     <app-icon name="check-circle" />
                     {{ busy() === ticket.id ? ('Working…' | t) : ('Ready all' | t) }}
@@ -127,8 +127,8 @@ import { IssueDialog } from '../../shared/issue-dialog';
               </div>
 
               <div class="ticket-foot">
-                <span [class]="'pill ' + (ticket.status === 'PENDING' ? 'pill-amber' : 'pill-orange')">
-                  {{ ticket.status === 'PENDING' ? ('New' | t) : ('Preparing' | t) }}
+                <span [class]="'pill ' + (ticket.status === OrderStatus.Pending ? 'pill-amber' : 'pill-orange')">
+                  {{ ticket.status === OrderStatus.Pending ? ('New' | t) : ('Preparing' | t) }}
                 </span>
                 <span class="tiny muted">{{ ticket.items.length }} {{ 'lines' | t }}</span>
               </div>
@@ -177,7 +177,7 @@ import { IssueDialog } from '../../shared/issue-dialog';
     </div>
 
     @if (issueTicket(); as ticket) {
-      <app-issue-dialog [ticket]="ticket" [station]="isBar ? 'BAR' : 'KITCHEN'" (closed)="issueTicket.set(null)" />
+      <app-issue-dialog [ticket]="ticket" [station]="isBar ? Station.Bar : Station.Kitchen" (closed)="issueTicket.set(null)" />
     }
   `,
 })
@@ -186,7 +186,11 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
   private readonly toast = inject(ToastService);
   private readonly route = inject(ActivatedRoute);
 
-  protected readonly isBar = this.route.snapshot.data['station'] === 'BAR';
+  protected readonly ItemStatus = ItemStatus;
+  protected readonly OrderStatus = OrderStatus;
+  protected readonly Station = Station;
+
+  protected readonly isBar = this.route.snapshot.data['station'] === Station.Bar;
   protected readonly stationPath = this.isBar ? '/bar' : '/kitchen';
   protected readonly isTakeaway = isTakeaway;
   protected readonly hasNoTable = hasNoTable;
@@ -211,12 +215,12 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
     this.isBar ? this.store.barQueue() : this.store.kitchenQueue(),
   );
   protected readonly ready = computed(() =>
-    (this.isBar ? this.store.barTickets() : this.store.kitchenTickets()).filter((t) => t.status === 'READY'),
+    (this.isBar ? this.store.barTickets() : this.store.kitchenTickets()).filter((t) => t.status === OrderStatus.Ready),
   );
 
   protected readonly counts = computed(() => ({
-    new: this.queue().filter((t) => t.status === 'PENDING').length,
-    preparing: this.queue().filter((t) => t.status === 'PREPARING').length,
+    new: this.queue().filter((t) => t.status === OrderStatus.Pending).length,
+    preparing: this.queue().filter((t) => t.status === OrderStatus.Preparing).length,
     ready: this.ready().length,
   }));
 
@@ -257,8 +261,8 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
     if (this.busy()) return;
     this.busy.set(ticket.id);
     const result = this.isBar
-      ? await this.store.barStatus(ticket.id, 'PREPARING')
-      : await this.store.kitchenStatus(ticket.id, 'PREPARING');
+      ? await this.store.barStatus(ticket.id, OrderStatus.Preparing)
+      : await this.store.kitchenStatus(ticket.id, OrderStatus.Preparing);
     this.busy.set(null);
     if (!result.ok) this.toast.show(result.error, 'error');
   }
@@ -266,13 +270,13 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
   protected async readyItem(ticket: KitchenTicket, item: KitchenTicket['items'][number]): Promise<void> {
     if (this.itemBusy()) return;
     this.itemBusy.set(item.id);
-    const result = await this.store.readyItem(ticket.id, item.id, this.isBar ? 'BAR' : 'KITCHEN');
+    const result = await this.store.readyItem(ticket.id, item.id, this.isBar ? Station.Bar : Station.Kitchen);
     this.itemBusy.set(null);
     if (!result.ok) this.toast.show(result.error, 'error');
   }
 
   protected hasActive(ticket: KitchenTicket): boolean {
-    return ticket.items.some((item) => item.status === 'ACTIVE');
+    return ticket.items.some((item) => item.status === ItemStatus.Active);
   }
 
   protected async readyAll(ticket: KitchenTicket): Promise<void> {
@@ -283,8 +287,8 @@ export class KitchenBoardPage implements OnInit, OnDestroy {
     }
     this.busy.set(ticket.id);
     const result = this.isBar
-      ? await this.store.barStatus(ticket.id, 'READY')
-      : await this.store.kitchenStatus(ticket.id, 'READY');
+      ? await this.store.barStatus(ticket.id, OrderStatus.Ready)
+      : await this.store.kitchenStatus(ticket.id, OrderStatus.Ready);
     this.busy.set(null);
     if (!result.ok) this.toast.show(result.error, 'error');
   }

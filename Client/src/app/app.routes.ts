@@ -1,5 +1,6 @@
 import { Routes } from '@angular/router';
 import { authGuard, roleGuard } from './core/guards';
+import { Role, Station } from './core/models';
 import { Shell } from './layout/shell';
 import { Home } from './pages/home';
 import { LoginPage } from './pages/auth/login';
@@ -41,7 +42,7 @@ export const routes: Routes = [
       {
         path: 'waiter',
         canActivate: [roleGuard],
-        data: { roles: ['WAITER'] },
+        data: { roles: [Role.Waiter] },
         children: [
           {
             path: 'new',
@@ -74,7 +75,7 @@ export const routes: Routes = [
       {
         path: 'kitchen',
         canActivate: [roleGuard],
-        data: { roles: ['KITCHEN'], station: 'KITCHEN' },
+        data: { roles: [Role.Kitchen], station: Station.Kitchen },
         children: [
           {
             path: '',
@@ -84,7 +85,7 @@ export const routes: Routes = [
           {
             path: 'reports',
             title: 'Kitchen performance · Majete Corner',
-            data: { station: 'KITCHEN' },
+            data: { station: Station.Kitchen },
             loadComponent: () => import('./pages/kitchen/reports').then((m) => m.StationReportsPage),
           },
           {
@@ -97,7 +98,7 @@ export const routes: Routes = [
       {
         path: 'bar',
         canActivate: [roleGuard],
-        data: { roles: ['BARTENDER'], station: 'BAR' },
+        data: { roles: [Role.Bartender], station: Station.Bar },
         children: [
           {
             path: '',
@@ -107,7 +108,7 @@ export const routes: Routes = [
           {
             path: 'reports',
             title: 'Bar performance · Majete Corner',
-            data: { station: 'BAR' },
+            data: { station: Station.Bar },
             loadComponent: () => import('./pages/kitchen/reports').then((m) => m.StationReportsPage),
           },
           {
@@ -120,7 +121,7 @@ export const routes: Routes = [
       {
         path: 'cashier',
         canActivate: [roleGuard],
-        data: { roles: ['CASHIER', 'MANAGER', 'OWNER', 'SUPERADMIN'] },
+        data: { roles: [Role.Cashier, Role.Manager, Role.Owner, Role.SuperAdmin] },
         children: [
           {
             path: 'bills',
@@ -153,7 +154,7 @@ export const routes: Routes = [
       {
         path: 'manager',
         canActivate: [roleGuard],
-        data: { roles: ['MANAGER', 'OWNER', 'SUPERADMIN'] },
+        data: { roles: [Role.Manager, Role.Owner, Role.SuperAdmin] },
         children: [
           {
             path: '',
@@ -200,7 +201,7 @@ export const routes: Routes = [
       {
         path: 'admin',
         canActivate: [roleGuard],
-        data: { roles: ['OWNER', 'SUPERADMIN'] },
+        data: { roles: [Role.Owner, Role.SuperAdmin] },
         children: [
           {
             path: 'users',

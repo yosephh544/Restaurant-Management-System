@@ -1,8 +1,10 @@
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
+
+type MethodFilter = 'ALL' | PayMethod;
 import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { clock, dayKey, methodLabel as paymentMethodLabel, money, Payment } from '../../core/models';
+import { clock, dayKey, methodLabel as paymentMethodLabel, money, OrderStatus, Payment, PayMethod, PaymentStatus, PayState, VerificationState } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { ConfirmDialog } from '../../shared/confirm-dialog';
@@ -117,9 +119,9 @@ import { Icon } from '../../shared/icon';
                       @if (refundDue(payment)) {
                         <span class="pill pill-amber" style="margin-left: 4px">{{ 'Refund due' | t }}</span>
                       }
-                      @if (payment.verification === 'VERIFIED') {
+                      @if (payment.verification === VerificationState.Verified) {
                         <span class="pill pill-green" style="margin-left: 4px">{{ 'Verified' | t }}</span>
-                      } @else if (payment.verification === 'UNVERIFIED') {
+                      } @else if (payment.verification === VerificationState.Unverified) {
                         <span class="pill pill-amber" style="margin-left: 4px">{{ 'Unverified' | t }}</span>
                       }
                     </td>
@@ -130,15 +132,15 @@ import { Icon } from '../../shared/icon';
                             <app-icon name="receipt" />
                           </a>
                         }
-                        @if (payment.billId && (payment.status === 'PAID' || payment.status === 'REFUNDED')) {
+                        @if (payment.billId && (payment.status === PayState.Paid || payment.status === PayState.Refunded)) {
                           <a class="btn btn-sm btn-ghost" [routerLink]="['/cashier/bills', payment.billId, 'receipt']" [title]="'Receipt' | t">
                             <app-icon name="printer" />
                           </a>
                         }
-                        @if (payment.status === 'INITIATED') {
+                        @if (payment.status === PayState.Initiated) {
                           <button class="btn btn-sm btn-secondary" type="button" (click)="retract(payment)">{{ 'Retract' | t }}</button>
                         }
-                        @if (payment.status === 'PAID') {
+                        @if (payment.status === PayState.Paid) {
                           <button
                             class="btn btn-sm btn-danger"
                             type="button"
@@ -190,17 +192,22 @@ export class CashierPaymentsPage implements OnInit {
     });
   }
 
+  protected readonly OrderStatus = OrderStatus;
+  protected readonly PayMethod = PayMethod;
+  protected readonly PayState = PayState;
+  protected readonly VerificationState = VerificationState;
+
   protected readonly scope = signal<'today' | 'all'>('today');
-  protected readonly method = signal<'ALL' | 'CASH' | 'TELEBIRR' | 'CBE'>('ALL');
+  protected readonly method = signal<MethodFilter>('ALL');
   protected readonly verificationOnly = signal(false);
   protected readonly query = signal('');
   protected readonly refundTarget = signal<Payment | null>(null);
 
-  protected readonly methods: { value: 'ALL' | 'CASH' | 'TELEBIRR' | 'CBE'; label: string }[] = [
+  protected readonly methods: { value: MethodFilter; label: string }[] = [
     { value: 'ALL', label: 'All methods' },
-    { value: 'CASH', label: 'Cash' },
-    { value: 'TELEBIRR', label: 'Telebirr' },
-    { value: 'CBE', label: 'CBE' },
+    { value: PayMethod.Cash, label: 'Cash' },
+    { value: PayMethod.Telebirr, label: 'Telebirr' },
+    { value: PayMethod.Cbe, label: 'CBE' },
   ];
 
   async ngOnInit(): Promise<void> {
@@ -214,7 +221,7 @@ export class CashierPaymentsPage implements OnInit {
       .payments()
       .filter((p) => this.scope() === 'all' || dayKey(p.createdAt) === today)
       .filter((p) => this.method() === 'ALL' || p.method === this.method())
-      .filter((p) => !this.verificationOnly() || p.verification === 'UNVERIFIED')
+      .filter((p) => !this.verificationOnly() || p.verification === VerificationState.Unverified)
       .filter(
         (p) =>
           !query ||
@@ -229,9 +236,9 @@ export class CashierPaymentsPage implements OnInit {
     const list = this.filtered();
     return {
       count: list.length,
-      collected: list.filter((p) => p.status === 'PAID').reduce((sum, p) => sum + p.total, 0),
-      tips: list.filter((p) => p.status === 'PAID').reduce((sum, p) => sum + p.tip, 0),
-      refunded: list.filter((p) => p.status === 'REFUNDED').reduce((sum, p) => sum + p.total, 0),
+      collected: list.filter((p) => p.status === PayState.Paid).reduce((sum, p) => sum + p.total, 0),
+      tips: list.filter((p) => p.status === PayState.Paid).reduce((sum, p) => sum + p.tip, 0),
+      refunded: list.filter((p) => p.status === PayState.Refunded).reduce((sum, p) => sum + p.total, 0),
     };
   });
 
@@ -239,13 +246,13 @@ export class CashierPaymentsPage implements OnInit {
     return paymentMethodLabel(payment.method);
   }
 
-  protected methodIcon(method: string): 'cash' | 'qr' | 'phone' | 'card' {
+  protected methodIcon(method: PayMethod): 'cash' | 'qr' | 'phone' | 'card' {
     switch (method) {
-      case 'CASH':
+      case PayMethod.Cash:
         return 'cash';
-      case 'QR_SCAN':
+      case PayMethod.QrScan:
         return 'qr';
-      case 'CBE':
+      case PayMethod.Cbe:
         return 'card';
       default:
         return 'phone';
@@ -254,15 +261,15 @@ export class CashierPaymentsPage implements OnInit {
 
   protected statusLabel(payment: Payment): string {
     switch (payment.status) {
-      case 'PAID':
+      case PayState.Paid:
         return translate('Paid');
-      case 'INITIATED':
+      case PayState.Initiated:
         return translate('Pending');
-      case 'REFUNDED':
+      case PayState.Refunded:
         return translate('Refunded');
-      case 'TRANSFERRED':
+      case PayState.Transferred:
         return translate('Transferred');
-      case 'FAILED':
+      case PayState.Failed:
         return translate('Failed');
       default:
         return translate('Retracted');
@@ -271,13 +278,13 @@ export class CashierPaymentsPage implements OnInit {
 
   protected statusPill(payment: Payment): string {
     switch (payment.status) {
-      case 'PAID':
+      case PayState.Paid:
         return 'pill-green';
-      case 'INITIATED':
+      case PayState.Initiated:
         return 'pill-amber';
-      case 'REFUNDED':
+      case PayState.Refunded:
         return 'pill-red';
-      case 'TRANSFERRED':
+      case PayState.Transferred:
         return 'pill-blue';
       default:
         return 'pill-grey';
@@ -286,11 +293,11 @@ export class CashierPaymentsPage implements OnInit {
 
   protected canRefund(payment: Payment): boolean {
     const status = payment.orderStatus ?? this.store.order(payment.orderId)?.status;
-    return status === 'SERVED' || status === 'CANCELLEDBYKITCHEN' || payment.orderPaymentStatus === 'REFUNDPENDING';
+    return status === OrderStatus.Served || status === OrderStatus.CancelledByKitchen || payment.orderPaymentStatus === PaymentStatus.RefundPending;
   }
 
   protected refundDue(payment: Payment): boolean {
-    return payment.status === 'PAID' && payment.orderPaymentStatus === 'REFUNDPENDING';
+    return payment.status === PayState.Paid && payment.orderPaymentStatus === PaymentStatus.RefundPending;
   }
 
   protected askRefund(payment: Payment): void {

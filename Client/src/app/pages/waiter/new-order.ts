@@ -33,7 +33,7 @@ interface CartLine {
         </div>
       </div>
 
-      @if (!tables().length && orderType() === 'DINE_IN') {
+      @if (!tables().length && orderType() === OrderType.DineIn) {
         <div class="card empty" style="padding: 56px 20px">
           <app-icon name="table" />
           <strong>{{ 'No tables configured' | t }}</strong>
@@ -47,17 +47,17 @@ interface CartLine {
           <section class="menu-panel">
             <div class="menu-toolbar">
               <div class="row" style="gap: 6px">
-                <button class="chip" type="button" [class.active]="orderType() === 'DINE_IN'" (click)="orderType.set('DINE_IN')">
+                <button class="chip" type="button" [class.active]="orderType() === OrderType.DineIn" (click)="orderType.set(OrderType.DineIn)">
                   <app-icon name="table" /> {{ 'Dine-in' | t }}
                 </button>
-                <button class="chip" type="button" [class.active]="orderType() === 'TAKEAWAY'" (click)="orderType.set('TAKEAWAY')">
+                <button class="chip" type="button" [class.active]="orderType() === OrderType.Takeaway" (click)="orderType.set(OrderType.Takeaway)">
                   <app-icon name="receipt" /> {{ 'Takeaway' | t }}
                 </button>
-                <button class="chip" type="button" [class.active]="orderType() === 'TAKEOUT'" (click)="orderType.set('TAKEOUT')">
+                <button class="chip" type="button" [class.active]="orderType() === OrderType.Takeout" (click)="orderType.set(OrderType.Takeout)">
                   <app-icon name="bag" /> {{ 'Takeout' | t }}
                 </button>
               </div>
-              @if (orderType() === 'DINE_IN') {
+              @if (orderType() === OrderType.DineIn) {
                 <div class="table-select" style="margin: 0">
                   <app-icon name="table" />
                   <select class="select" [ngModel]="table()" (ngModelChange)="table.set($event)" [attr.aria-label]="'Table' | t">
@@ -66,7 +66,7 @@ interface CartLine {
                     }
                   </select>
                 </div>
-              } @else if (orderType() === 'TAKEAWAY') {
+              } @else if (orderType() === OrderType.Takeaway) {
                 <span class="pill pill-blue no-dot">{{ 'Takeaway · fee' | t }} {{ money(store.settings().takeawayFee) }} ETB</span>
               } @else {
                 <span class="pill pill-blue no-dot"><app-icon name="bag" style="font-size: 12px" /> {{ 'Takeout · no table, no fee' | t }}</span>
@@ -174,7 +174,7 @@ interface CartLine {
               @if (!store.settings().pricesIncludeTax) {
                 <div class="sum-row"><span>{{ 'Tax' | t }}</span><span class="num">{{ money(tax()) }} ETB</span></div>
               }
-              @if (orderType() === 'TAKEAWAY') {
+              @if (orderType() === OrderType.Takeaway) {
                 <div class="sum-row"><span>{{ 'Takeaway packaging fee' | t }}</span><span class="num">{{ money(store.settings().takeawayFee) }} ETB</span></div>
               }
               <div class="sum-row total"><span>{{ 'Total' | t }}</span><span class="num">{{ money(total()) }} ETB</span></div>
@@ -221,12 +221,14 @@ export class NewOrderPage implements OnInit {
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
 
+  protected readonly OrderType = OrderType;
+
   protected readonly money = money;
   protected readonly assetUrl = assetUrl;
   protected readonly tables = this.store.tables;
   protected readonly menu = this.store.menu;
 
-  protected readonly orderType = signal<OrderType>('DINE_IN');
+  protected readonly orderType = signal<OrderType>(OrderType.DineIn);
   protected readonly table = signal('');
   protected readonly query = signal('');
   protected readonly activeCategory = signal('All');
@@ -268,7 +270,7 @@ export class NewOrderPage implements OnInit {
   });
 
   protected readonly total = computed(() => {
-    const fee = this.orderType() === 'TAKEAWAY' ? this.store.settings().takeawayFee : 0;
+    const fee = this.orderType() === OrderType.Takeaway ? this.store.settings().takeawayFee : 0;
     return Math.round((this.subtotal() + this.tax() + fee) * 100) / 100;
   });
 
@@ -330,7 +332,7 @@ export class NewOrderPage implements OnInit {
   }
 
   protected async send(): Promise<void> {
-    const tableless = this.orderType() !== 'DINE_IN';
+    const tableless = this.orderType() !== OrderType.DineIn;
     if ((!tableless && !this.table()) || !this.cart().length || this.busy()) return;
     this.busy.set(true);
     const result = await this.store.createOrder(

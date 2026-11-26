@@ -1,7 +1,7 @@
 import { Component, computed, inject, OnInit } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { ActivatedRoute, RouterLink } from '@angular/router';
-import { clock, hasNoTable, money, orderTypeLabel } from '../../core/models';
+import { clock, hasNoTable, money, orderTypeLabel, PayMethod, PayState } from '../../core/models';
 import { Store } from '../../core/store';
 import { Icon } from '../../shared/icon';
 
@@ -63,7 +63,7 @@ import { Icon } from '../../shared/icon';
 
             <div class="receipt-meta" style="border-top: 1px dashed var(--line-2); border-bottom: 0; padding-bottom: 0">
               <span> {{ 'Paid by' | t }} {{ methodLabel(p.method) }}<br />
-                @if (p.method === 'CASH') {
+                @if (p.method === PayMethod.Cash) {
                   {{ 'Tendered' | t }} {{ money(p.tendered ?? 0) }} · {{ 'Change' | t }} {{ money(p.change ?? 0) }}
                 } @else if (p.phone) {
                   {{ p.phone }}
@@ -76,7 +76,7 @@ import { Icon } from '../../shared/icon';
               </span>
             </div>
 
-            @if (p.status === 'REFUNDED') {
+            @if (p.status === PayState.Refunded) {
               <div class="pill pill-red" style="margin: 12px auto 0; display: table">{{ 'Refunded' | t }}</div>
             }
 
@@ -115,11 +115,14 @@ export class ReceiptPage implements OnInit {
   protected readonly orderTypeLabel = orderTypeLabel;
   protected readonly settings = this.store.settings;
 
+  protected readonly PayMethod = PayMethod;
+  protected readonly PayState = PayState;
+
   protected readonly bill = computed(() => this.store.bill(this.id));
   protected readonly payment = computed(() => {
     const payments = this.store.paymentsForBill(this.id);
     return payments
-      .filter((p) => p.status === 'PAID' || p.status === 'REFUNDED')
+      .filter((p) => p.status === PayState.Paid || p.status === PayState.Refunded)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
   });
 
@@ -127,8 +130,8 @@ export class ReceiptPage implements OnInit {
     await Promise.all([this.store.loadBill(this.id), this.store.loadPayments()]);
   }
 
-  protected methodLabel(method: string): string {
-    return translate(method === 'CASH' ? 'Cash' : method === 'QR_SCAN' ? 'QR code' : 'Phone push');
+  protected methodLabel(method: PayMethod): string {
+    return translate(method === PayMethod.Cash ? 'Cash' : method === PayMethod.QrScan ? 'QR code' : 'Phone push');
   }
 
   protected print(): void {

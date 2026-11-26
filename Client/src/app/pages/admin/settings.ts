@@ -1,7 +1,7 @@
 import { Component, effect, inject, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
-import { Settings, Table } from '../../core/models';
+import { Settings, Table, TableStatus } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -112,8 +112,8 @@ import { Icon } from '../../shared/icon';
                         <td class="muted">{{ table.name || '—' }}</td>
                         <td class="t-right num">{{ table.capacity }}</td>
                         <td>
-                          <span [class]="'pill ' + (table.status === 'AVAILABLE' ? 'pill-green' : 'pill-amber')">
-                            {{ table.status === 'AVAILABLE' ? ('Available' | t) : ('Occupied' | t) }}
+                          <span [class]="'pill ' + (table.status === TableStatus.Available ? 'pill-green' : 'pill-amber')">
+                            {{ table.status === TableStatus.Available ? ('Available' | t) : ('Occupied' | t) }}
                           </span>
                         </td>
                       </tr>
@@ -198,6 +198,8 @@ import { Icon } from '../../shared/icon';
   `,
 })
 export class SettingsPage {
+  protected readonly TableStatus = TableStatus;
+
   protected readonly store = inject(Store);
   private readonly toast = inject(ToastService);
 

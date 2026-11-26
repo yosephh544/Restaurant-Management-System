@@ -5,13 +5,13 @@ import { RESPONSE_ENCRYPTION_KEY } from './api.config';
 import { ApiProfile, EncryptedApiProfile, SessionService } from './session.service';
 
 export const ROLE_HOME: Record<Role, string> = {
-  SUPERADMIN: '/manager',
-  OWNER: '/manager',
-  MANAGER: '/manager',
-  CASHIER: '/cashier/bills',
-  WAITER: '/waiter/orders',
-  KITCHEN: '/kitchen',
-  BARTENDER: '/bar',
+  [Role.SuperAdmin]: '/manager',
+  [Role.Owner]: '/manager',
+  [Role.Manager]: '/manager',
+  [Role.Cashier]: '/cashier/bills',
+  [Role.Waiter]: '/waiter/orders',
+  [Role.Kitchen]: '/kitchen',
+  [Role.Bartender]: '/bar',
 };
 
 interface TokenResponse {
@@ -104,7 +104,7 @@ export class AuthService {
     return this.session.hasPermission(permission);
   }
 
-  home(role: Role = this.user()?.role ?? 'WAITER'): string {
+  home(role: Role = this.user()?.role ?? Role.Waiter): string {
     return ROLE_HOME[role];
   }
 
@@ -159,7 +159,9 @@ export class AuthService {
       const profile: ApiProfile = {
         id: String(claims['userId'] ?? claims['nameidentifier'] ?? claims['sub'] ?? ''),
         fullName: String(claims['name'] ?? claims['unique_name'] ?? claims['http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name'] ?? ''),
-        role: String(claims['role'] ?? claims['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ?? 'WAITER'),
+        role: String(
+          claims['role'] ?? claims['http://schemas.microsoft.com/ws/2008/06/identity/claims/role'] ?? Role.Waiter,
+        ),
         permissions: Array.isArray(claims['permission'])
           ? claims['permission'].filter((value): value is string => typeof value === 'string')
           : [],

@@ -1,7 +1,7 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
-import { ageLabel, clock, Issue, issueLabel, money } from '../../core/models';
+import { ageLabel, clock, Issue, issueLabel, ItemStatus, money, OrderStatus } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { Icon } from '../../shared/icon';
@@ -135,13 +135,13 @@ export class ManagerIssuesPage {
     this.rows().forEach((issue) => {
       const order = this.store.order(issue.orderId);
       if (!order) return;
-      if (order.status === 'CANCELLEDBYKITCHEN' && issue.item === 'Whole ticket') {
+      if (order.status === OrderStatus.CancelledByKitchen && issue.item === 'Whole ticket') {
         total += order.lines.reduce((sum, l) => {
           const net = l.qty * l.unitPrice;
           return sum + (order.pricesIncludeTax ? net : net * (1 + l.taxRate / 100));
         }, 0);
       } else {
-        const line = order.lines.find((l) => l.name === issue.item && l.status === 'CANCELLED');
+        const line = order.lines.find((l) => l.name === issue.item && l.status === ItemStatus.Cancelled);
         if (line) {
           const net = line.qty * line.unitPrice;
           total += order.pricesIncludeTax ? net : net * (1 + line.taxRate / 100);
@@ -157,7 +157,7 @@ export class ManagerIssuesPage {
         .orders()
         .filter(
           (o) =>
-            o.status === 'CANCELLEDBYKITCHEN' && this.store.orders().some((child) => child.parentOrderId === o.id),
+            o.status === OrderStatus.CancelledByKitchen && this.store.orders().some((child) => child.parentOrderId === o.id),
         ).length,
   );
 

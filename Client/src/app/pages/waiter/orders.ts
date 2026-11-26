@@ -8,11 +8,14 @@ import {
   dayKey,
   hasNoTable,
   isTakeaway,
+  ItemStatus,
   money,
   Order,
   orderStatusLabel,
   orderTypeLabel,
+  PaymentStatus,
   paymentStatusLabel,
+  OrderStatus,
   statusTone,
 } from '../../core/models';
 import { Store } from '../../core/store';
@@ -146,9 +149,9 @@ export class WaiterOrdersPage implements OnInit {
     const today = dayKey(new Date().toISOString());
     return {
       active: orders.length,
-      ready: orders.filter((o) => o.status === 'READY').length,
+      ready: orders.filter((o) => o.status === OrderStatus.Ready).length,
       unpaid: orders
-        .filter((o) => o.paymentStatus === 'UNPAID' || o.paymentStatus === 'PAYMENTINITIATED' || o.paymentStatus === 'RETRACTED')
+        .filter((o) => o.paymentStatus === PaymentStatus.Unpaid || o.paymentStatus === PaymentStatus.PaymentInitiated || o.paymentStatus === PaymentStatus.Retracted)
         .reduce((sum, o) => sum + o.total, 0),
       ordersToday: this.store
         .orders()
@@ -177,11 +180,11 @@ export class WaiterOrdersPage implements OnInit {
   }
 
   protected countItems(order: Order): number {
-    return order.lines.filter((l) => l.status !== 'CANCELLED').reduce((sum, l) => sum + l.qty, 0);
+    return order.lines.filter((l) => l.status !== ItemStatus.Cancelled).reduce((sum, l) => sum + l.qty, 0);
   }
 
   protected summary(order: Order): string {
-    const lines = order.lines.filter((l) => l.status !== 'CANCELLED');
+    const lines = order.lines.filter((l) => l.status !== ItemStatus.Cancelled);
     const names = lines.slice(0, 2).map((l) => `${l.nameAm || l.name} ×${l.qty}`);
     if (!names.length) return translate('All items cancelled');
     return names.join(', ') + (lines.length > 2 ? '…' : '');
