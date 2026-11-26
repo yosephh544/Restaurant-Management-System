@@ -30,14 +30,15 @@ public class BillingService : IBillingService
 
     public async Task<TableResponse> CreateTableAsync(CreateTableRequest request, CancellationToken ct = default)
     {
-        if (await _db.RestaurantTables.AnyAsync(t => t.Number == request.Number, ct))
-            throw new ConflictException("Table", "Number", request.Number);
+        var number = request.Number.Trim();
+        if (await _db.RestaurantTables.AnyAsync(t => t.IsActive && t.Number == number, ct))
+            throw new ConflictException("Table", "Number", number);
 
         var table = new RestaurantTable
         {
             Id = Guid.NewGuid(),
-            Number = request.Number.Trim(),
-            Name = request.Name?.Trim(),
+            Number = number,
+            Name = string.IsNullOrWhiteSpace(request.Name) ? null : request.Name.Trim(),
             Capacity = request.Capacity,
             Status = TableStatus.Available,
             IsActive = true
@@ -46,6 +47,43 @@ public class BillingService : IBillingService
         _db.RestaurantTables.Add(table);
         await _db.SaveChangesAsync(ct);
         return MapTable(table);
+    }
+
+    public async Task<TableResponse> UpdateTableAsync(Guid tableId, UpdateTableRequest request, CancellationToken ct = default)
+    {
+        var table = await _db.RestaurantTables.FirstOrDefaultAsync(t => t.Id == tableId, ct)
+            ?? throw new NotFoundException("Table", tableId);
+
+        var number = request.Number.Trim();
+        if (await _db.RestaurantTables.AnyAsync(t => t.Id != tableId && t.IsActive && t.Number == number, ct))
+            throw new ConflictException("Table", "Number", number);
+
+        table.Number = number;
+        table.Name = string.IsNullOrWhiteSpace(request.Name) ? null : request.Name.Trim();
+        table.Capacity = request.Capacity;
+        await _db.SaveChangesAsync(ct);
+        return MapTable(table);
+    }
+
+    public async Task DeleteTableAsync(Guid tableId, CancellationToken ct = default)
+    {
+        var table = await _db.RestaurantTables.FirstOrDefaultAsync(t => t.Id == tableId, ct)
+            ?? throw new NotFoundException("Table", tableId);
+
+        var hasOpenSession = await _db.DiningSessions.AnyAsync(s => s.TableId == tableId &&
+            (s.Status == DiningSessionStatus.Active || s.Status == DiningSessionStatus.BillRequested), ct);
+
+        if (hasOpenSession)
+            throw new ConflictException("Close the table's open session before deleting it.");
+
+        // Tables that already appear in order/bill history are deactivated instead of
+        // removed so reports and past bills keep their table reference.
+        if (await _db.DiningSessions.AnyAsync(s => s.TableId == tableId, ct))
+            table.IsActive = false;
+        else
+            _db.RestaurantTables.Remove(table);
+
+        await _db.SaveChangesAsync(ct);
     }
 
     public async Task<List<TableResponse>> GetTablesAsync(CancellationToken ct = default)

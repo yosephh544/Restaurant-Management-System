@@ -1244,6 +1244,20 @@ export class Store {
     });
   }
 
+  async updateTable(tableId: string, number: string, name: string, capacity: number): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.patch(`/tables/${tableId}`, { number, name: name || null, capacity });
+      await this.loadTables();
+    });
+  }
+
+  async deleteTable(tableId: string): Promise<Result> {
+    return await this.guard(async () => {
+      await this.api.delete(`/tables/${tableId}`);
+      await this.loadTables();
+    });
+  }
+
   async saveUser(input: UserInput): Promise<Result> {
     return await this.guard(async () => {
       if (input.id) {

@@ -86,7 +86,7 @@ public class ShiftService : IShiftService
 
             if (assigned > 0)
                 throw new ValidationException("Shift",
-                    $"Reassign {assigned} active staff member(s) before deactivating this shift.");
+                    $"Reassign {assigned} active staff member(s) before deactivating this shift. They have it as a default shift.");
         }
 
         shift.Name = name;
@@ -104,12 +104,24 @@ public class ShiftService : IShiftService
         var shift = await _dbContext.Shifts.FirstOrDefaultAsync(s => s.Id == shiftId, ct)
             ?? throw new NotFoundException("Shift", shiftId);
 
-        var inUse = await _dbContext.UserShifts.AnyAsync(us => us.ShiftId == shiftId, ct) ||
-                    await _dbContext.ShiftExceptions.AnyAsync(e => e.ShiftId == shiftId, ct);
+        // Only active staff holding this as a default shift block deletion; off/cover
+        // entries for inactive users are leftover roster history and go with the shift.
+        var assigned = await _dbContext.UserShifts
+            .CountAsync(us => us.ShiftId == shiftId && us.User.IsActive, ct);
 
-        if (inUse)
-            throw new ConflictException("This shift is in use. Deactivate it instead of deleting it.");
+        if (assigned > 0)
+            throw new ConflictException(
+                $"Reassign {assigned} active staff member(s) before deleting this shift. They have it as a default shift.");
 
+        var staleAssignments = await _dbContext.UserShifts
+            .Where(us => us.ShiftId == shiftId)
+            .ToListAsync(ct);
+        var rosterEntries = await _dbContext.ShiftExceptions
+            .Where(e => e.ShiftId == shiftId)
+            .ToListAsync(ct);
+
+        _dbContext.UserShifts.RemoveRange(staleAssignments);
+        _dbContext.ShiftExceptions.RemoveRange(rosterEntries);
         _dbContext.Shifts.Remove(shift);
         await _dbContext.SaveChangesAsync(ct);
     }

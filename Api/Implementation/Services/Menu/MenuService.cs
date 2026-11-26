@@ -260,7 +260,8 @@ public class MenuService : IMenuService
             nameof(request.FastingType),
             nameof(request.AlcoholType));
 
-        ValidateSection(category, request.Section, nameof(request.Section));
+        var section = await ResolveSectionAsync(category, null, request.Section, ct);
+        ValidateSection(category, section, nameof(request.Section));
 
         var sku = NormalizeSku(request.SKU);
         await EnsureSkuAvailableAsync(sku, null, ct);
@@ -278,7 +279,7 @@ public class MenuService : IMenuService
             ImageUrl = request.ImageUrl,
             FastingType = request.FastingType,
             AlcoholType = request.AlcoholType,
-            Section = request.Section,
+            Section = section,
             DisplayOrder = request.DisplayOrder,
             IsFeatured = request.IsFeatured,
             PreparationTimeMinutes = request.PreparationTimeMinutes,
@@ -316,14 +317,7 @@ public class MenuService : IMenuService
         if (request.AlcoholType.HasValue)
             item.AlcoholType = request.AlcoholType.Value;
 
-        if (request.Section.HasValue)
-            item.Section = request.Section.Value;
-        else if (item.Category.Type is MenuCategoryType.Food or MenuCategoryType.Beverage
-                 && item.Section == MenuSection.NotApplicable)
-        {
-            // Legacy items created before sections existed get a valid default on edit.
-            item.Section = MenuSection.Breakfast;
-        }
+        item.Section = await ResolveSectionAsync(item.Category, item.Section, request.Section, ct);
 
         if (!string.IsNullOrWhiteSpace(request.Name))
             item.Name = request.Name.Trim();
@@ -510,6 +504,62 @@ public class MenuService : IMenuService
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Day-part precedence: an explicit value wins, then the Breakfast/Lunch category
+    /// branch (clients pick a section category rather than sending the attribute), then
+    /// the item's current value, then Breakfast as the default for food and beverages.
+    /// </summary>
+    private async Task<MenuSection> ResolveSectionAsync(
+        MenuCategory category,
+        MenuSection? current,
+        MenuSection? requested,
+        CancellationToken ct)
+    {
+        if (category.Type == MenuCategoryType.Extra)
+        {
+            // Keep an explicit value so ValidateSection reports the extras rule.
+            return requested is MenuSection.Breakfast or MenuSection.Lunch
+                ? requested.Value
+                : MenuSection.NotApplicable;
+        }
+
+        if (requested is MenuSection.Breakfast or MenuSection.Lunch)
+            return requested.Value;
+
+        var branchSection = await FindDaySectionAsync(category.Id, ct);
+        if (branchSection is not null)
+            return branchSection.Value;
+
+        if (current is MenuSection.Breakfast or MenuSection.Lunch)
+            return current.Value;
+
+        return MenuSection.Breakfast;
+    }
+
+    private async Task<MenuSection?> FindDaySectionAsync(Guid categoryId, CancellationToken ct)
+    {
+        var hierarchy = await _dbContext.MenuCategories
+            .AsNoTracking()
+            .Select(c => new { c.Id, c.Name, c.ParentCategoryId })
+            .ToListAsync(ct);
+
+        var current = hierarchy.FirstOrDefault(c => c.Id == categoryId);
+        for (var depth = 0; current is not null && depth < MaxHierarchyDepth; depth++)
+        {
+            if (string.Equals(current.Name, MenuHierarchy.Breakfast, StringComparison.OrdinalIgnoreCase))
+                return MenuSection.Breakfast;
+
+            if (string.Equals(current.Name, MenuHierarchy.Lunch, StringComparison.OrdinalIgnoreCase))
+                return MenuSection.Lunch;
+
+            current = current.ParentCategoryId.HasValue
+                ? hierarchy.FirstOrDefault(c => c.Id == current.ParentCategoryId.Value)
+                : null;
+        }
+
+        return null;
     }
 
     private static void ValidateSection(MenuCategory category, MenuSection section, string field)

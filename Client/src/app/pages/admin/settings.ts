@@ -4,11 +4,12 @@ import { FormsModule } from '@angular/forms';
 import { Settings, Table, TableStatus } from '../../core/models';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
+import { ConfirmDialog } from '../../shared/confirm-dialog';
 import { Icon } from '../../shared/icon';
 
 @Component({
   selector: 'app-settings',
-  imports: [FormsModule, Icon, TranslatePipe],
+  imports: [FormsModule, Icon, TranslatePipe, ConfirmDialog],
   template: `
     <div class="page">
       <div class="page-head">
@@ -103,6 +104,7 @@ import { Icon } from '../../shared/icon';
                       <th>{{ 'Name' | t }}</th>
                       <th class="t-right">{{ 'Seats' | t }}</th>
                       <th>{{ 'Status' | t }}</th>
+                      <th></th>
                     </tr>
                   </thead>
                   <tbody>
@@ -115,6 +117,15 @@ import { Icon } from '../../shared/icon';
                           <span [class]="'pill ' + (table.status === TableStatus.Available ? 'pill-green' : 'pill-amber')">
                             {{ table.status === TableStatus.Available ? ('Available' | t) : ('Occupied' | t) }}
                           </span>
+                        </td>
+                        <td>
+                          <div class="row" style="justify-content: flex-end; gap: 4px">
+                            <button class="btn btn-sm btn-ghost" type="button" (click)="editTable(table)">
+                              <app-icon name="edit" /> {{ 'Edit' | t }} </button>
+                            <button class="btn btn-sm btn-danger" type="button" (click)="askDeleteTable(table)">
+                              <app-icon name="trash" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     }
@@ -130,6 +141,9 @@ import { Icon } from '../../shared/icon';
             }
 
             <div class="card-pad" style="border-top: 1px solid var(--line)">
+              @if (editingTableId()) {
+                <p class="tiny muted" style="margin-bottom: 8px">{{ 'Editing table {number}' | t: { number: editingTableNumber() } }}</p>
+              }
               <div class="grid grid-3" style="gap: 10px; align-items: end">
                 <div class="field">
                   <label class="label" for="table-number">{{ 'Number' | t }}</label>
@@ -143,8 +157,13 @@ import { Icon } from '../../shared/icon';
                   <label class="label" for="table-capacity">{{ 'Seats' | t }}</label>
                   <div class="row" style="gap: 8px">
                     <input id="table-capacity" class="input" type="number" min="1" step="1" [(ngModel)]="tableCapacity" />
-                    <button class="btn btn-secondary" type="button" [disabled]="tableBusy()" (click)="addTable()">
-                      <app-icon name="plus" /> {{ 'Add' | t }} </button>
+                    <button class="btn btn-secondary" type="button" [disabled]="tableBusy()" (click)="saveTable()">
+                      <app-icon [name]="editingTableId() ? 'check' : 'plus'" />
+                      {{ (editingTableId() ? 'Save' : 'Add') | t }}
+                    </button>
+                    @if (editingTableId()) {
+                      <button class="btn btn-ghost" type="button" (click)="cancelTableEdit()">{{ 'Cancel' | t }}</button>
+                    }
                   </div>
                 </div>
               </div>
@@ -194,6 +213,17 @@ import { Icon } from '../../shared/icon';
           </div>
         </aside>
       </div>
+
+      @if (confirmOpen()) {
+        <app-confirm
+          [title]="'Delete table' | t"
+          [message]="confirmMessage()"
+          [danger]="true"
+          [confirmLabel]="'Delete' | t"
+          (confirmed)="runConfirm()"
+          (closed)="confirmOpen.set(false)"
+        />
+      }
     </div>
   `,
 })
@@ -205,11 +235,16 @@ export class SettingsPage {
 
   protected readonly busy = signal(false);
   protected readonly tableBusy = signal(false);
+  protected readonly editingTableId = signal<string | null>(null);
+  protected readonly editingTableNumber = signal('');
+  protected readonly confirmOpen = signal(false);
+  protected readonly confirmMessage = signal('');
   protected form: Settings = { ...this.store.settings(), tipPresets: [...this.store.settings().tipPresets] };
   protected tableNumber = '';
   protected tableName = '';
   protected tableCapacity: number | null = 4;
 
+  private confirmAction: (() => Promise<void>) | null = null;
   private synced = false;
 
   constructor() {
@@ -248,25 +283,72 @@ export class SettingsPage {
     this.toast.show(translate('Settings saved'));
   }
 
-  protected async addTable(): Promise<void> {
+  protected editTable(table: Table): void {
+    this.editingTableId.set(table.id);
+    this.editingTableNumber.set(table.number);
+    this.tableNumber = table.number;
+    this.tableName = table.name ?? '';
+    this.tableCapacity = table.capacity;
+  }
+
+  protected cancelTableEdit(): void {
+    this.editingTableId.set(null);
+    this.editingTableNumber.set('');
+    this.tableNumber = '';
+    this.tableName = '';
+    this.tableCapacity = 4;
+  }
+
+  protected async saveTable(): Promise<void> {
     const number = this.tableNumber.trim();
     if (!number) {
       this.toast.show(translate('Enter a table number'), 'error');
       return;
     }
-    if (this.store.tables().some((t: Table) => t.number.toLowerCase() === number.toLowerCase())) {
+    const editingId = this.editingTableId();
+    const duplicate = this.store
+      .tables()
+      .some((t: Table) => t.id !== editingId && t.number.toLowerCase() === number.toLowerCase());
+    if (duplicate) {
       this.toast.show(translate('That table number already exists'), 'error');
       return;
     }
+
     this.tableBusy.set(true);
-    const result = await this.store.createTable(number, this.tableName.trim(), Number(this.tableCapacity) || 1);
+    const result = editingId
+      ? await this.store.updateTable(editingId, number, this.tableName.trim(), Number(this.tableCapacity) || 1)
+      : await this.store.createTable(number, this.tableName.trim(), Number(this.tableCapacity) || 1);
     this.tableBusy.set(false);
     if (!result.ok) {
       this.toast.show(result.error, 'error');
       return;
     }
-    this.tableNumber = '';
-    this.tableName = '';
-    this.toast.show(translate('Table {number} added', { number }));
+
+    this.cancelTableEdit();
+    this.toast.show(translate(editingId ? 'Table {number} updated' : 'Table {number} added', { number }));
+  }
+
+  protected askDeleteTable(table: Table): void {
+    this.confirmMessage.set(
+      translate('Delete table {number}? It must have no open session.', { number: table.number }),
+    );
+    this.confirmAction = async () => {
+      const result = await this.store.deleteTable(table.id);
+      if (result.ok && this.editingTableId() === table.id) this.cancelTableEdit();
+      this.toast.show(
+        result.ok
+          ? translate('Table {number} deleted', { number: table.number })
+          : result.error,
+        result.ok ? 'success' : 'error',
+      );
+    };
+    this.confirmOpen.set(true);
+  }
+
+  protected runConfirm(): void {
+    const action = this.confirmAction;
+    this.confirmOpen.set(false);
+    this.confirmAction = null;
+    if (action) void action();
   }
 }

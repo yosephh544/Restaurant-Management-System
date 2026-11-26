@@ -7,9 +7,9 @@ public class ReorderRequest
     [Required(ErrorMessage = "ParentOrderId is required.")]
     public Guid ParentOrderId { get; set; }
 
-    [Required(ErrorMessage = "Table number is required.")]
+    /// <summary>Required for dine-in orders; ignored for takeaway and takeout tickets.</summary>
     [MaxLength(20)]
-    public string TableNumber { get; set; } = default!;
+    public string? TableNumber { get; set; }
 
     /// <summary>DINE_IN, TAKEAWAY or TAKEOUT; defaults to the cancelled order's type when omitted.</summary>
     public string? OrderType { get; set; }

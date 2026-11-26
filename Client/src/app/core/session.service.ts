@@ -51,6 +51,7 @@ export class SessionService {
 
   set(session: Session): void {
     this.session.set(session);
+    this.persist(session);
   }
 
   updateProfile(profile: ApiProfile): void {
@@ -67,6 +68,11 @@ export class SessionService {
 
   clear(): void {
     this.session.set(null);
+    try {
+      sessionStorage.removeItem(SESSION_KEY);
+    } catch {
+      // Storage can be unavailable in private modes; the in-memory session is still cleared.
+    }
   }
 
   hasPermission(permission: string): boolean {
@@ -78,9 +84,36 @@ export class SessionService {
   }
 
   private restore(): Session | null {
-    // Sessions are intentionally kept only in memory. Opening or refreshing
-    // the client must always start from the login page, not a previous user's dashboard.
-    localStorage.removeItem(SESSION_KEY);
-    return null;
+    // The session survives page reloads inside the current tab, but is never written
+    // to long-term storage: closing the tab ends it, so shared devices do not keep
+    // the previous user signed in.
+    try {
+      localStorage.removeItem(SESSION_KEY);
+      const raw = sessionStorage.getItem(SESSION_KEY);
+      if (!raw) return null;
+
+      const parsed = JSON.parse(raw) as Partial<Session> | null;
+      if (!parsed?.accessToken || !parsed.refreshToken || !parsed.profile) {
+        sessionStorage.removeItem(SESSION_KEY);
+        return null;
+      }
+
+      return {
+        accessToken: parsed.accessToken,
+        refreshToken: parsed.refreshToken,
+        accessTokenExpiry: parsed.accessTokenExpiry ?? '',
+        profile: parsed.profile,
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private persist(session: Session): void {
+    try {
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+    } catch {
+      // Storage quota/unavailability must not break sign-in; the session still works in memory.
+    }
   }
 }

@@ -9,6 +9,13 @@ public class CreateTableRequest
     [Range(1, 100)] public int Capacity { get; set; } = 1;
 }
 
+public class UpdateTableRequest
+{
+    [Required, MaxLength(20)] public string Number { get; set; } = default!;
+    [MaxLength(100)] public string? Name { get; set; }
+    [Range(1, 100)] public int Capacity { get; set; } = 1;
+}
+
 public class TableResponse
 {
     public Guid Id { get; init; }

@@ -373,7 +373,8 @@ namespace RestaurantManagement.Api.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("Number")
-                        .IsUnique();
+                        .IsUnique()
+                        .HasFilter("[IsActive] = 1");
 
                     b.ToTable("restaurant_tables", (string)null);
                 });

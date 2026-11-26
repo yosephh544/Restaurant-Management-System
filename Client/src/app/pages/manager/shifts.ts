@@ -960,7 +960,7 @@ export class ShiftsPage implements OnInit {
   protected askDeleteShift(shift: ShiftDefinition): void {
     this.askConfirm(
       translate('Delete shift type'),
-      translate('Delete {name}? This only works when no staff or roster entries reference it.', { name: shift.name }),
+      translate('Delete {name}? Staff who have it as a default shift must be reassigned first.', { name: shift.name }),
       translate('Delete shift'),
       async () => {
         const result = await this.store.deleteShift(shift.id);

@@ -27,6 +27,19 @@ public class TablesController : ApiControllerBase
     public async Task<IActionResult> GetTables(CancellationToken ct)
         => OkResponse(await _billingService.GetTablesAsync(ct));
 
+    [HttpPatch("{tableId:guid}")]
+    [Permission(Permissions.TablesManage)]
+    public async Task<IActionResult> UpdateTable([FromRoute] Guid tableId, [FromBody] UpdateTableRequest request, CancellationToken ct)
+        => OkResponse(await _billingService.UpdateTableAsync(tableId, request, ct), "Table updated successfully.");
+
+    [HttpDelete("{tableId:guid}")]
+    [Permission(Permissions.TablesManage)]
+    public async Task<IActionResult> DeleteTable([FromRoute] Guid tableId, CancellationToken ct)
+    {
+        await _billingService.DeleteTableAsync(tableId, ct);
+        return NoContentResponse("Table deleted successfully.");
+    }
+
     [HttpGet("{tableId:guid}/session")]
     [Permission(Permissions.TablesView)]
     public async Task<IActionResult> GetActiveSession([FromRoute] Guid tableId, CancellationToken ct)

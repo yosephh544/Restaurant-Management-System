@@ -111,7 +111,9 @@ public class RestaurantDbContext : DbContext
             entity.HasKey(t => t.Id);
             entity.Property(t => t.Id).HasDefaultValueSql("NEWSEQUENTIALID()");
             entity.Property(t => t.Number).IsRequired().HasMaxLength(20);
-            entity.HasIndex(t => t.Number).IsUnique();
+            // Only active tables compete for a number; deactivated tables stay for history
+            // and no longer block reusing their number.
+            entity.HasIndex(t => t.Number).IsUnique().HasFilter("[IsActive] = 1");
             entity.Property(t => t.Name).HasMaxLength(100);
             entity.Property(t => t.Status).HasConversion<string>().HasMaxLength(20);
         });
