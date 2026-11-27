@@ -1,6 +1,5 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using RestaurantManagement.Api.Authorization;
 using RestaurantManagement.Api.Controllers.Common;
 using RestaurantManagement.Implementation.Dtos.Payment;
 using RestaurantManagement.Implementation.Interfaces.Payment;
@@ -11,8 +10,8 @@ namespace RestaurantManagement.Api.Controllers.Payment;
 
 /// <summary>
 /// Read-only diagnostics for the receipt verification deployment. These endpoints
-/// perform outbound requests from the server, so they require settings.manage
-/// (owner/manager) and settle nothing.
+/// perform outbound requests from the server, so they are restricted to the
+/// SuperAdmin account and settle nothing.
 /// </summary>
 [ApiController]
 [Authorize]
@@ -29,7 +28,7 @@ public class DiagnosticsController : ApiControllerBase
     /// whether a deployed server can reach the banks before blaming a customer's receipt.
     /// </summary>
     [HttpGet("banks")]
-    [Permission(Permissions.SettingsManage)]
+    [Authorize(Roles = Roles.SuperAdmin)]
     [ProducesResponseType(typeof(ApiResponse<BankReachabilityResponse>), 200)]
     public async Task<IActionResult> GetBankReachability([FromQuery] string? reference, CancellationToken ct)
         => OkResponse(await _bankReachability.CheckAsync(reference, ct), "Bank receipt hosts probed from this server.");

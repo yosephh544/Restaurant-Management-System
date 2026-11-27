@@ -480,6 +480,33 @@ export interface Settings {
   paymentQr: string;
 }
 
+export interface BankReachabilityItem {
+  bank: string;
+  url: string;
+  reachable: boolean;
+  resolvedAddresses: string[];
+  tlsProtocol?: string | null;
+  certificateValid?: boolean | null;
+  certificateSubject?: string | null;
+  certificateIssuer?: string | null;
+  certificateExpires?: string | null;
+  httpStatus?: number | null;
+  elapsedMs: number;
+  bodyBytes: number;
+  contentType?: string | null;
+  server?: string | null;
+  rateLimitRemaining?: string | null;
+  rateLimitLimit?: string | null;
+  looksLikeReceiptPage?: boolean | null;
+  error?: string | null;
+}
+
+export interface BankReachabilityResponse {
+  checkedAt: string;
+  reference: string;
+  banks: BankReachabilityItem[];
+}
+
 export const DEFAULT_SETTINGS: Settings = {
   restaurant: 'Majete Corner',
   branch: '',

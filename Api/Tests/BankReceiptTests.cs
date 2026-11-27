@@ -235,6 +235,12 @@ public class BankReceiptTests
     public void RecipientMustMatchAnIdentifier(string actual, string expected, string actualName, string expectedName, bool phone, bool accepted) =>
         Assert.Equal(accepted, ReceiptRecipient.Matches(actual, expected, actualName, expectedName, phone));
 
+    static string TelebirrPage(string invoice) => "<html><head><title>telebirr receipt</title></head><body><table>"
+        + "<tr><td>Payer Name: SYNTHETIC PAYER</td></tr><tr><td>Credited Party name: MAJETE CORNER</td></tr>"
+        + "<tr><td>Credited party account no: 251911123456</td></tr><tr><td>transaction status: Completed</td></tr>"
+        + $"<tr><td>Invoice No.: {invoice}</td></tr><tr><td>Settled Amount: 100.00 Birr</td></tr>"
+        + "<tr><td>Payment date: 27-11-2026 10:00:00</td></tr></table></body></html>";
+
     sealed class Handler(Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> action) : HttpMessageHandler
     {
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken ct) => action(request, ct);
@@ -359,6 +365,47 @@ public class BankReceiptTests
         Assert.Equal(3, calls);
         Assert.Equal(legacy ? 800m : 100m, receipt.Amount);
         ReceiptRecipient.Validate(receipt, new() { CbeAccountNumber = "1000000006171", AccountHolderName = "MAJETE CORNER" });
+    }
+
+    [Fact]
+    public async Task TelebirrRetriesTransientLookupFailuresBeforeParsing()
+    {
+        var calls = 0;
+        var verifier = Verifier(new Handler((_, _) =>
+        {
+            calls++;
+            if (calls == 1) return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable));
+            if (calls == 2) throw new HttpRequestException("reset");
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(TelebirrPage("ABC1234567")) });
+        }));
+        var receipt = await verifier.VerifyAsync(new() { QrData = "https://transactioninfo.ethiotelecom.et/receipt/ABC1234567" }, null);
+        Assert.Equal(3, calls);
+        Assert.Equal("ABC1234567", receipt.Reference);
+        Assert.Equal(100m, receipt.Amount);
+    }
+
+    [Fact]
+    public async Task TelebirrPersistentServiceFailuresHaveBoundedRetries()
+    {
+        var calls = 0;
+        var verifier = Verifier(new Handler((_, _) => { calls++; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.ServiceUnavailable)); }));
+        await Assert.ThrowsAsync<ServiceUnavailableException>(() =>
+            verifier.VerifyAsync(new() { QrData = "https://transactioninfo.ethiotelecom.et/receipt/ABC1234567" }, null));
+        Assert.Equal(3, calls);
+    }
+
+    [Fact]
+    public async Task TelebirrReferenceMismatchIsNotRetried()
+    {
+        var calls = 0;
+        var verifier = Verifier(new Handler((_, _) =>
+        {
+            calls++;
+            return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent(TelebirrPage("ZZZ9999999")) });
+        }));
+        await Assert.ThrowsAsync<ConflictException>(() =>
+            verifier.VerifyAsync(new() { QrData = "https://transactioninfo.ethiotelecom.et/receipt/ABC1234567" }, null));
+        Assert.Equal(1, calls);
     }
 
     [Fact]

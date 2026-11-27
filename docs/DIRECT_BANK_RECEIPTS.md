@@ -65,6 +65,26 @@ receipt or 30-second legacy receipt deadline. A parsed failed payment, recipient
 mismatch or insufficient amount is rejected. Exhausted lookups leave the bill
 unpaid and prompt for a full receipt link or another attempt.
 
+Telebirr's receipt host stalls the connection instead of answering when it
+throttles a caller, so Telebirr lookups get up to three attempts with 500 ms
+between them, each bounded to seven seconds inside the existing 20-second
+deadline. Only transport failures, 408/429 and server errors are retried; a
+parsed receipt for a different reference, a different recipient or a failed
+payment still fails immediately without another request. Each failed attempt is
+logged with the bank, host, attempt number, HTTP status, elapsed time and any
+`X-RateLimit-*` headers, and an unreadable body is described by structural
+markers (empty, reference rejected, no Telebirr markers, unexpected layout)
+rather than raw page text, so customer names and phone numbers stay out of logs.
+
+`GET /api/v1/diagnostics/banks` (SuperAdmin only) checks the
+verification deployment rather than a receipt: it probes both receipt hosts from
+the API server itself and returns, per bank, the resolved addresses, negotiated
+TLS version, certificate subject/issuer/expiry and chain validity, HTTP status,
+response size, `Server`/`Content-Type` and `X-RateLimit-*` headers, and whether
+the body still looks like a receipt page. An optional `?reference=` uses a real
+transaction reference. It settles nothing and changes no data, but it makes one
+request per bank, so it consumes part of Telebirr's small per-IP request budget.
+
 New receipt settlements require a readable bank payment date and time. Dates
 are normalized to UTC; Ethiopian receipt times without an explicit timezone
 use UTC+03:00. The payment must fall between the earliest saved session/order

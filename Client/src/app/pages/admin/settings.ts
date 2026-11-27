@@ -1,7 +1,16 @@
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, computed, effect, inject, signal } from '@angular/core';
 import { TranslatePipe, translate } from '../../core/i18n';
 import { FormsModule } from '@angular/forms';
-import { Settings, Table, TableStatus } from '../../core/models';
+import {
+  BankReachabilityItem,
+  BankReachabilityResponse,
+  Role,
+  Settings,
+  Table,
+  TableStatus,
+} from '../../core/models';
+import { ApiService } from '../../core/api.service';
+import { AuthService } from '../../core/auth.service';
 import { Store } from '../../core/store';
 import { ToastService } from '../../core/toast.service';
 import { ConfirmDialog } from '../../shared/confirm-dialog';
@@ -211,6 +220,49 @@ import { Icon } from '../../shared/icon';
               <p class="tiny muted">{{ 'Receipts are verified with the bank when the waiter records a payment.' | t }}</p>
             </div>
           </div>
+
+          @if (isSuperAdmin()) {
+            <div class="card">
+              <div class="card-head">
+                <div>
+                  <div class="card-title">{{ 'Bank connectivity' | t }}</div>
+                  <div class="card-sub">{{ 'Probes the Telebirr and CBE receipt hosts from this server.' | t }}</div>
+                </div>
+                <span class="pill pill-grey no-dot">
+                  <app-icon name="shield" /> {{ 'Super admin' | t }}
+                </span>
+              </div>
+              <div class="card-pad stack">
+                <button class="btn btn-secondary" type="button" [disabled]="bankCheckBusy()" (click)="checkBanks()">
+                  <app-icon name="retract" />
+                  {{ bankCheckBusy() ? ('Checking…' | t) : ('Check bank status' | t) }}
+                </button>
+
+                @if (bankCheckError()) {
+                  <p class="tiny" style="color: #b42318">{{ bankCheckError() }}</p>
+                }
+
+                @if (bankCheck(); as result) {
+                  <p class="tiny muted">
+                    {{ 'Checked {time}' | t: { time: checkedAtLabel(result.checkedAt) } }}
+                  </p>
+                  @for (bank of result.banks; track bank.bank) {
+                    <div class="divider"></div>
+                    <div class="between">
+                      <strong class="small">{{ bank.bank }}</strong>
+                      <span [class]="'pill ' + (bank.reachable ? 'pill-green' : 'pill-red')">
+                        {{ bank.reachable ? ('Reachable' | t) : ('Unreachable' | t) }}
+                      </span>
+                    </div>
+                    <p class="tiny muted" style="margin: 4px 0 0">{{ bankSummary(bank) }}</p>
+                    @if (bank.error) {
+                      <p class="tiny" style="color: #b42318; margin: 4px 0 0">{{ bank.error }}</p>
+                    }
+                  }
+                }
+              </div>
+            </div>
+          }
         </aside>
       </div>
 
@@ -232,9 +284,15 @@ export class SettingsPage {
 
   protected readonly store = inject(Store);
   private readonly toast = inject(ToastService);
+  private readonly api = inject(ApiService);
+  private readonly auth = inject(AuthService);
 
   protected readonly busy = signal(false);
   protected readonly tableBusy = signal(false);
+  protected readonly bankCheckBusy = signal(false);
+  protected readonly bankCheck = signal<BankReachabilityResponse | null>(null);
+  protected readonly bankCheckError = signal('');
+  protected readonly isSuperAdmin = computed(() => this.auth.user()?.role === Role.SuperAdmin);
   protected readonly editingTableId = signal<string | null>(null);
   protected readonly editingTableNumber = signal('');
   protected readonly confirmOpen = signal(false);
@@ -281,6 +339,40 @@ export class SettingsPage {
     }
     this.form = { ...this.store.settings(), tipPresets: [...this.store.settings().tipPresets] };
     this.toast.show(translate('Settings saved'));
+  }
+
+  protected async checkBanks(): Promise<void> {
+    if (this.bankCheckBusy()) return;
+    this.bankCheckBusy.set(true);
+    this.bankCheckError.set('');
+    try {
+      this.bankCheck.set(await this.api.get<BankReachabilityResponse>('/diagnostics/banks'));
+    } catch (error) {
+      this.bankCheckError.set(this.api.message(error));
+    } finally {
+      this.bankCheckBusy.set(false);
+    }
+  }
+
+  protected bankSummary(bank: BankReachabilityItem): string {
+    const parts = [
+      `HTTP ${bank.httpStatus ?? '—'}`,
+      bank.tlsProtocol ?? translate('no TLS'),
+      `${bank.elapsedMs} ms`,
+    ];
+    if (bank.rateLimitLimit) {
+      parts.push(
+        translate('rate limit {remaining} / {limit}', {
+          remaining: bank.rateLimitRemaining ?? '?',
+          limit: bank.rateLimitLimit,
+        }),
+      );
+    }
+    return parts.join(' · ');
+  }
+
+  protected checkedAtLabel(value: string): string {
+    return new Date(value).toLocaleString();
   }
 
   protected editTable(table: Table): void {
