@@ -38,7 +38,7 @@ public static class DatabaseSeeder
 
         var permissions = await db.Permissions.ToDictionaryAsync(p => p.Name, p => p.Id, ct);
 
-        foreach (var roleName in new[] { Roles.SuperAdmin, "Owner", "Manager", "Cashier", "Waiter", "Kitchen", Roles.Bartender })
+        foreach (var roleName in new[] { Roles.SuperAdmin, Roles.Owner,  Roles.Manager , Roles.Cashier, Roles.Waiter, Roles.Kitchen, Roles.Bartender })
         {
             if (!await db.Roles.AnyAsync(r => r.Name == roleName, ct))
                 db.Roles.Add(new Role { Id = Guid.NewGuid(), Name = roleName, Description = $"{roleName} role", IsActive = true });
@@ -53,7 +53,7 @@ public static class DatabaseSeeder
         AssignRolePermissions(roles[Roles.SuperAdmin], permissionNames, permissions, db);
         AssignRolePermissions(roles["Owner"], permissionNames, permissions, db);
 
-        await EnsureRolePermissionsAsync(roles["Manager"], new[]
+        await EnsureRolePermissionsAsync(roles[Roles.Manager], new[]
         {
             Permissions.UsersView, Permissions.UsersCreate, Permissions.UsersUpdate, Permissions.UsersManageStatus,
             Permissions.ShiftsView, Permissions.ShiftsManage,
@@ -69,7 +69,7 @@ public static class DatabaseSeeder
             Permissions.SettingsView, Permissions.SettingsManage
         }, permissions, db, ct);
 
-        await EnsureRolePermissionsAsync(roles["Cashier"], new[]
+        await EnsureRolePermissionsAsync(roles[Roles.Cashier], new[]
         {
             Permissions.MenuView,
             Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems, Permissions.OrdersServe,
@@ -78,14 +78,14 @@ public static class DatabaseSeeder
             Permissions.TablesView, Permissions.TablesManage, Permissions.BillsGenerate, Permissions.BillsReopen
         }, permissions, db, ct);
 
-        await EnsureRolePermissionsAsync(roles["Waiter"], new[]
+        await EnsureRolePermissionsAsync(roles[Roles.Waiter], new[]
         {
             Permissions.MenuView, Permissions.OrdersView, Permissions.OrdersCreate, Permissions.OrdersAddItems,
             Permissions.OrdersReorder, Permissions.OrdersServe, Permissions.PaymentsInitiate, Permissions.PaymentsView, Permissions.TipsView,
             Permissions.TablesView, Permissions.BillsGenerate
         }, permissions, db, ct);
 
-        await EnsureRolePermissionsAsync(roles["Kitchen"], new[]
+        await EnsureRolePermissionsAsync(roles[Roles.Kitchen], new[]
         {
             Permissions.MenuView, Permissions.AvailabilityManage, Permissions.KitchenView, Permissions.KitchenUpdate, Permissions.KitchenCancel
         }, permissions, db, ct);

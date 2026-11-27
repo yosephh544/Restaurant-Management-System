@@ -152,6 +152,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IOrderService, OrderService>();
         services.AddScoped<IStationService, StationService>();
         services.AddScoped<IPaymentService, PaymentService>();
+        services.AddScoped<IBankReachabilityService, BankReachabilityService>();
         services.AddScoped<IReportService, ReportService>();
         services.AddScoped<IBillingService, BillingService>();
         services.AddScoped<IDailyNumberService, DailyNumberService>();
