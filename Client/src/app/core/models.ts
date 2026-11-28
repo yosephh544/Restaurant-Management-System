@@ -485,6 +485,7 @@ export interface BankReachabilityItem {
   url: string;
   reachable: boolean;
   resolvedAddresses: string[];
+  dnsSource?: string | null;
   tlsProtocol?: string | null;
   certificateValid?: boolean | null;
   certificateSubject?: string | null;

@@ -76,6 +76,13 @@ logged with the bank, host, attempt number, HTTP status, elapsed time and any
 markers (empty, reference rejected, no Telebirr markers, unexpected layout)
 rather than raw page text, so customer names and phone numbers stay out of logs.
 
+Receipt lookups resolve the two bank hosts through the server's own resolver
+first and fall back to DNS-over-HTTPS (`1.1.1.1`, then `8.8.8.8`) when that
+resolver cannot answer for a host, which happens on some deployment networks for
+the Telebirr host. The verifier connects to the resolved address while keeping
+the bank hostname for SNI and certificate validation. Diagnostics report the
+resolver used as `dnsSource` (`system` or `dns-over-https`).
+
 `GET /api/v1/diagnostics/banks` (SuperAdmin only) checks the
 verification deployment rather than a receipt: it probes both receipt hosts from
 the API server itself and returns, per bank, the resolved addresses, negotiated

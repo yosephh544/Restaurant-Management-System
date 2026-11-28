@@ -360,6 +360,9 @@ export class SettingsPage {
       bank.tlsProtocol ?? translate('no TLS'),
       `${bank.elapsedMs} ms`,
     ];
+    if (bank.dnsSource === 'dns-over-https') {
+      parts.push(translate('DNS via DoH'));
+    }
     if (bank.rateLimitLimit) {
       parts.push(
         translate('rate limit {remaining} / {limit}', {

@@ -40,12 +40,15 @@ public sealed class BankReachabilityService : IBankReachabilityService
         var item = new BankReachabilityItem { Bank = bank, Url = url.ToString() };
         try
         {
-            var addresses = await Dns.GetHostAddressesAsync(url.Host, deadline.Token);
-            item = item with { ResolvedAddresses = addresses.Select(address => address.ToString()).ToArray() };
-            if (addresses.Length == 0)
-                return item with { ElapsedMs = clock.ElapsedMilliseconds, Error = "DNS returned no addresses for the receipt host." };
-            // IPv4 first: a broken IPv6 route on a server is a common deployment difference.
-            var address = addresses.OrderBy(a => a.AddressFamily == AddressFamily.InterNetwork ? 0 : 1).First();
+            var resolution = await BankHostResolver.ResolveAsync(url.Host, deadline.Token);
+            item = item with
+            {
+                ResolvedAddresses = resolution.Addresses.Select(address => address.ToString()).ToArray(),
+                DnsSource = resolution.ViaDnsOverHttps ? BankHostResolver.DnsOverHttps : BankHostResolver.SystemDns
+            };
+            if (resolution.Addresses.Count == 0)
+                return item with { ElapsedMs = clock.ElapsedMilliseconds, Error = resolution.Error ?? "DNS returned no addresses for the receipt host." };
+            var address = resolution.Addresses[0];
             using var tcp = new TcpClient(address.AddressFamily);
             await tcp.ConnectAsync(address, url.Port, deadline.Token);
             using var ssl = new SslStream(tcp.GetStream(), leaveInnerStreamOpen: false, (_, _, _, _) => true);

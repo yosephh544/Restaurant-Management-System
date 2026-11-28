@@ -11,6 +11,7 @@ cd Client
 npm install
 npm start        # http://localhost:4200
 npm run build    # production build in dist/
+npm run build:prod # explicit production build
 ```
 
 ## Demo accounts

@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Sockets;
 using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -137,7 +139,30 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<IBankReceiptVerifier, DirectBankReceiptVerifier>(client =>
         {
             client.Timeout = Timeout.InfiniteTimeSpan; // Per-bank deadlines include response bodies.
-        }).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false });
+        }).ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler
+        {
+            AllowAutoRedirect = false,
+            // Resolve through BankHostResolver: if the deployment's own DNS cannot
+            // answer for a bank host, the receipt lookup still succeeds instead of
+            // failing every Telebirr receipt on that server.
+            ConnectCallback = async (context, ct) =>
+            {
+                var resolution = await BankHostResolver.ResolveAsync(context.DnsEndPoint.Host, ct);
+                if (resolution.Addresses.Count == 0)
+                    throw new HttpRequestException(resolution.Error ?? $"Could not resolve {context.DnsEndPoint.Host}.");
+                var socket = new Socket(SocketType.Stream, ProtocolType.Tcp) { NoDelay = true };
+                try
+                {
+                    await socket.ConnectAsync(resolution.Addresses.ToArray(), context.DnsEndPoint.Port, ct);
+                    return new NetworkStream(socket, ownsSocket: true);
+                }
+                catch
+                {
+                    socket.Dispose();
+                    throw;
+                }
+            }
+        });
 
         // Common
         services.AddScoped<IJwtTokenService, JwtTokenService>();

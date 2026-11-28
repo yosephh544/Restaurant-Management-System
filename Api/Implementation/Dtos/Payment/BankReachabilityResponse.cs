@@ -18,6 +18,8 @@ public sealed record BankReachabilityItem
     public string Url { get; init; } = "";
     public bool Reachable { get; init; }
     public IReadOnlyList<string> ResolvedAddresses { get; init; } = [];
+    /// <summary>"system" or "dns-over-https" when the server resolver could not answer.</summary>
+    public string? DnsSource { get; init; }
     public string? TlsProtocol { get; init; }
     public bool? CertificateValid { get; init; }
     public string? CertificateSubject { get; init; }
